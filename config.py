@@ -8,6 +8,7 @@ load_dotenv()
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+API_KEY = os.getenv("API_KEY")
 
 # Userbot configuration (untuk assistant)
 USERBOT_SESSION = os.getenv("USERBOT_SESSION")
