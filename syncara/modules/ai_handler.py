@@ -52,7 +52,7 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         console.error(f"Error in AI response: {str(e)}")
         await message.reply_text("Maaf, terjadi kesalahan dalam memproses permintaan Anda.")
 
-@bot.on_message(filters.command(["ask"]))
+@bot.on_message(filters.mentioned|filters.reply|filters.private)
 async def ask_command(client, message):
     # Get text from either message text or caption
     text = message.text or message.caption
