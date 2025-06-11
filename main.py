@@ -6,8 +6,6 @@ import datetime
 # Import konfigurasi dan modul
 from config import API_ID, API_HASH, BOT_TOKEN, USERBOT_SESSION
 from database.mongodb import Database
-from handlers.command_handler import start_command, help_command
-from handlers.shortcode_handler import handle_shortcode
 
 # Inisialisasi database
 db = Database()
@@ -29,29 +27,7 @@ if USERBOT_SESSION:
         api_hash=API_HASH,
         session_string=USERBOT_SESSION
     )
-
-# Register command handlers
-bot.add_handler(start_command)
-bot.add_handler(help_command)
-
-# Message handler untuk shortcode
-@bot.on_message()
-async def message_handler(client: Client, message: Message):
-    # Tambahkan user ke database jika belum ada
-    if message.from_user:
-        await db.add_user(
-            message.from_user.id,
-            message.from_user.username,
-            message.from_user.first_name
-        )
     
-    # Tambahkan group ke database jika belum ada
-    if message.chat and message.chat.type in ["group", "supergroup"]:
-        await db.add_group(message.chat.id, message.chat.title)
-    
-    # Proses shortcode jika ada
-    await handle_shortcode(client, message, db)
-
 async def main():
     # Start bot
     await bot.start()
