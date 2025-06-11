@@ -33,9 +33,12 @@ async def process_ai_response(client, message, prompt):
             system_prompt="Kamu adalah SyncaraBot, asisten AI yang membantu pengguna dengan berbagai tugas."
         )
         
-        # Ensure response is a string
+        # Ensure response is a string and not empty
         if not isinstance(response, str):
             response = str(response)
+            
+        if not response.strip():  # Check if response is empty or just whitespace
+            response = "Maaf, saya tidak dapat menghasilkan respons yang valid. Silakan coba lagi."
             
         # Send response
         await message.reply_text(response)
