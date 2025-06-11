@@ -47,14 +47,29 @@ async def process_ai_response(client, message, prompt):
         console.error(f"Error in AI response: {str(e)}")
         await message.reply_text("Maaf, terjadi kesalahan saat memproses permintaan Anda.")
 
-@bot.on_message(filters.command("ask"))  # Perbaikan di sini
+@bot.on_message(filters.command(["ask"]))
 async def ask_command(client, message):
-    """Handle /ask command"""
+    # Get text from either message text or caption
+    text = message.text or message.caption
+    
+    if not text:
+        await message.reply_text("Silakan berikan pertanyaan setelah perintah /ask")
+        return
+        
+    # Check if command has arguments
     if len(message.command) < 2:
         await message.reply_text("Silakan berikan pertanyaan setelah perintah /ask")
         return
     
-    prompt = message.text.split("/ask ", 1)[1]
+    # Extract prompt from text/caption
+    prompt = text.split("/ask ", 1)[1]
+    
+    # If there's a photo, add it to the prompt
+    if message.photo:
+        # Get the photo file ID
+        photo = message.photo.file_id
+        prompt = f"[Image attached] {prompt}"
+        
     await process_ai_response(client, message, prompt)
 
 @bot.on_message(filters.private & filters.command)
