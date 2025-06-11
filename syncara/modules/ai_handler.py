@@ -1,5 +1,5 @@
 # module/ai_handler.py
-from pyrogram import filters
+from pyrogram import filters, enums
 from syncara.services import ReplicateAPI
 from syncara import bot, console
 
@@ -25,7 +25,7 @@ def is_bot_mentioned(_, __, message):
 async def process_ai_response(client, message, prompt):
     try:
         # Send typing action
-        await client.send_chat_action(message.chat.id, "typing")
+        await client.send_chat_action(message.chat.id, enums.ChatAction.TYPING)
         
         # Generate AI response
         response = await replicate_api.generate_response(
