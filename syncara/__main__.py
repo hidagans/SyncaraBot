@@ -5,7 +5,7 @@ from os import execl
 from pyrogram import idle
 from importlib import import_module
 from syncara import *
-from syncara.module import loadModule
+from syncara.modules import loadModule
 
 shutdown_event = asyncio.Event()  # Event untuk menangani shutdown
 
@@ -22,7 +22,7 @@ signal.signal(signal.SIGTERM, handle_signal)
 async def loadPlugins():
     modules = loadModule()
     for mod in modules:
-        import_module(f"manager.module.{mod}")
+        import_module(f"syncara.modules.{mod}")
     console.info("Plugins installed")
 
 async def main():
