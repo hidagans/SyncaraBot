@@ -5,7 +5,7 @@ from syncara import bot, console
 from .system_prompt import SystemPrompt
 
 # Inisialisasi
-system_prompts = SystemPrompt()
+system_prompt = SystemPrompt()
 
 # Inisialisasi Replicate API
 replicate_api = ReplicateAPI()
