@@ -29,6 +29,7 @@ def is_bot_mentioned(_, __, message):
 async def process_ai_response(client, message, prompt, photo_file_id=None):
     try:
         # Get bot information
+        await client.send_chat_action(message.chat.id, enums.ChatAction.TYPING)
         bot = await client.get_me()
         
         # Prepare context
