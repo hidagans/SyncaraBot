@@ -26,9 +26,8 @@ def is_bot_mentioned(_, __, message):
 bot_mentioned = filters.create(is_bot_mentioned)
 
 async def process_ai_response(client, message, prompt):
-    """Process and send AI response"""
     try:
-        # Send typing action (menggunakan method yang benar)
+        # Send typing action
         await client.send_chat_action(message.chat.id, "typing")
         
         # Generate AI response
@@ -37,6 +36,10 @@ async def process_ai_response(client, message, prompt):
             system_prompt="Kamu adalah SyncaraBot, asisten AI yang membantu pengguna dengan berbagai tugas."
         )
         
+        # Ensure response is a string
+        if not isinstance(response, str):
+            response = str(response)
+            
         # Send response
         await message.reply_text(response)
         
