@@ -11,7 +11,7 @@ from pyrogram.enums import ParseMode
 from pyrogram.handlers import MessageHandler
 from pyromod import listen
 
-from config import *
+from config.config import *
 
 logging.basicConfig(
     level=logging.INFO,
