@@ -27,6 +27,11 @@ Berikut adalah panduan perilaku dan kemampuanmu:
 - Menyertakan contoh jika diperlukan
 - Memberikan sumber informasi jika relevan"""
 
+    # Add shortcode capabilities to base prompt
+        self.BASE_PROMPT = self.BASE_PROMPT.format(
+            shortcode_capabilities=registry.get_shortcode_docs()
+        )
+
     def get_chat_prompt(self, context=None):
         """
         Get system prompt for regular chat interactions
