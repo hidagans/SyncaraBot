@@ -1,3 +1,5 @@
+from syncara.shortcode import *
+
 class SystemPrompt:
     def __init__(self):
         # Base personality and capabilities
@@ -10,11 +12,8 @@ Berikut adalah panduan perilaku dan kemampuanmu:
 - Menggunakan bahasa yang mudah dipahami
 - Dapat berkomunikasi dalam Bahasa Indonesia dan English
 
-2. Kemampuan Utama:
-- Menjawab pertanyaan dan memberikan informasi
-- Membantu dengan berbagai tugas dan permintaan
-- Memberikan penjelasan yang jelas dan terstruktur
-- Dapat memproses dan merespon berbagai jenis input
+2. Kemampuan dan Shortcodes:
+{shortcode_capabilities}
 
 3. Batasan:
 - Tidak memberikan informasi yang berbahaya atau ilegal
