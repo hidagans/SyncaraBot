@@ -1,61 +1,71 @@
-# handlers/ai_handler.py
-from pyrogram import Client, filters
-from pyrogram.types import Message
+# module/ai_handler.py
+from pyrogram import filters
 from services.replicate import ReplicateAPI
+from .. import bot, console
 
 # Inisialisasi Replicate API
 replicate_api = ReplicateAPI()
 
-# Filter untuk pesan yang ditujukan ke bot (mention atau reply)
 def is_bot_mentioned(_, __, message):
-    # Cek jika bot di-mention
+    """Check if bot is mentioned or replied to"""
+    # Check if message is a reply to bot's message
+    if message.reply_to_message and message.reply_to_message.from_user:
+        if message.reply_to_message.from_user.id == bot.me.id:
+            return True
+
+    # Check if bot is mentioned
     if message.entities:
         for entity in message.entities:
-            if entity.type == "mention" and message.text[entity.offset:entity.offset+entity.length] == "@your_bot_username":
-                return True
-    
-    # Cek jika pesan adalah reply ke pesan bot
-    if message.reply_to_message and message.reply_to_message.from_user:
-        if message.reply_to_message.from_user.is_bot and message.reply_to_message.from_user.username == "your_bot_username":
-            return True
-    
+            if entity.type == "mention":
+                mention = message.text[entity.offset:entity.offset+entity.length]
+                if mention == f"@{bot.me.username}":
+                    return True
     return False
 
-# Buat filter kustom
+# Custom filter for bot mentions
 bot_mentioned = filters.create(is_bot_mentioned)
 
-async def process_ai_response(client, message, prompt, system_prompt=None):
-    """Process AI response and handle shortcodes"""
-    # Kirim indikator "typing..."
-    await client.send_chat_action(message.chat.id, "typing")
-    
-    # Generate response dari Replicate API
-    response = await replicate_api.generate_response(prompt, system_prompt)
-    
-    # Kirim respons ke pengguna
-    await message.reply(response)
-    
-    # Proses shortcode jika ada dalam respons
-    # Ini akan diimplementasikan di shortcode_handler.py
+async def process_ai_response(message, prompt):
+    """Process and send AI response"""
+    try:
+        # Send typing action
+        await message.chat.send_chat_action("typing")
+        
+        # Generate AI response
+        response = await replicate_api.generate_response(
+            prompt=prompt,
+            system_prompt="Kamu adalah SyncaraBot, asisten AI yang membantu pengguna dengan berbagai tugas."
+        )
+        
+        # Send response
+        await message.reply_text(response)
+        
+    except Exception as e:
+        console.error(f"Error in AI response: {str(e)}")
+        await message.reply_text("Maaf, terjadi kesalahan saat memproses permintaan Anda.")
 
-# Handler untuk pesan yang ditujukan ke bot
-@filters.command("ask")
+@bot.on_message(filters.command("ask"))
 async def ask_command(client, message):
-    # Ekstrak prompt dari pesan
+    """Handle /ask command"""
     if len(message.command) < 2:
-        await message.reply("Silakan berikan pertanyaan setelah perintah /ask")
+        await message.reply_text("Silakan berikan pertanyaan setelah perintah /ask")
         return
     
     prompt = message.text.split("/ask ", 1)[1]
-    system_prompt = "Kamu adalah SyncaraBot, asisten AI yang membantu pengguna dengan berbagai tugas."
-    
-    await process_ai_response(client, message, prompt, system_prompt)
+    await process_ai_response(message, prompt)
 
-# Handler untuk pesan yang menyebut bot
-@bot_mentioned
-async def mentioned_handler(client, message):
-    # Ekstrak prompt dari pesan (hapus mention bot jika ada)
+@bot.on_message(bot_mentioned)
+async def handle_mention(client, message):
+    """Handle bot mentions and replies"""
+    # Extract prompt (remove bot mention if exists)
     prompt = message.text
-    system_prompt = "Kamu adalah SyncaraBot, asisten AI yang membantu pengguna dengan berbagai tugas."
+    if bot.me.username:
+        prompt = prompt.replace(f"@{bot.me.username}", "").strip()
     
-    await process_ai_response(client, message, prompt, system_prompt)
+    await process_ai_response(message, prompt)
+
+@bot.on_message(filters.private & ~filters.command)
+async def handle_private(client, message):
+    """Handle private messages"""
+    if message.text:
+        await process_ai_response(message, message.text)
