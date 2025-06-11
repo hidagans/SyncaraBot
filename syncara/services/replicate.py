@@ -1,7 +1,7 @@
 # services/replicate.py
 import json
 import requests
-from config import API_KEY
+from config.config import API_KEY
 
 class ReplicateAPI:
     def __init__(self):
