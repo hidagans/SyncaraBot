@@ -60,18 +60,10 @@ async def ask_command(client, message):
     if not text:
         await message.reply_text("Silakan berikan pertanyaan setelah perintah /ask")
         return
-        
-    # Check if command has arguments
-    if len(message.command) < 2:
-        await message.reply_text("Silakan berikan pertanyaan setelah perintah /ask")
-        return
-    
-    # Extract prompt from text/caption
-    prompt = text.split("/ask ", 1)[1]
     
     # Get photo if exists
     photo_file_id = None
     if message.photo:
         photo_file_id = message.photo.file_id
     
-    await process_ai_response(client, message, prompt, photo_file_id)
+    await process_ai_response(client, message, text, photo_file_id)
