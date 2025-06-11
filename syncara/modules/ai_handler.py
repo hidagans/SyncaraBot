@@ -44,7 +44,7 @@ async def process_ai_response(message, prompt):
         console.error(f"Error in AI response: {str(e)}")
         await message.reply_text("Maaf, terjadi kesalahan saat memproses permintaan Anda.")
 
-@bot.on_message(filters.command("ask"))
+@bot.on_message(filters.command(["ask"]))
 async def ask_command(client, message):
     """Handle /ask command"""
     if len(message.command) < 2:
