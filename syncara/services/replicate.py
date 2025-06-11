@@ -1,60 +1,62 @@
-# services/replicate.py
-import json
-import requests
-from config.config import API_KEY
+import replicate
 import asyncio
+from config.config import API_KEY
 
 class ReplicateAPI:
     def __init__(self):
-        self.api_key = API_KEY
-        self.base_url = "https://api.replicate.com/v1"
-        self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        # Set the REPLICATE_API_TOKEN environment variable
+        replicate.api_token = API_KEY
 
     async def generate_response(self, prompt, system_prompt=None, temperature=1, top_p=1, max_tokens=4096):
-        url = f"{self.base_url}/models/openai/gpt-4o/predictions"
-        payload = {
-            "stream": False,
-            "input": {
+        try:
+            # Prepare input parameters
+            input_params = {
                 "prompt": prompt,
                 "temperature": temperature,
                 "top_p": top_p,
                 "max_completion_tokens": max_tokens
             }
-        }
-        if system_prompt:
-            payload["input"]["system_prompt"] = system_prompt
-        try:
-            response = requests.post(url, headers=self.headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
-            if result.get("status") == "succeeded":
-                output = result.get("output", [""])[0]
-                return str(output) if output is not None else ""
-            elif result.get("urls", {}).get("get"):
-                return str(await self._poll_for_result(result["urls"]["get"]))
-            else:
-                return "Error: Unexpected response format"
-        except requests.exceptions.RequestException as e:
+            
+            # Add system prompt if provided
+            if system_prompt:
+                input_params["system_prompt"] = system_prompt
+
+            # Run the model using the official client
+            output = replicate.run(
+                "openai/gpt-4o",
+                input=input_params
+            )
+
+            # Since output is an iterator, we need to join the chunks
+            result = ""
+            for item in output:
+                result += str(item)
+
+            return result if result.strip() else "No valid response generated"
+
+        except Exception as e:
             return f"Error: {str(e)}"
 
-    async def _poll_for_result(self, url, max_retries=10, delay=2):
-        for i in range(max_retries):
-            try:
-                response = requests.get(url, headers=self.headers)
-                response.raise_for_status()
-                result = response.json()
+    async def generate_response_stream(self, prompt, system_prompt=None, temperature=1, top_p=1, max_tokens=4096):
+        try:
+            # Prepare input parameters
+            input_params = {
+                "prompt": prompt,
+                "temperature": temperature,
+                "top_p": top_p,
+                "max_completion_tokens": max_tokens
+            }
+            
+            # Add system prompt if provided
+            if system_prompt:
+                input_params["system_prompt"] = system_prompt
 
-                if result.get("status") == "succeeded":
-                    return result.get("output", [""])[0]
-                elif result.get("status") in ["failed", "canceled"]:
-                    return f"Error: Prediction {result.get('status')}"
+            # Stream the output
+            for event in replicate.stream(
+                "openai/gpt-4o",
+                input=input_params
+            ):
+                yield str(event)
 
-                await asyncio.sleep(delay)
-
-            except requests.exceptions.RequestException as e:
-                return f"Error polling for result: {str(e)}"
-
-        return "Error: Maximum polling retries reached"
+        except Exception as e:
+            yield f"Error: {str(e)}"
