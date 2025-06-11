@@ -45,7 +45,7 @@ class ReplicateAPI:
 
             # Run the model using the official client
             output = replicate.run(
-                "openai/gpt-4-vision-preview",  # Changed to vision model
+                "openai/gpt-4o",  # Changed to vision model
                 input=input_params
             )
 
