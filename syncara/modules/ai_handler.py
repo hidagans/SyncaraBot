@@ -27,7 +27,6 @@ def is_bot_mentioned(_, __, message):
     return False
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
-async def process_ai_response(client, message, prompt):
     try:
         # Get bot information
         bot = await client.get_me()
