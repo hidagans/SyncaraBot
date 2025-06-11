@@ -38,14 +38,13 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             'user_id': message.from_user.id  # Telegram user ID
         }
         
-        # Get system prompt
-        system_prompt = SystemPrompt()
+        # Get formatted system prompt
         formatted_prompt = system_prompt.get_chat_prompt(context)
         
         # Generate AI response
         response = await replicate_api.generate_response(
             prompt=prompt,
-            system_prompt=system_prompt,
+            system_prompt=formatted_prompt,
             image_file_id=photo_file_id,
             client=client
         )
