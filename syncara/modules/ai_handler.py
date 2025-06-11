@@ -22,30 +22,31 @@ def is_bot_mentioned(_, __, message):
                     return True
     return False
 
-async def process_ai_response(client, message, prompt):
+async def process_ai_response(client, message, prompt, photo_file_id=None):
     try:
         # Send typing action
         await client.send_chat_action(message.chat.id, enums.ChatAction.TYPING)
         
+        # Get appropriate system prompt
+        context = {
+            "language": "id"
+        }
+        system_prompt = system_prompts.get_chat_prompt(context)
+        
         # Generate AI response
         response = await replicate_api.generate_response(
             prompt=prompt,
-            system_prompt="Kamu adalah SyncaraBot, asisten AI yang membantu pengguna dengan berbagai tugas."
+            system_prompt=system_prompt,
+            image_file_id=photo_file_id,
+            client=client
         )
         
-        # Ensure response is a string and not empty
-        if not isinstance(response, str):
-            response = str(response)
-            
-        if not response.strip():  # Check if response is empty or just whitespace
-            response = "Maaf, saya tidak dapat menghasilkan respons yang valid. Silakan coba lagi."
-            
         # Send response
         await message.reply_text(response)
         
     except Exception as e:
         console.error(f"Error in AI response: {str(e)}")
-        await message.reply_text("Maaf, terjadi kesalahan saat memproses permintaan Anda.")
+        await message.reply_text("Maaf, terjadi kesalahan dalam memproses permintaan Anda.")
 
 @bot.on_message(filters.command(["ask"]))
 async def ask_command(client, message):
@@ -64,13 +65,12 @@ async def ask_command(client, message):
     # Extract prompt from text/caption
     prompt = text.split("/ask ", 1)[1]
     
-    # If there's a photo, add it to the prompt
+    # Get photo if exists
+    photo_file_id = None
     if message.photo:
-        # Get the photo file ID
-        photo = message.photo.file_id
-        prompt = f"[Image attached] {prompt}"
-        
-    await process_ai_response(client, message, prompt)
+        photo_file_id = message.photo.file_id
+    
+    await process_ai_response(client, message, prompt, photo_file_id)
 
 @bot.on_message(filters.private & filters.command)
 async def handle_private(client, message):
