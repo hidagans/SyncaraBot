@@ -22,9 +22,6 @@ def is_bot_mentioned(_, __, message):
                     return True
     return False
 
-# Custom filter for bot mentions
-bot_mentioned = filters.create(is_bot_mentioned)
-
 async def process_ai_response(client, message, prompt):
     try:
         # Send typing action
@@ -47,7 +44,7 @@ async def process_ai_response(client, message, prompt):
         console.error(f"Error in AI response: {str(e)}")
         await message.reply_text("Maaf, terjadi kesalahan saat memproses permintaan Anda.")
 
-@bot.on_message(filters.command(["ask"]))  # Perbaikan di sini
+@bot.on_message(filters.command("ask"))  # Perbaikan di sini
 async def ask_command(client, message):
     """Handle /ask command"""
     if len(message.command) < 2:
@@ -55,16 +52,6 @@ async def ask_command(client, message):
         return
     
     prompt = message.text.split("/ask ", 1)[1]
-    await process_ai_response(client, message, prompt)
-
-@bot.on_message(bot_mentioned)
-async def handle_mention(client, message):
-    """Handle bot mentions and replies"""
-    # Extract prompt (remove bot mention if exists)
-    prompt = message.text
-    if bot.me.username:
-        prompt = prompt.replace(f"@{bot.me.username}", "").strip()
-    
     await process_ai_response(client, message, prompt)
 
 @bot.on_message(filters.private & filters.command)
