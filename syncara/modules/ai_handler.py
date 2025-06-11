@@ -1,6 +1,6 @@
 # module/ai_handler.py
 from pyrogram import filters
-from services.replicate import ReplicateAPI
+from services import ReplicateAPI
 from .. import bot, console
 
 # Inisialisasi Replicate API
