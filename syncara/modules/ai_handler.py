@@ -2,6 +2,10 @@
 from pyrogram import filters, enums
 from syncara.services import ReplicateAPI
 from syncara import bot, console
+from .system_prompt import SystemPrompt
+
+# Inisialisasi
+system_prompts = SystemPrompt()
 
 # Inisialisasi Replicate API
 replicate_api = ReplicateAPI()
