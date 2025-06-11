@@ -1,7 +1,7 @@
 # module/ai_handler.py
 from pyrogram import filters
-from syncara.services import ReplicateAPI
-from syncara import bot, console
+from services.replicate import ReplicateAPI
+from .. import bot, console
 
 # Inisialisasi Replicate API
 replicate_api = ReplicateAPI()
@@ -25,11 +25,11 @@ def is_bot_mentioned(_, __, message):
 # Custom filter for bot mentions
 bot_mentioned = filters.create(is_bot_mentioned)
 
-async def process_ai_response(message, prompt):
+async def process_ai_response(client, message, prompt):
     """Process and send AI response"""
     try:
-        # Send typing action
-        await message.chat.send_chat_action("typing")
+        # Send typing action (menggunakan method yang benar)
+        await client.send_chat_action(message.chat.id, "typing")
         
         # Generate AI response
         response = await replicate_api.generate_response(
@@ -44,7 +44,7 @@ async def process_ai_response(message, prompt):
         console.error(f"Error in AI response: {str(e)}")
         await message.reply_text("Maaf, terjadi kesalahan saat memproses permintaan Anda.")
 
-@bot.on_message(filters.command(["ask"]))
+@bot.on_message(filters.command(["ask"]))  # Perbaikan di sini
 async def ask_command(client, message):
     """Handle /ask command"""
     if len(message.command) < 2:
@@ -52,7 +52,7 @@ async def ask_command(client, message):
         return
     
     prompt = message.text.split("/ask ", 1)[1]
-    await process_ai_response(message, prompt)
+    await process_ai_response(client, message, prompt)
 
 @bot.on_message(bot_mentioned)
 async def handle_mention(client, message):
@@ -62,10 +62,10 @@ async def handle_mention(client, message):
     if bot.me.username:
         prompt = prompt.replace(f"@{bot.me.username}", "").strip()
     
-    await process_ai_response(message, prompt)
+    await process_ai_response(client, message, prompt)
 
-@bot.on_message(filters.private & filters.command)
+@bot.on_message(filters.private & ~filters.command)
 async def handle_private(client, message):
     """Handle private messages"""
     if message.text:
-        await process_ai_response(message, message.text)
+        await process_ai_response(client, message, message.text)
