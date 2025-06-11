@@ -1,10 +1,20 @@
 from syncara.shortcode import *
 from datetime import datetime
 import pytz
-from config.config import OWNER_ID  # Import owner ID dari config
+from config.config import OWNER_ID
+import json
 
 class SystemPrompt:
-    def __init__(self):
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialize()
+        return cls._instance
+    
+    def _initialize(self):
+        """Initialize the system prompt template"""
         self.BASE_PROMPT = """Kamu adalah {botName} yang ramah, ekspresif, dan punya kemampuan berikut:
 
 {shortcode_capabilities}
@@ -77,13 +87,21 @@ Kamu adalah temen virtual yang bisa diandalkan, asik diajak ngobrol, dan selalu 
 
 Saat ini: {currentTime}"""
 
-    def is_owner(self, user_id: int) -> bool:
+    def to_json(self):
+        """Convert instance to JSON serializable format"""
+        return {
+            "base_prompt": self.BASE_PROMPT
+        }
+
+    @staticmethod
+    def is_owner(user_id: int) -> bool:
         """Check if user is an owner"""
         return str(user_id) in [str(id) for id in OWNER_ID]
 
-    def get_owner_section(self, user_id: int) -> str:
+    @staticmethod
+    def get_owner_section(user_id: int) -> str:
         """Get the owner section text based on user status"""
-        if self.is_owner(user_id):
+        if SystemPrompt.is_owner(user_id):
             return """🌟 OWNER MODE ACTIVE 🌟
 - Kamu sedang berbicara dengan owner-ku!
 - Aku akan memberikan akses penuh ke semua fitur.
@@ -93,30 +111,40 @@ Saat ini: {currentTime}"""
 
     def get_chat_prompt(self, context: dict) -> str:
         """Get the formatted system prompt with current context"""
-        # Get current time in Asia/Jakarta timezone
-        tz = pytz.timezone('Asia/Jakarta')
-        current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
-        
-        # Get shortcode capabilities from registry
-        shortcode_capabilities = registry.get_shortcode_docs()
-        
-        # Default values
-        bot_name = context.get('bot_name', 'Syncara')
-        bot_username = context.get('bot_username', 'SyncaraBot')
-        user_id = context.get('user_id', 0)
-        
-        # Get owner list from config
-        owner_list = ', '.join([str(id) for id in OWNER_ID])
-        
-        # Get owner section based on user_id
-        is_owner_section = self.get_owner_section(user_id)
-        
-        # Format the prompt with all variables
-        return self.BASE_PROMPT.format(
-            botName=bot_name,
-            botUsername=bot_username,
-            ownerList=owner_list,
-            isOwnerSection=is_owner_section,
-            currentTime=current_time,
-            shortcode_capabilities=shortcode_capabilities
-        )
+        try:
+            # Get current time in Asia/Jakarta timezone
+            tz = pytz.timezone('Asia/Jakarta')
+            current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+            
+            # Get shortcode capabilities from registry
+            shortcode_capabilities = registry.get_shortcode_docs()
+            
+            # Default values
+            bot_name = context.get('bot_name', 'Syncara')
+            bot_username = context.get('bot_username', 'SyncaraBot')
+            user_id = context.get('user_id', 0)
+            
+            # Get owner list from config
+            owner_list = ', '.join([str(id) for id in OWNER_ID])
+            
+            # Get owner section based on user_id
+            is_owner_section = self.get_owner_section(user_id)
+            
+            # Format the prompt with all variables
+            return self.BASE_PROMPT.format(
+                botName=bot_name,
+                botUsername=bot_username,
+                ownerList=owner_list,
+                isOwnerSection=is_owner_section,
+                currentTime=current_time,
+                shortcode_capabilities=shortcode_capabilities
+            )
+        except Exception as e:
+            print(f"Error in get_chat_prompt: {str(e)}")
+            return ""
+
+# Create singleton instance
+system_prompt = SystemPrompt()
+
+# Make it available for import
+__all__ = ['system_prompt']
