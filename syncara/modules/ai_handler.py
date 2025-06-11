@@ -64,7 +64,7 @@ async def handle_mention(client, message):
     
     await process_ai_response(message, prompt)
 
-@bot.on_message(filters.private & ~filters.command)
+@bot.on_message(filters.private & filters.command)
 async def handle_private(client, message):
     """Handle private messages"""
     if message.text:
