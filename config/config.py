@@ -9,7 +9,9 @@ API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_KEY = os.getenv("API_KEY")
-OWNER_ID = os.getenv("OWNER_ID", "6696975845")
+OWNER_ID = [
+    6696975845
+]
 
 # Userbot configuration (untuk assistant)
 USERBOT_SESSION = os.getenv("USERBOT_SESSION")
