@@ -75,9 +75,3 @@ async def ask_command(client, message):
         photo_file_id = message.photo.file_id
     
     await process_ai_response(client, message, prompt, photo_file_id)
-
-@bot.on_message(filters.private & filters.command)
-async def handle_private(client, message):
-    """Handle private messages"""
-    if message.text:
-        await process_ai_response(client, message, message.text)
