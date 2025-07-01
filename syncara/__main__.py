@@ -32,7 +32,7 @@ async def main():
     try:
         # Start the bot
         await bot.start()
-        console.success(f"Bot started as @{(await bot.get_me()).username}")
+        console.info(f"Bot started as @{(await bot.get_me()).username}")
         
         # Initialize userbots
         if USERBOTS:

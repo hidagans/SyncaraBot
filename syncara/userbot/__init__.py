@@ -37,7 +37,7 @@ async def initialize_userbots() -> Dict[str, Client]:
             await client.start()
             me = await client.get_me()
             userbots[name] = client
-            console.success(f"Userbot '{name}' started as @{me.username} ({me.id})")
+            console.info(f"Userbot '{name}' started as @{me.username} ({me.id})")
             
         except Exception as e:
             console.error(f"Failed to initialize userbot '{config.get('name')}': {str(e)}")
