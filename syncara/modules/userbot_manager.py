@@ -2,7 +2,12 @@
 from pyrogram import filters
 from syncara import bot, console
 from syncara.userbot import get_userbot, get_all_userbots, get_userbot_names
+from syncara.modules.ai_handler import USERBOT_PROMPT_MAPPING
+from syncara.modules.system_prompt import SystemPrompt
 from config.config import OWNER_ID
+
+# Inisialisasi komponen
+system_prompt = SystemPrompt()
 
 @bot.on_message(filters.command("userbots") & filters.user(OWNER_ID))
 async def list_userbots(client, message):
@@ -19,7 +24,8 @@ async def list_userbots(client, message):
         for i, name in enumerate(userbot_names, 1):
             userbot = get_userbot(name)
             me = await userbot.get_me()
-            text += f"{i}. **{name}** - @{me.username} ({me.id})\n"
+            prompt_name = USERBOT_PROMPT_MAPPING.get(name, "DEFAULT")
+            text += f"{i}. **{name}** - @{me.username} ({me.id})\n   System Prompt: {prompt_name}\n\n"
             
         await message.reply_text(text)
         
@@ -77,7 +83,7 @@ async def broadcast_command(client, message):
                         console.error(f"Failed to send broadcast to {dialog.chat.id}: {str(e)}")
                         
             except Exception as e:
-                console.error(f"Error with userbot {me.username}: {str(e)}")
+                console.error(f"Error with userbot {userbot.name}: {str(e)}")
                 
         # Send final status
         await status_msg.edit_text(f"Broadcast selesai!\n✅ Berhasil: {success_count}\n❌ Gagal: {failed_count}")
@@ -122,7 +128,11 @@ async def userbot_stats(client, message):
                 
                 total = groups + supergroups + private + channels + bots
                 
-                text += f"**@{me.username}**:\n"
+                # Get prompt name for this userbot
+                prompt_name = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+                
+                text += f"**@{me.username}** ({userbot.name}):\n"
+                text += f"- System Prompt: {prompt_name}\n"
                 text += f"- Total Chats: {total}\n"
                 text += f"- Grup: {groups}\n"
                 text += f"- Supergrup: {supergroups}\n"
@@ -132,10 +142,104 @@ async def userbot_stats(client, message):
                 
             except Exception as e:
                 console.error(f"Error getting stats for userbot: {str(e)}")
-                text += f"**@{me.username}**: Error getting stats\n\n"
+                text += f"**{userbot.name}**: Error getting stats\n\n"
                 
         await message.reply_text(text)
         
     except Exception as e:
         console.error(f"Error in userbot_stats: {str(e)}")
         await message.reply_text("Terjadi kesalahan saat mengambil statistik userbot.")
+
+@bot.on_message(filters.command("send") & filters.user(OWNER_ID))
+async def send_as_userbot(client, message):
+    """Send a message as userbot to a specific chat"""
+    try:
+        # Check command format
+        if len(message.command) < 3:
+            await message.reply_text("Gunakan: /send [userbot_name] [chat_id] [pesan]")
+            return
+            
+        # Get userbot name, chat_id and message text
+        userbot_name = message.command[1]
+        chat_id = message.command[2]
+        text = message.text.split(None, 3)[3]
+        
+        # Get userbot
+        userbot = get_userbot(userbot_name)
+        if not userbot:
+            await message.reply_text(f"Userbot '{userbot_name}' tidak ditemukan.")
+            return
+            
+        # Send message
+        try:
+            chat_id = int(chat_id)
+        except ValueError:
+            # If not numeric, use as username/chat link
+            pass
+            
+        await userbot.send_message(chat_id, text)
+        await message.reply_text(f"Pesan berhasil dikirim ke {chat_id} menggunakan userbot '{userbot_name}'")
+        
+    except Exception as e:
+        console.error(f"Error in send_as_userbot: {str(e)}")
+        await message.reply_text(f"Terjadi kesalahan: {str(e)}")
+
+@bot.on_message(filters.command("join") & filters.user(OWNER_ID))
+async def join_chat(client, message):
+    """Join a chat using userbot"""
+    try:
+        # Check command format
+        if len(message.command) < 3:
+            await message.reply_text("Gunakan: /join [userbot_name] [username/invite_link]")
+            return
+            
+        # Get userbot name and chat link/username
+        userbot_name = message.command[1]
+        chat = message.command[2]
+        
+        # Get userbot
+        userbot = get_userbot(userbot_name)
+        if not userbot:
+            await message.reply_text(f"Userbot '{userbot_name}' tidak ditemukan.")
+            return
+            
+        # Join chat
+        chat = await userbot.join_chat(chat)
+        await message.reply_text(f"Userbot '{userbot_name}' berhasil bergabung ke {chat.title}")
+        
+    except Exception as e:
+        console.error(f"Error in join_chat: {str(e)}")
+        await message.reply_text(f"Terjadi kesalahan: {str(e)}")
+
+@bot.on_message(filters.command("leave") & filters.user(OWNER_ID))
+async def leave_chat(client, message):
+    """Leave a chat using userbot"""
+    try:
+        # Check command format
+        if len(message.command) < 3:
+            await message.reply_text("Gunakan: /leave [userbot_name] [chat_id]")
+            return
+            
+        # Get userbot name and chat_id
+        userbot_name = message.command[1]
+        chat_id = message.command[2]
+        
+        # Get userbot
+        userbot = get_userbot(userbot_name)
+        if not userbot:
+            await message.reply_text(f"Userbot '{userbot_name}' tidak ditemukan.")
+            return
+            
+        # Leave chat
+        try:
+            chat_id = int(chat_id)
+        except ValueError:
+            # If not numeric, use as username
+            pass
+            
+        await userbot.leave_chat(chat_id)
+        await message.reply_text(f"Userbot '{userbot_name}' berhasil keluar dari chat {chat_id}")
+        
+    except Exception as e:
+        console.error(f"Error in leave_chat: {str(e)}")
+        await message.reply_text(f"Terjadi kesalahan: {str(e)}")
