@@ -2,7 +2,8 @@
 from pyrogram import Client
 import re
 from typing import Union, List, Tuple
-from syncara.shortcode import *
+from ..shortcode import registry
+from ..userbot.handlers import handle_userbot_action
 
 async def process_shortcode(client: Client, message, text: str) -> str:
     """
@@ -24,14 +25,16 @@ async def process_shortcode(client: Client, message, text: str) -> str:
                 params = match.group(3)      # Contoh: message_id atau parameter lainnya
                 
                 # Handle current_message_id
-                if params == "current_message_id":
-                    params = str(message.id)
+                if "current_message_id" in params:
+                    params = params.replace("current_message_id", str(message.id))
                 
                 # Process berdasarkan category
                 if category == "GROUP":
                     await handle_group_action(client, message, action, params)
                 elif category == "USER":
                     await handle_user_action(client, message, action, params)
+                elif category == "USERBOT":
+                    await handle_userbot_action(action, params, {"message": message})
                 # Tambahkan category lain sesuai kebutuhan
                 
                 # Hapus shortcode dari text
@@ -48,3 +51,5 @@ async def process_shortcode(client: Client, message, text: str) -> str:
     except Exception as e:
         print(f"Error in process_shortcode: {str(e)}")
         return text
+
+# ... rest of the code remains the same
