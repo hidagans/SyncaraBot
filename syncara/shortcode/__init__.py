@@ -1,3 +1,4 @@
+# syncara/shortcode/__init__.py
 import os
 import importlib
 import inspect
@@ -38,6 +39,7 @@ class ShortcodeRegistry:
                             if hasattr(shortcode_instance, 'descriptions'):
                                 self.descriptions.update(shortcode_instance.descriptions)
                                 
+                    print(f"Loaded shortcode module: {module_name}")
                 except Exception as e:
                     print(f"Error loading shortcode module {module_name}: {e}")
 
@@ -61,10 +63,10 @@ class ShortcodeRegistry:
         
         return "\n".join(docs)
 
-    async def execute_shortcode(self, client, shortcode: str, *args, **kwargs):
+    async def execute_shortcode(self, shortcode: str, client, message, params):
         """Execute a registered shortcode"""
         if shortcode in self.shortcodes:
-            return await self.shortcodes[shortcode](client, *args, **kwargs)
+            return await self.shortcodes[shortcode](client, message, params)
         return False
 
 # Create singleton instance
