@@ -10,8 +10,9 @@ from syncara.modules import loadModule
 shutdown_event = asyncio.Event()  # Event untuk menangani shutdown
 
 # Fungsi untuk menangani sinyal SIGINT dan SIGTERM
-def handle_signal(signal, frame):
-    console.info("Stop signal received (SIGINT or SIGTERM). Exiting...")
+def handle_signal(sig, frame):
+    """Handle termination signals"""
+    console.warning(f"Received signal {sig}, shutting down...")
     shutdown_event.set()
 
 # Menangkap sinyal SIGINT dan SIGTERM
@@ -26,22 +27,41 @@ async def loadPlugins():
     console.info("Plugins installed")
 
 async def main():
-    await bot.start()
-    console.info(f"@{bot.me.username} Bot")
-    await asyncio.gather(loadPlugins(), idle(), shutdown_event.wait())
+    try:
+        # Start the bot
+        await bot.start()
+        console.success(f"Bot started as @{(await bot.get_me()).username}")
+        
+        # Initialize userbots
+        if USERBOTS:
+            await initialize_userbots()
+        else:
+            console.info("No userbots configured, running without userbots")
+        
+        # Load plugins
+        await loadPlugins()
+        
+        # Set up signal handlers
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            signal.signal(sig, handle_signal)
+        
+        # Wait until shutdown
+        await shutdown_event.wait()
+        
+    except Exception as e:
+        console.error(f"Error in main: {str(e)}")
+    finally:
+        # Cleanup
+        if USERBOTS:
+            await stop_userbots()
+        await bot.stop()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, handle_signal, sig, None)
-    
     try:
+        loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
-    except asyncio.CancelledError:
-        pass
+    except KeyboardInterrupt:
+        console.warning("Received keyboard interrupt, shutting down...")
     finally:
-        tasks = asyncio.all_tasks(loop)
-        for task in tasks:
-            task.cancel()
-        loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-        loop.close()
+        console.info("Bot stopped")
+        sys.exit(0)
