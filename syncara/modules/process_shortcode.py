@@ -1,55 +1,52 @@
-# syncara/modules/process_shortcode.py
-from pyrogram import Client
-import re
-from typing import Union, List, Tuple
-from ..shortcode import registry
-from ..userbot.handlers import handle_userbot_action
+# syncara/shortcode/__init__.py
+from typing import Dict, List
+from ..userbot import get_userbot_names
 
-async def process_shortcode(client: Client, message, text: str) -> str:
-    """
-    Process shortcodes found in AI response text
-    Returns: Processed text with executed shortcodes removed
-    """
-    try:
-        # Pattern untuk mendeteksi shortcode [CATEGORY:ACTION:PARAMS]
-        pattern = r'\[(.*?):(.*?):(.*?)\]'
-        
-        # Temukan semua shortcode dalam text
-        matches = re.finditer(pattern, text)
-        
-        for match in matches:
-            try:
-                full_match = match.group(0)  # Shortcode lengkap [CATEGORY:ACTION:PARAMS]
-                category = match.group(1)    # Contoh: GROUP
-                action = match.group(2)      # Contoh: PIN_MESSAGE
-                params = match.group(3)      # Contoh: message_id atau parameter lainnya
-                
-                # Handle current_message_id
-                if "current_message_id" in params:
-                    params = params.replace("current_message_id", str(message.id))
-                
-                # Process berdasarkan category
-                if category == "GROUP":
-                    await handle_group_action(client, message, action, params)
-                elif category == "USER":
-                    await handle_user_action(client, message, action, params)
-                elif category == "USERBOT":
-                    await handle_userbot_action(action, params, {"message": message})
-                # Tambahkan category lain sesuai kebutuhan
-                
-                # Hapus shortcode dari text
-                text = text.replace(full_match, '')
-                
-            except Exception as e:
-                print(f"Error processing shortcode {match.group(0)}: {str(e)}")
-                continue
-        
-        # Bersihkan multiple newlines
-        text = re.sub(r'\n\s*\n', '\n\n', text)
-        return text.strip()
-        
-    except Exception as e:
-        print(f"Error in process_shortcode: {str(e)}")
-        return text
+class ShortcodeRegistry:
+    def __init__(self):
+        self._shortcodes: Dict[str, str] = {
+            # Group management
+            'GROUP:PIN_MESSAGE': 'Pin pesan di grup',
+            'GROUP:UNPIN_MESSAGE': 'Unpin pesan di grup',
+            'GROUP:DELETE_MESSAGE': 'Hapus pesan di grup',
+            
+            # User management
+            'USER:BAN': 'Ban user dari grup',
+            'USER:UNBAN': 'Unban user dari grup',
+            'USER:MUTE': 'Mute user di grup',
+            'USER:UNMUTE': 'Unmute user di grup',
+            
+            # Userbot actions (general)
+            'USERBOT:SEND_MESSAGE': 'Kirim pesan sebagai userbot (format: chat_id|pesan)',
+            'USERBOT:JOIN_CHAT': 'Join chat/grup/channel (username atau invite link)',
+            'USERBOT:LEAVE_CHAT': 'Leave chat/grup/channel (chat_id)',
+            'USERBOT:FORWARD_MESSAGE': 'Forward pesan (format: from_chat_id|message_id|to_chat_id)',
+            'USERBOT:REACT': 'Reaksi pada pesan (format: chat_id|message_id|emoji)',
+            'USERBOT:BROADCAST': 'Broadcast pesan ke semua chat (format: pesan)',
+            
+            # Tambahkan shortcode lainnya di sini
+        }
 
-# ... rest of the code remains the same
+    def get_shortcode_docs(self) -> str:
+        """Get documentation of all registered shortcodes"""
+        docs = ["📝 SHORTCODE YANG TERSEDIA:"]
+        
+        # Add general shortcodes
+        for code, desc in self._shortcodes.items():
+            docs.append(f"- [{code}] : {desc}")
+        
+        # Add userbot-specific shortcodes
+        userbot_names = get_userbot_names()
+        if userbot_names:
+            docs.append("\n🤖 USERBOT SPESIFIK:")
+            for name in userbot_names:
+                docs.append(f"- [USERBOT:{name}.SEND_MESSAGE:chat_id|pesan] : Kirim pesan menggunakan userbot '{name}'")
+                docs.append(f"- [USERBOT:{name}.JOIN_CHAT:username/link] : Join chat menggunakan userbot '{name}'")
+        
+        return "\n".join(docs)
+
+    def register_shortcode(self, code: str, description: str):
+        """Register new shortcode"""
+        self._shortcodes[code] = description
+
+registry = ShortcodeRegistry()
