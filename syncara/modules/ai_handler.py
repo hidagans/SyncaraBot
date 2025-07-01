@@ -55,11 +55,103 @@ async def cache_userbot_info(userbot_client, userbot_name):
 @bot.on_message(filters.command(["start", "help"]))
 async def start_command(client, message):
     """Handle start command for the manager bot"""
-    await message.reply_text(
-        "👋 Halo! Saya adalah bot manager untuk SyncaraBot.\n\n"
-        "Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
-        "Gunakan userbot assistant untuk berinteraksi dengan AI."
-    )
+    try:
+        await message.reply_text(
+            "👋 **Halo! Saya adalah SyncaraBot Manager**\n\n"
+            "🤖 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
+            "📝 **Perintah yang tersedia:**\n"
+            "• `/start` atau `/help` - Tampilkan pesan ini\n"
+            "• `/status` - Cek status bot dan userbot\n"
+            "• `/prompts` - Lihat daftar system prompt\n"
+            "• `/userbots` - Lihat daftar userbot\n\n"
+            "💡 **Cara menggunakan:**\n"
+            "Mention atau reply ke userbot assistant untuk berinteraksi dengan AI!"
+        )
+        console.info(f"Start command executed by user {message.from_user.id}")
+    except Exception as e:
+        console.error(f"Error in start_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat memproses perintah.")
+
+@bot.on_message(filters.command("status"))
+async def status_command(client, message):
+    """Show bot and userbot status"""
+    try:
+        # Get bot info
+        me = await client.get_me()
+        
+        status_text = f"🤖 **Status SyncaraBot**\n\n"
+        status_text += f"📱 **Manager Bot:**\n"
+        status_text += f"• Nama: {me.first_name}\n"
+        status_text += f"• Username: @{me.username}\n"
+        status_text += f"• ID: `{me.id}`\n"
+        status_text += f"• Status: ✅ Online\n\n"
+        
+        # Get userbot info
+        userbots = get_all_userbots()
+        if userbots:
+            status_text += f"👥 **Userbot Assistant ({len(userbots)} aktif):**\n"
+            for i, userbot in enumerate(userbots, 1):
+                try:
+                    userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+                    if userbot_info:
+                        status_text += f"• {i}. {userbot_info['first_name']} (@{userbot_info['username']})\n"
+                    else:
+                        status_text += f"• {i}. {userbot.name} (Loading...)\n"
+                except:
+                    status_text += f"• {i}. {userbot.name} (Error)\n"
+        else:
+            status_text += f"👥 **Userbot Assistant:**\n• ❌ Tidak ada userbot aktif\n"
+        
+        status_text += f"\n📊 **Fitur:**\n"
+        status_text += f"• AI Chat: ✅ Aktif\n"
+        status_text += f"• Shortcode: ✅ Aktif\n"
+        status_text += f"• Riwayat Chat: {'✅ Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '❌ Nonaktif'}\n"
+        status_text += f"• System Prompt: ✅ Aktif\n"
+        
+        await message.reply_text(status_text)
+        console.info(f"Status command executed by user {message.from_user.id}")
+        
+    except Exception as e:
+        console.error(f"Error in status_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil status.")
+
+@bot.on_message(filters.command("userbots"))
+async def list_userbots_command(client, message):
+    """List all available userbots"""
+    try:
+        userbots = get_all_userbots()
+        
+        if not userbots:
+            await message.reply_text("❌ Tidak ada userbot yang tersedia.")
+            return
+            
+        text = "👥 **Daftar Userbot Assistant:**\n\n"
+        
+        for i, userbot in enumerate(userbots, 1):
+            try:
+                userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+                if userbot_info:
+                    text += f"{i}. **{userbot_info['first_name']}**\n"
+                    text += f"   • Username: @{userbot_info['username']}\n"
+                    text += f"   • ID: `{userbot_info['id']}`\n"
+                    text += f"   • Status: ✅ Online\n\n"
+                else:
+                    text += f"{i}. **{userbot.name}**\n"
+                    text += f"   • Status: 🔄 Loading...\n\n"
+            except Exception as e:
+                text += f"{i}. **{userbot.name}**\n"
+                text += f"   • Status: ❌ Error\n\n"
+        
+        text += "💡 **Cara menggunakan:**\n"
+        text += "Mention (@username) atau reply ke pesan userbot untuk berinteraksi dengan AI!"
+            
+        await message.reply_text(text)
+        console.info(f"Userbots command executed by user {message.from_user.id}")
+        
+    except Exception as e:
+        console.error(f"Error in list_userbots_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil daftar userbot.")
+
 
 @bot.on_message(filters.command("prompts") & filters.user(OWNER_ID))
 async def list_prompts(client, message):
@@ -68,7 +160,7 @@ async def list_prompts(client, message):
         available_prompts = system_prompt.get_available_prompts()
         
         if not available_prompts:
-            await message.reply_text("Tidak ada system prompt yang tersedia.")
+            await message.reply_text("❌ Tidak ada system prompt yang tersedia.")
             return
             
         text = "📝 **Daftar System Prompt yang Tersedia:**\n\n"
@@ -79,13 +171,14 @@ async def list_prompts(client, message):
         # Add mapping info
         text += "\n🔄 **Mapping Userbot ke System Prompt:**\n\n"
         for userbot_name, prompt_name in USERBOT_PROMPT_MAPPING.items():
-            text += f"- **{userbot_name}** → {prompt_name}\n"
+            text += f"• **{userbot_name}** → {prompt_name}\n"
             
         await message.reply_text(text)
+        console.info(f"Prompts command executed by owner {message.from_user.id}")
         
     except Exception as e:
         console.error(f"Error in list_prompts: {str(e)}")
-        await message.reply_text("Terjadi kesalahan saat mengambil daftar system prompt.")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil daftar system prompt.")
 
 @bot.on_message(filters.command("setprompt") & filters.user(OWNER_ID))
 async def set_prompt_command(client, message):
@@ -119,6 +212,53 @@ async def set_prompt_command(client, message):
     except Exception as e:
         console.error(f"Error in set_prompt_command: {str(e)}")
         await message.reply_text("Terjadi kesalahan saat mengatur system prompt.")
+
+@bot.on_message(filters.command("setprompt") & filters.user(OWNER_ID))
+async def set_prompt_command(client, message):
+    """Set system prompt for a userbot"""
+    try:
+        # Check command format
+        if len(message.command) < 3:
+            await message.reply_text(
+                "❌ **Format salah!**\n\n"
+                "**Gunakan:** `/setprompt [userbot_name] [prompt_name]`\n\n"
+                "**Contoh:** `/setprompt userbot1 AERIS`"
+            )
+            return
+            
+        # Get userbot name and prompt name
+        userbot_name = message.command[1].lower()
+        prompt_name = message.command[2].upper()
+        
+        # Check if userbot exists
+        userbot_names = get_userbot_names()
+        if userbot_name not in userbot_names:
+            await message.reply_text(
+                f"❌ **Userbot '{userbot_name}' tidak ditemukan.**\n\n"
+                f"**Userbot yang tersedia:** {', '.join(userbot_names)}"
+            )
+            return
+            
+        # Check if prompt exists
+        available_prompts = system_prompt.get_available_prompts()
+        if prompt_name not in available_prompts:
+            await message.reply_text(
+                f"❌ **System prompt '{prompt_name}' tidak ditemukan.**\n\n"
+                f"**Prompt yang tersedia:** {', '.join(available_prompts)}"
+            )
+            return
+            
+        # Update mapping
+        USERBOT_PROMPT_MAPPING[userbot_name] = prompt_name
+        await message.reply_text(
+            f"✅ **Berhasil!**\n\n"
+            f"System prompt **'{prompt_name}'** telah diatur untuk userbot **'{userbot_name}'**"
+        )
+        console.info(f"Prompt mapping updated: {userbot_name} -> {prompt_name}")
+        
+    except Exception as e:
+        console.error(f"Error in set_prompt_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengatur system prompt.")
 
 @bot.on_message(filters.command("historyconfig") & filters.user(OWNER_ID))
 async def configure_history(client, message):
