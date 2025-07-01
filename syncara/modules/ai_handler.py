@@ -90,7 +90,7 @@ async def set_prompt_command(client, message):
         console.error(f"Error in set_prompt_command: {str(e)}")
         await message.reply_text("Terjadi kesalahan saat mengatur system prompt.")
 
-# Userbot assistant menangani semua interaksi AI
+# Userbot assistant menangani interaksi AI hanya ketika di-mention atau di-reply
 async def setup_userbot_handlers():
     """Setup handlers for userbot assistant"""
     try:
@@ -104,19 +104,63 @@ async def setup_userbot_handlers():
         for userbot in userbots:
             userbot_name = userbot.name
             
-            @userbot.on_message(filters.text | filters.photo)
-            async def userbot_message_handler(client, message):
-                """Handle all messages for userbot assistant"""
-                try:
-                    # Skip messages from bots
-                    if message.from_user and message.from_user.is_bot:
-                        return
+            # Create custom filter for this specific userbot
+            def create_userbot_filter(userbot_client):
+                async def userbot_filter(_, __, message):
+                    try:
+                        # Skip messages from bots
+                        if message.from_user and message.from_user.is_bot:
+                            return False
                         
+                        # Get userbot info
+                        me = await userbot_client.get_me()
+                        
+                        # Check if in private chat
+                        if message.chat.type == enums.ChatType.PRIVATE:
+                            return True
+                        
+                        # Check if message is a reply to userbot's message
+                        if message.reply_to_message:
+                            if message.reply_to_message.from_user and message.reply_to_message.from_user.id == me.id:
+                                return True
+                        
+                        # Check if userbot is mentioned in the message
+                        if message.entities:
+                            for entity in message.entities:
+                                if entity.type == enums.MessageEntityType.MENTION:
+                                    # Extract mentioned username
+                                    mentioned_username = message.text[entity.offset:entity.offset + entity.length]
+                                    if mentioned_username == f"@{me.username}":
+                                        return True
+                                elif entity.type == enums.MessageEntityType.TEXT_MENTION:
+                                    # Check if mentioned user is this userbot
+                                    if entity.user and entity.user.id == me.id:
+                                        return True
+                        
+                        return False
+                    except Exception as e:
+                        console.error(f"Error in userbot filter: {str(e)}")
+                        return False
+                
+                return filters.create(userbot_filter)
+            
+            # Apply the custom filter to this userbot
+            userbot_filter = create_userbot_filter(userbot)
+            
+            @userbot.on_message(userbot_filter & (filters.text | filters.photo))
+            async def userbot_message_handler(client, message):
+                """Handle messages for userbot assistant when mentioned or replied"""
+                try:
                     # Get text from either message text or caption
                     text = message.text or message.caption
                     
                     if not text:
                         return
+                    
+                    # Remove mention from text if exists
+                    me = await client.get_me()
+                    if f"@{me.username}" in text:
+                        text = text.replace(f"@{me.username}", "").strip()
                     
                     # Get photo if exists
                     photo_file_id = None
