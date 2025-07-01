@@ -6,6 +6,8 @@ from .system_prompt import SystemPrompt
 from .process_shortcode import process_shortcode
 from syncara.userbot import get_userbot, get_all_userbots, get_userbot_names
 from config.config import OWNER_ID
+from datetime import datetime
+import pytz
 
 # Inisialisasi komponen
 system_prompt = SystemPrompt()
@@ -89,6 +91,76 @@ async def set_prompt_command(client, message):
     except Exception as e:
         console.error(f"Error in set_prompt_command: {str(e)}")
         await message.reply_text("Terjadi kesalahan saat mengatur system prompt.")
+
+async def get_chat_history(client, chat_id, limit=20):
+    """Get chat history for context"""
+    try:
+        messages = []
+        me = await client.get_me()
+        
+        # Get timezone for timestamp formatting
+        tz = pytz.timezone('Asia/Jakarta')
+        
+        async for message in client.get_chat_history(chat_id, limit=limit):
+            try:
+                # Skip service messages
+                if message.service:
+                    continue
+                
+                # Get message content
+                content = message.text or message.caption or ""
+                
+                # Skip empty messages
+                if not content.strip():
+                    continue
+                
+                # Get sender info
+                sender_name = "Unknown"
+                if message.from_user:
+                    if message.from_user.id == me.id:
+                        sender_name = f"{me.first_name} (Assistant)"
+                    else:
+                        sender_name = message.from_user.first_name or message.from_user.username or "User"
+                elif message.sender_chat:
+                    sender_name = message.sender_chat.title or "Channel"
+                
+                # Format timestamp
+                timestamp = message.date.astimezone(tz).strftime("%H:%M")
+                
+                # Add to messages list
+                messages.append({
+                    'sender': sender_name,
+                    'content': content,
+                    'timestamp': timestamp,
+                    'is_assistant': message.from_user and message.from_user.id == me.id
+                })
+                
+            except Exception as e:
+                console.error(f"Error processing message in history: {str(e)}")
+                continue
+        
+        # Reverse to get chronological order (oldest first)
+        messages.reverse()
+        
+        return messages
+        
+    except Exception as e:
+        console.error(f"Error getting chat history: {str(e)}")
+        return []
+
+def format_chat_history(messages):
+    """Format chat history for AI context"""
+    if not messages:
+        return ""
+    
+    formatted_history = "\n=== RIWAYAT PERCAKAPAN 20 PESAN TERAKHIR ===\n"
+    
+    for msg in messages:
+        formatted_history += f"[{msg['timestamp']}] {msg['sender']}: {msg['content']}\n"
+    
+    formatted_history += "=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
+    
+    return formatted_history
 
 # Userbot assistant menangani interaksi AI hanya ketika di-mention atau di-reply
 async def setup_userbot_handlers():
@@ -185,7 +257,7 @@ async def setup_userbot_handlers():
         console.error(f"Error setting up userbot handlers: {str(e)}")
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
-    """Process AI response for userbot assistant"""
+    """Process AI response for userbot assistant with chat history context"""
     try:
         # Get userbot information
         me = await client.get_me()
@@ -194,6 +266,10 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         # Set the appropriate system prompt for this userbot
         prompt_name = USERBOT_PROMPT_MAPPING.get(userbot_name, "DEFAULT")
         system_prompt.set_prompt(prompt_name)
+        
+        # Get chat history for context
+        chat_history = await get_chat_history(client, message.chat.id, limit=20)
+        formatted_history = format_chat_history(chat_history)
         
         # Prepare context
         context = {
@@ -205,6 +281,11 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         
         # Get formatted system prompt
         formatted_prompt = system_prompt.get_chat_prompt(context)
+        
+        # Add chat history context to system prompt
+        if formatted_history:
+            formatted_prompt += f"\n\n{formatted_history}"
+            formatted_prompt += "Berdasarkan riwayat percakapan di atas, jawab pertanyaan atau tanggapi pesan berikut dengan konteks yang sesuai:\n\n"
         
         # Generate AI response
         response = await replicate_api.generate_response(

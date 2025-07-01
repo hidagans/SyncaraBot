@@ -9,6 +9,108 @@ from config.config import OWNER_ID
 # Inisialisasi komponen
 system_prompt = SystemPrompt()
 
+async def get_chat_history(client, chat_id, limit=None):
+    """Get chat history for context"""
+    try:
+        # Check if history is enabled
+        if not CHAT_HISTORY_CONFIG["enabled"]:
+            return []
+            
+        # Use configured limit if not specified
+        if limit is None:
+            limit = CHAT_HISTORY_CONFIG["limit"]
+        
+        messages = []
+        me = await client.get_me()
+        
+        # Get timezone for timestamp formatting
+        tz = pytz.timezone('Asia/Jakarta')
+        
+        async for message in client.get_chat_history(chat_id, limit=limit):
+            try:
+                # Skip service messages
+                if message.service:
+                    continue
+                
+                # Get message content
+                content = message.text or message.caption or ""
+                
+                # Handle media messages
+                if not content.strip() and CHAT_HISTORY_CONFIG["include_media_info"]:
+                    if message.photo:
+                        content = "[Foto]"
+                    elif message.video:
+                        content = "[Video]"
+                    elif message.document:
+                        content = f"[Dokumen: {message.document.file_name or 'Unknown'}]"
+                    elif message.audio:
+                        content = "[Audio]"
+                    elif message.voice:
+                        content = "[Voice Note]"
+                    elif message.sticker:
+                        content = f"[Sticker: {message.sticker.emoji or ''}]"
+                    elif message.animation:
+                        content = "[GIF]"
+                    else:
+                        content = "[Media]"
+                
+                # Skip if still empty
+                if not content.strip():
+                    continue
+                
+                # Get sender info
+                sender_name = "Unknown"
+                if message.from_user:
+                    if message.from_user.id == me.id:
+                        sender_name = f"{me.first_name} (Assistant)"
+                    else:
+                        sender_name = message.from_user.first_name or message.from_user.username or "User"
+                elif message.sender_chat:
+                    sender_name = message.sender_chat.title or "Channel"
+                
+                # Format timestamp if enabled
+                timestamp = ""
+                if CHAT_HISTORY_CONFIG["include_timestamps"]:
+                    timestamp = message.date.astimezone(tz).strftime("%H:%M")
+                
+                # Add to messages list
+                messages.append({
+                    'sender': sender_name,
+                    'content': content,
+                    'timestamp': timestamp,
+                    'is_assistant': message.from_user and message.from_user.id == me.id
+                })
+                
+            except Exception as e:
+                console.error(f"Error processing message in history: {str(e)}")
+                continue
+        
+        # Reverse to get chronological order (oldest first)
+        messages.reverse()
+        
+        return messages
+        
+    except Exception as e:
+        console.error(f"Error getting chat history: {str(e)}")
+        return []
+
+def format_chat_history(messages):
+    """Format chat history for AI context"""
+    if not messages or not CHAT_HISTORY_CONFIG["enabled"]:
+        return ""
+    
+    formatted_history = f"\n=== RIWAYAT PERCAKAPAN {len(messages)} PESAN TERAKHIR ===\n"
+    
+    for msg in messages:
+        if CHAT_HISTORY_CONFIG["include_timestamps"] and msg['timestamp']:
+            formatted_history += f"[{msg['timestamp']}] {msg['sender']}: {msg['content']}\n"
+        else:
+            formatted_history += f"{msg['sender']}: {msg['content']}\n"
+    
+    formatted_history += "=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
+    
+    return formatted_history
+
 @bot.on_message(filters.command("userbots") & filters.user(OWNER_ID))
 async def list_userbots(client, message):
     """List all available userbots"""
@@ -243,3 +345,145 @@ async def leave_chat(client, message):
     except Exception as e:
         console.error(f"Error in leave_chat: {str(e)}")
         await message.reply_text(f"Terjadi kesalahan: {str(e)}")
+
+# Tambahan perintah untuk mengatur fitur riwayat chat
+@bot.on_message(filters.command("history") & filters.user(OWNER_ID))
+async def test_history(client, message):
+    """Test chat history feature"""
+    try:
+        # Check command format
+        if len(message.command) < 3:
+            await message.reply_text("Gunakan: /history [userbot_name] [chat_id]")
+            return
+            
+        # Get userbot name and chat_id
+        userbot_name = message.command[1]
+        chat_id = message.command[2]
+        
+        # Get userbot
+        userbot = get_userbot(userbot_name)
+        if not userbot:
+            await message.reply_text(f"Userbot '{userbot_name}' tidak ditemukan.")
+            return
+            
+        # Convert chat_id to int if possible
+        try:
+            chat_id = int(chat_id)
+        except ValueError:
+            # If not numeric, use as username
+            pass
+            
+        # Get chat history
+        history = await get_chat_history(userbot, chat_id, limit=20)
+        
+        if not history:
+            await message.reply_text("Tidak ada riwayat chat yang ditemukan.")
+            return
+            
+        # Format and send history
+        formatted = format_chat_history(history)
+        
+        # Split message if too long
+        if len(formatted) > 4000:
+            # Send in chunks
+            chunks = [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]
+            for i, chunk in enumerate(chunks):
+                await message.reply_text(f"**Riwayat Chat (Bagian {i+1}/{len(chunks)}):**\n\n{chunk}")
+        else:
+            await message.reply_text(f"**Riwayat Chat:**\n\n{formatted}")
+        
+    except Exception as e:
+        console.error(f"Error in test_history: {str(e)}")
+        await message.reply_text(f"Terjadi kesalahan: {str(e)}")
+
+# Konfigurasi untuk mengatur jumlah pesan riwayat
+CHAT_HISTORY_CONFIG = {
+    "enabled": True,
+    "limit": 20,
+    "include_media_info": True,
+    "include_timestamps": True
+}
+
+@bot.on_message(filters.command("historyconfig") & filters.user(OWNER_ID))
+async def configure_history(client, message):
+    """Configure chat history settings"""
+    try:
+        # Check command format
+        if len(message.command) < 2:
+            # Show current config
+            config_text = "⚙️ **Konfigurasi Riwayat Chat:**\n\n"
+            config_text += f"- Status: {'Aktif' if CHAT_HISTORY_CONFIG['enabled'] else 'Nonaktif'}\n"
+            config_text += f"- Jumlah Pesan: {CHAT_HISTORY_CONFIG['limit']}\n"
+            config_text += f"- Info Media: {'Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else 'Tidak'}\n"
+            config_text += f"- Timestamp: {'Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else 'Tidak'}\n\n"
+            config_text += "**Perintah yang tersedia:**\n"
+            config_text += "- `/historyconfig enable/disable` - Aktifkan/nonaktifkan riwayat\n"
+            config_text += "- `/historyconfig limit [angka]` - Atur jumlah pesan (1-50)\n"
+            config_text += "- `/historyconfig media on/off` - Atur info media\n"
+            config_text += "- `/historyconfig timestamp on/off` - Atur timestamp"
+            
+            await message.reply_text(config_text)
+            return
+            
+        # Get setting and value
+        setting = message.command[1].lower()
+        
+        if setting == "enable":
+            CHAT_HISTORY_CONFIG["enabled"] = True
+            await message.reply_text("✅ Riwayat chat diaktifkan")
+            
+        elif setting == "disable":
+            CHAT_HISTORY_CONFIG["enabled"] = False
+            await message.reply_text("❌ Riwayat chat dinonaktifkan")
+            
+        elif setting == "limit":
+            if len(message.command) < 3:
+                await message.reply_text("Gunakan: /historyconfig limit [angka]")
+                return
+                
+            try:
+                limit = int(message.command[2])
+                if 1 <= limit <= 50:
+                    CHAT_HISTORY_CONFIG["limit"] = limit
+                    await message.reply_text(f"✅ Jumlah pesan riwayat diatur ke {limit}")
+                else:
+                    await message.reply_text("❌ Jumlah pesan harus antara 1-50")
+            except ValueError:
+                await message.reply_text("❌ Masukkan angka yang valid")
+                
+        elif setting == "media":
+            if len(message.command) < 3:
+                await message.reply_text("Gunakan: /historyconfig media on/off")
+                return
+                
+            value = message.command[2].lower()
+            if value == "on":
+                CHAT_HISTORY_CONFIG["include_media_info"] = True
+                await message.reply_text("✅ Info media diaktifkan")
+            elif value == "off":
+                CHAT_HISTORY_CONFIG["include_media_info"] = False
+                await message.reply_text("❌ Info media dinonaktifkan")
+            else:
+                await message.reply_text("❌ Gunakan 'on' atau 'off'")
+                
+        elif setting == "timestamp":
+            if len(message.command) < 3:
+                await message.reply_text("Gunakan: /historyconfig timestamp on/off")
+                return
+                
+            value = message.command[2].lower()
+            if value == "on":
+                CHAT_HISTORY_CONFIG["include_timestamps"] = True
+                await message.reply_text("✅ Timestamp diaktifkan")
+            elif value == "off":
+                CHAT_HISTORY_CONFIG["include_timestamps"] = False
+                await message.reply_text("❌ Timestamp dinonaktifkan")
+            else:
+                await message.reply_text("❌ Gunakan 'on' atau 'off'")
+                
+        else:
+            await message.reply_text("❌ Setting tidak dikenal. Gunakan: enable, disable, limit, media, atau timestamp")
+        
+    except Exception as e:
+        console.error(f"Error in configure_history: {str(e)}")
+        await message.reply_text("Terjadi kesalahan saat mengatur konfigurasi.")
