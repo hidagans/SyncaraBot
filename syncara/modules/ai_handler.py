@@ -8,50 +8,75 @@ from syncara.userbot import get_userbot, get_all_userbots
 
 # Inisialisasi komponen
 system_prompt = SystemPrompt()
-replicate_api = ReplicateAPI()  # Pastikan ini sesuai dengan implementasi yang ada
+replicate_api = ReplicateAPI()
 
-@bot.on_message(filters.mentioned | filters.reply | filters.private)
-async def ask_command(client, message):
-    """Handle AI requests and process them using userbot"""
+# Bot manager hanya menerima perintah dari owner
+@bot.on_message(filters.command(["start", "help"]))
+async def start_command(client, message):
+    """Handle start command for the manager bot"""
+    await message.reply_text(
+        "👋 Halo! Saya adalah bot manager untuk SyncaraBot.\n\n"
+        "Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
+        "Gunakan userbot assistant untuk berinteraksi dengan AI."
+    )
+
+# Userbot assistant menangani semua interaksi AI
+async def setup_userbot_handlers():
+    """Setup handlers for userbot assistant"""
     try:
-        # Get text from either message text or caption
-        text = message.text or message.caption
-        
-        if not text:
-            await message.reply_text("Silakan berikan pertanyaan")
-            return
-        
-        # Get photo if exists
-        photo_file_id = None
-        if message.photo:
-            photo_file_id = message.photo.file_id
-        
-        # Get userbot to process the request
+        # Get primary userbot
         userbot = get_userbot()
         if not userbot:
-            await message.reply_text("Tidak ada userbot yang tersedia untuk memproses permintaan")
+            console.error("No userbot available to set up handlers")
             return
+            
+        # Set up message handler for the userbot
+        @userbot.on_message(filters.text | filters.photo)
+        async def userbot_message_handler(client, message):
+            """Handle all messages for userbot assistant"""
+            try:
+                # Skip messages from bots
+                if message.from_user and message.from_user.is_bot:
+                    return
+                    
+                # Get text from either message text or caption
+                text = message.text or message.caption
+                
+                if not text:
+                    return
+                
+                # Get photo if exists
+                photo_file_id = None
+                if message.photo:
+                    photo_file_id = message.photo.file_id
+                
+                # Send typing action
+                await client.send_chat_action(
+                    chat_id=message.chat.id,
+                    action=enums.ChatAction.TYPING
+                )
+                
+                # Process AI response
+                await process_ai_response(client, message, text, photo_file_id)
+                
+            except Exception as e:
+                console.error(f"Error in userbot message handler: {str(e)}")
         
-        # Send typing action
-        await message.reply_chat_action(enums.ChatAction.TYPING)
-        
-        # Process AI response using userbot
-        await process_ai_response_with_userbot(client, userbot, message, text, photo_file_id)
+        console.info(f"Userbot assistant handlers set up successfully")
         
     except Exception as e:
-        console.error(f"Error in ask_command: {str(e)}")
-        await message.reply_text("Maaf, terjadi kesalahan dalam memproses permintaan Anda.")
+        console.error(f"Error setting up userbot handlers: {str(e)}")
 
-async def process_ai_response_with_userbot(client, userbot, message, prompt, photo_file_id=None):
-    """Process AI response using userbot"""
+async def process_ai_response(client, message, prompt, photo_file_id=None):
+    """Process AI response for userbot assistant"""
     try:
-        # Get bot information
-        bot_info = await client.get_me()
+        # Get userbot information
+        me = await client.get_me()
         
         # Prepare context
         context = {
-            'bot_name': bot_info.first_name,
-            'bot_username': bot_info.username,
+            'bot_name': me.first_name,
+            'bot_username': me.username,
             'user_id': message.from_user.id,
             'chat_id': message.chat.id
         }
@@ -70,24 +95,18 @@ async def process_ai_response_with_userbot(client, userbot, message, prompt, pho
         # Process shortcodes in response
         processed_response = await process_shortcode(client, message, response)
         
-        # Send response using userbot if not empty
+        # Send response if not empty
         if processed_response.strip():
-            # Check if we're in a group or private chat
-            if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-                # In groups, reply to the original message
-                await userbot.send_message(
-                    chat_id=message.chat.id,
-                    text=processed_response,
-                    reply_to_message_id=message.id
-                )
-            else:
-                # In private chats, just send the message
-                await userbot.send_message(
-                    chat_id=message.chat.id,
-                    text=processed_response
-                )
+            await client.send_message(
+                chat_id=message.chat.id,
+                text=processed_response,
+                reply_to_message_id=message.id
+            )
         
     except Exception as e:
-        console.error(f"Error in AI response with userbot: {str(e)}")
-        # Send error message using the main bot
-        await message.reply_text("Maaf, terjadi kesalahan dalam memproses permintaan Anda.")
+        console.error(f"Error in AI response: {str(e)}")
+        await client.send_message(
+            chat_id=message.chat.id,
+            text="Maaf, terjadi kesalahan dalam memproses permintaan Anda.",
+            reply_to_message_id=message.id
+        )

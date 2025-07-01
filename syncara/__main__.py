@@ -9,17 +9,27 @@ from syncara.modules import loadModule
 from syncara.userbot import initialize_userbots, stop_userbots
 from config.config import USERBOTS
 
-shutdown_event = asyncio.Event()  # Event untuk menangani shutdown
+shutdown_event = asyncio.Event()
 
-# Fungsi untuk menangani sinyal SIGINT dan SIGTERM
 def handle_signal(sig, frame):
     """Handle termination signals"""
     console.warning(f"Received signal {sig}, shutting down...")
     shutdown_event.set()
 
+
 # Menangkap sinyal SIGINT dan SIGTERM
 signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
+
+
+
+try:
+    from syncara.userbot import initialize_userbots, stop_userbots
+    from syncara.modules.ai_handler import setup_userbot_handlers
+    has_userbot = True
+except ImportError:
+    has_userbot = False
+
 
 # Fungsi untuk memuat plugin secara dinamis
 async def loadPlugins():
@@ -30,15 +40,20 @@ async def loadPlugins():
 
 async def main():
     try:
-        # Start the bot
+        # Start the manager bot
         await bot.start()
-        console.info(f"Bot started as @{(await bot.get_me()).username}")
+        console.info(f"Manager bot started as @{bot.me.username}")
         
-        # Initialize userbots
-        if USERBOTS:
+        # Initialize userbots if available
+        if has_userbot and USERBOTS:
             await initialize_userbots()
+            console.info("Userbots initialized")
+            
+            # Set up userbot handlers
+            await setup_userbot_handlers()
+            console.info("Userbot handlers set up")
         else:
-            console.info("No userbots configured, running without userbots")
+            console.warning("No userbots configured, running with manager bot only")
         
         # Load plugins
         await loadPlugins()
@@ -54,7 +69,7 @@ async def main():
         console.error(f"Error in main: {str(e)}")
     finally:
         # Cleanup
-        if USERBOTS:
+        if has_userbot and USERBOTS:
             await stop_userbots()
         await bot.stop()
 
