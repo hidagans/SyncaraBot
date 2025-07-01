@@ -6,6 +6,8 @@ from pyrogram import idle
 from importlib import import_module
 from syncara import *
 from syncara.modules import loadModule
+from syncara.userbot import initialize_userbots, stop_userbots
+from config.config import USERBOTS
 
 shutdown_event = asyncio.Event()  # Event untuk menangani shutdown
 
