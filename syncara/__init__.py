@@ -8,7 +8,7 @@ from typing import Callable
 import pyrogram
 from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
-from pyrogram.handlers import MessageHandler
+from pyrogram.handlers import MessageHandler, CallbackQueryHandler  # Tambahkan ini
 from pyromod import listen
 
 from config.config import *
@@ -38,15 +38,15 @@ class Bot(Client):
 
     def on_message(self, filters=None):
         def decorator(func):
-            for ub in self._bot:
-                ub.add_handler(MessageHandler(func, filters))
+            # Register handler to this specific bot instance
+            self.add_handler(MessageHandler(func, filters))
             return func
         return decorator
 
     def on_callback_query(self, filters=None):
         def decorator(func):
-            for ub in self._bot:
-                ub.add_handler(CallbackQueryHandler(func, filters))
+            # Register handler to this specific bot instance
+            self.add_handler(CallbackQueryHandler(func, filters))
             return func
         return decorator
 
@@ -64,3 +64,6 @@ bot = Bot(
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
 )
+
+# Check if userbot is available
+has_userbot = bool(USERBOTS)
