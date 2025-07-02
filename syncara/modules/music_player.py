@@ -3,7 +3,7 @@ import os
 import tempfile
 from typing import Dict, List, Optional
 from pyrogram import Client
-from pyrogram.types import *
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from syncara import console
 from syncara.services.youtube import YouTubeService
 
