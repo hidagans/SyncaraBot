@@ -3,6 +3,7 @@ from pyrogram import filters
 from . import get_userbot, get_all_userbots
 from syncara import bot, console
 from syncara.modules.process_shortcode import process_shortcode
+from syncara.modules.music_player import music_player
 
 async def handle_userbot_action(action, params, context=None):
     """
@@ -120,3 +121,19 @@ async def broadcast_to_all_userbots(message_text, chat_ids=None):
             console.error(f"Error in broadcast with userbot {userbot.name}: {str(e)}")
             
     return success_count > 0
+
+@app.on_callback_query()
+async def handle_callback_query(client, callback_query):
+    """Handle callback queries"""
+    try:
+        data = callback_query.data
+        
+        # Handle music player callbacks
+        if data.startswith("music_"):
+            await music_player.handle_callback(client, callback_query)
+        else:
+            await callback_query.answer("❌ Unknown callback.")
+            
+    except Exception as e:
+        console.error(f"Error handling callback query: {e}")
+        await callback_query.answer("❌ Terjadi kesalahan.")
