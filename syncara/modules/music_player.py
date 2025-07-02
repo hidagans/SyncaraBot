@@ -63,12 +63,12 @@ class MusicPlayer:
             
             caption = f"""🎵 **{title}**
             
-📺 **Channel:** {channel}
-⏱️ **Duration:** {duration}
-👁️ **Views:** {views}
-🔗 **URL:** [YouTube]({music_info['url']})
+    📺 **Channel:** {channel}
+    ⏱️ **Duration:** {duration}
+    👁️ **Views:** {views}
+    🔗 **URL:** [YouTube]({music_info['url']})
 
-📍 **Result {current_index + 1} of {total_results}**"""
+    📍 **Result {current_index + 1} of {total_results}**"""
             
             # Create keyboard
             keyboard = []
@@ -98,34 +98,96 @@ class MusicPlayer:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            # Send or edit message with photo
-            if music_info['thumbnail']:
-                if hasattr(message, 'photo') and message.photo:
-                    await message.edit_media(
-                        media=f"photo:{music_info['thumbnail']}",
-                        caption=caption,
-                        reply_markup=reply_markup
+            # Try to send with photo, fallback to text if fails
+            photo_sent = False
+            if music_info.get('thumbnail'):
+                try:
+                    console.info(f"Attempting to send photo with thumbnail: {music_info['thumbnail']}")
+                    
+                    # Try different thumbnail URLs
+                    thumbnail_urls = [
+                        music_info['thumbnail'],
+                        f"https://img.youtube.com/vi/{music_info['id']}/hqdefault.jpg",
+                        f"https://img.youtube.com/vi/{music_info['id']}/mqdefault.jpg",
+                        f"https://img.youtube.com/vi/{music_info['id']}/default.jpg"
+                    ]
+                    
+                    for thumb_url in thumbnail_urls:
+                        try:
+                            if hasattr(message, 'photo') and message.photo:
+                                # Edit existing photo message
+                                await message.edit_media(
+                                    media=f"photo:{thumb_url}",
+                                    caption=caption,
+                                    reply_markup=reply_markup
+                                )
+                            else:
+                                # Delete old message and send new photo
+                                await message.delete()
+                                new_msg = await client.send_photo(
+                                    chat_id=message.chat.id,
+                                    photo=thumb_url,
+                                    caption=caption,
+                                    reply_markup=reply_markup
+                                )
+                                # Update stored message ID
+                                if message.id in self.search_results:
+                                    self.search_results[new_msg.id] = self.search_results.pop(message.id)
+                            
+                            photo_sent = True
+                            console.info(f"Successfully sent photo with thumbnail: {thumb_url}")
+                            break
+                            
+                        except Exception as thumb_error:
+                            console.warning(f"Failed to send thumbnail {thumb_url}: {thumb_error}")
+                            continue
+                            
+                except Exception as e:
+                    console.error(f"Error sending photo: {e}")
+            
+            # Fallback to text message if photo failed
+            if not photo_sent:
+                console.info("Sending text message as fallback")
+                try:
+                    await message.edit_text(
+                        text=caption,
+                        reply_markup=reply_markup,
+                        disable_web_page_preview=True  # Disable preview to avoid URL fetch issues
                     )
-                else:
+                except Exception as e:
+                    # If edit fails, try to send new message
+                    console.warning(f"Edit failed, sending new message: {e}")
                     await message.delete()
-                    new_msg = await client.send_photo(
+                    new_msg = await client.send_message(
                         chat_id=message.chat.id,
-                        photo=music_info['thumbnail'],
-                        caption=caption,
-                        reply_markup=reply_markup
+                        text=caption,
+                        reply_markup=reply_markup,
+                        disable_web_page_preview=True
                     )
                     # Update stored message ID
                     if message.id in self.search_results:
                         self.search_results[new_msg.id] = self.search_results.pop(message.id)
-            else:
-                await message.edit_text(
-                    text=caption,
-                    reply_markup=reply_markup,
-                    disable_web_page_preview=False
-                )
-                
+                    
         except Exception as e:
             console.error(f"Error showing music preview: {e}")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Ultimate fallback - simple text message
+            try:
+                simple_text = f"🎵 **{music_info['title']}**\n\n▶️ Klik tombol di bawah untuk memutar musik"
+                simple_keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("▶️ PLAY", callback_data=f"music_play_{message.id}_{music_info['id']}")
+                ]])
+                
+                await message.edit_text(
+                    text=simple_text,
+                    reply_markup=simple_keyboard,
+                    disable_web_page_preview=True
+                )
+            except Exception as final_error:
+                console.error(f"Ultimate fallback failed: {final_error}")
+                await message.edit_text("❌ Terjadi kesalahan saat menampilkan preview musik.")
     
     async def handle_callback(self, client: Client, callback_query):
         """Handle music player callbacks"""

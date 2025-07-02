@@ -31,7 +31,7 @@ class YouTubeService:
             search_opts = {
                 'quiet': True,
                 'no_warnings': True,
-                'extract_flat': False,  # Changed to False to get more info
+                'extract_flat': False,
                 'default_search': f'ytsearch{limit}:',
                 'ignoreerrors': True,
             }
@@ -60,16 +60,8 @@ class YouTubeService:
                             duration = entry.get('duration', 0)
                             view_count = entry.get('view_count', 0)
                             
-                            # Get thumbnail - try multiple sources
-                            thumbnail = None
-                            if entry.get('thumbnails'):
-                                # Get highest quality thumbnail
-                                thumbnails = entry['thumbnails']
-                                if thumbnails:
-                                    thumbnail = thumbnails[-1].get('url')
-                            
-                            if not thumbnail:
-                                thumbnail = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                            # Use reliable YouTube thumbnail URLs
+                            thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
                             
                             result = {
                                 'id': video_id,
