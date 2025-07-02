@@ -13,7 +13,7 @@ OWNER_ID = [
     6696975845
 ]
 
-STRING_SESSION=os.getenv("STRING_SESSION")
+SESSION_STRING=os.getenv("SESSION_STRING")
 
 # MongoDB configuration
 MONGO_URI = os.getenv("MONGO_URI")
