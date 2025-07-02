@@ -159,10 +159,14 @@ async def get_chat_history(client, chat_id, limit=None):
                             'display_name': reply_msg.sender_chat.title or "Channel"
                         }
                     
+                    reply_content = reply_msg.text or reply_msg.caption or "[Media]"
+                    if len(reply_content) > 100:
+                        reply_content = reply_content[:100] + "..."
+                    
                     reply_info = {
                         'message_id': reply_msg.id,
                         'sender': reply_sender_info,
-                        'content': (reply_msg.text or reply_msg.caption or "[Media]")[:100] + ("..." if len(reply_msg.text or reply_msg.caption or "") > 100 else "")
+                        'content': reply_content
                     }
                 
                 # Add to messages list with all detailed info
