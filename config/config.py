@@ -14,7 +14,7 @@ OWNER_ID = [
 ]
 
 # Userbot Configuration
-[
+USERBOTS = [
     {
         "name": "userbot1",
         "api_id": 21445722,
