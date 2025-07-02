@@ -10,7 +10,7 @@ from config.config import OWNER_ID
 system_prompt = SystemPrompt()
 
 async def get_chat_history(client, chat_id, limit=None):
-    """Get chat history with detailed information"""
+    """Get chat history with detailed information including message ID, user ID, and reply info"""
     try:
         # Check if history is enabled
         if not CHAT_HISTORY_CONFIG["enabled"]:
@@ -94,59 +94,85 @@ async def get_chat_history(client, chat_id, limit=None):
                 if not content.strip():
                     continue
                 
-                # Get sender info
+                # Get sender info with detailed information
                 sender_info = {
                     'id': None,
                     'name': "Unknown",
                     'username': None,
-                    'is_bot': False
+                    'is_bot': False,
+                    'is_assistant': False
                 }
                 
                 if message.from_user:
                     sender_info = {
                         'id': message.from_user.id,
-                        'name': message.from_user.first_name,
+                        'name': message.from_user.first_name or "Unknown",
                         'username': message.from_user.username,
-                        'is_bot': message.from_user.is_bot
+                        'is_bot': message.from_user.is_bot,
+                        'is_assistant': message.from_user.id == userbot_info['id']
                     }
-                    if message.from_user.id == userbot_info['id']:
-                        sender_info['name'] = f"{userbot_info['first_name']} (Assistant)"
+                    
+                    # Add assistant label
+                    if sender_info['is_assistant']:
+                        sender_info['display_name'] = f"{userbot_info['first_name']} (Assistant)"
+                    else:
+                        sender_info['display_name'] = sender_info['name']
+                        
                 elif message.sender_chat:
                     sender_info = {
                         'id': message.sender_chat.id,
-                        'name': message.sender_chat.title,
+                        'name': message.sender_chat.title or "Channel",
                         'username': message.sender_chat.username,
-                        'is_bot': False
+                        'is_bot': False,
+                        'is_assistant': False,
+                        'display_name': message.sender_chat.title or "Channel"
                     }
                 
-                # Get reply info
+                # Get reply info if exists
                 reply_info = None
                 if message.reply_to_message:
                     reply_msg = message.reply_to_message
-                    reply_sender = "Unknown"
+                    reply_sender_info = {
+                        'id': None,
+                        'name': "Unknown",
+                        'username': None
+                    }
                     
                     if reply_msg.from_user:
-                        reply_sender = reply_msg.from_user.first_name
+                        reply_sender_info = {
+                            'id': reply_msg.from_user.id,
+                            'name': reply_msg.from_user.first_name or "Unknown",
+                            'username': reply_msg.from_user.username
+                        }
+                        
+                        # Check if reply is to assistant
                         if reply_msg.from_user.id == userbot_info['id']:
-                            reply_sender = f"{userbot_info['first_name']} (Assistant)"
+                            reply_sender_info['display_name'] = f"{userbot_info['first_name']} (Assistant)"
+                        else:
+                            reply_sender_info['display_name'] = reply_sender_info['name']
+                            
                     elif reply_msg.sender_chat:
-                        reply_sender = reply_msg.sender_chat.title
+                        reply_sender_info = {
+                            'id': reply_msg.sender_chat.id,
+                            'name': reply_msg.sender_chat.title or "Channel",
+                            'username': reply_msg.sender_chat.username,
+                            'display_name': reply_msg.sender_chat.title or "Channel"
+                        }
                     
                     reply_info = {
                         'message_id': reply_msg.id,
-                        'sender': reply_sender,
-                        'content': reply_msg.text or reply_msg.caption or "[Media]"
+                        'sender': reply_sender_info,
+                        'content': (reply_msg.text or reply_msg.caption or "[Media]")[:100] + ("..." if len(reply_msg.text or reply_msg.caption or "") > 100 else "")
                     }
                 
-                # Add to messages list with detailed info
+                # Add to messages list with all detailed info
                 messages.append({
                     'message_id': message.id,
                     'sender': sender_info,
                     'chat': chat_info,
                     'content': content,
                     'timestamp': message.date.astimezone(tz),
-                    'reply_to': reply_info,
-                    'is_assistant': message.from_user and message.from_user.id == userbot_info['id']
+                    'reply_to': reply_info
                 })
                 
             except Exception as e:
@@ -163,47 +189,48 @@ async def get_chat_history(client, chat_id, limit=None):
         return []
 
 def format_chat_history(messages):
-    """Format chat history with detailed information"""
+    """Format chat history with detailed information including group info, message IDs, user IDs, and reply info"""
     if not messages or not CHAT_HISTORY_CONFIG["enabled"]:
         return ""
     
-    formatted_history = "\n=== RIWAYAT PERCAKAPAN DETAIL ===\n"
-    formatted_history += f"📍 Grup: {messages[0]['chat']['title']} ({messages[0]['chat']['type']})\n"
-    formatted_history += f"🆔 Chat ID: {messages[0]['chat']['id']}\n"
-    if messages[0]['chat']['username']:
-        formatted_history += f"🔗 Username: @{messages[0]['chat']['username']}\n"
-    formatted_history += f"📝 {len(messages)} Pesan Terakhir\n"
-    formatted_history += "──────────────────────\n\n"
+    # Get chat info from first message
+    chat_info = messages[0]['chat']
+    
+    # Build header with group/chat information
+    formatted_history = f"\n=== RIWAYAT PERCAKAPAN {len(messages)} PESAN TERAKHIR ===\n"
+    formatted_history += f"📍 Grup: {chat_info['title']} ({chat_info['type']})\n"
+    formatted_history += f"🆔 Chat ID: {chat_info['id']}\n"
+    if chat_info['username']:
+        formatted_history += f"🔗 Username: @{chat_info['username']}\n"
+    formatted_history += "──────────────────────────────────────\n"
     
     for msg in messages:
         # Format timestamp
-        timestamp = msg['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = msg['timestamp'].strftime("%H:%M") if CHAT_HISTORY_CONFIG["include_timestamps"] else ""
         
-        # Format sender info
-        sender = f"{msg['sender']['name']}"
+        # Build sender info with ID
+        sender = msg['sender']['display_name']
         if msg['sender']['username']:
             sender += f" (@{msg['sender']['username']})"
-        if msg['sender']['is_bot']:
-            sender += " [BOT]"
-        sender += f" [{msg['sender']['id']}]"
+        sender += f" [ID:{msg['sender']['id']}]"
         
-        # Build message header
-        header = f"[{timestamp}] #{msg['message_id']}"
+        # Build message line with message ID
+        message_line = f"[{timestamp}] #{msg['message_id']} "
         
         # Add reply info if exists
         if msg['reply_to']:
             reply = msg['reply_to']
-            header += f" ↩️ Reply to #{reply['message_id']} from {reply['sender']}"
-            
-        # Format the message
-        formatted_history += f"{header}\n"
-        formatted_history += f"👤 {sender}\n"
-        formatted_history += f"💬 {msg['content']}\n"
+            reply_sender = reply['sender']['display_name']
+            if reply['sender']['username']:
+                reply_sender += f" (@{reply['sender']['username']})"
+            message_line += f"↩️ Reply to #{reply['message_id']} from {reply_sender} [ID:{reply['sender']['id']}]: "
         
-        # Add separator between messages
-        formatted_history += "──────────────────────\n"
+        message_line += f"{sender}: {msg['content']}\n"
+        
+        formatted_history += message_line
     
-    formatted_history += "\n=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
+    formatted_history += "──────────────────────────────────────\n"
+    formatted_history += "=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
     
     return formatted_history
 

@@ -620,7 +620,7 @@ async def setup_userbot_handlers():
         console.error(f"Error setting up userbot handlers: {str(e)}")
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
-    """Process AI response with detailed context"""
+    """Process AI response with detailed context including current message info"""
     try:
         # Get userbot information from cache
         userbot_name = getattr(client, 'name', 'unknown')
@@ -638,12 +638,10 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         chat_history = await get_chat_history(client, message.chat.id, limit=CHAT_HISTORY_CONFIG["limit"])
         formatted_history = format_chat_history(chat_history)
         
-        # Prepare message context
-        msg_context = {
+        # Get current message detailed info
+        current_msg_info = {
             'message_id': message.id,
             'chat_id': message.chat.id,
-            'chat_type': message.chat.type.name,
-            'chat_title': message.chat.title if message.chat.title else "Private Chat",
             'from_user': {
                 'id': message.from_user.id if message.from_user else None,
                 'name': message.from_user.first_name if message.from_user else "Unknown",
@@ -651,23 +649,39 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             }
         }
         
+        # Add reply info if exists
         if message.reply_to_message:
             reply = message.reply_to_message
-            msg_context['reply_to'] = {
+            reply_sender = "Unknown"
+            reply_sender_id = None
+            reply_sender_username = None
+            
+            if reply.from_user:
+                reply_sender = reply.from_user.first_name
+                reply_sender_id = reply.from_user.id
+                reply_sender_username = reply.from_user.username
+                if reply.from_user.id == userbot_info['id']:
+                    reply_sender = f"{userbot_info['first_name']} (Assistant)"
+            elif reply.sender_chat:
+                reply_sender = reply.sender_chat.title
+                reply_sender_id = reply.sender_chat.id
+                reply_sender_username = reply.sender_chat.username
+            
+            current_msg_info['reply_to'] = {
                 'message_id': reply.id,
-                'from_user': {
-                    'id': reply.from_user.id if reply.from_user else None,
-                    'name': reply.from_user.first_name if reply.from_user else "Unknown",
-                    'username': reply.from_user.username if reply.from_user else None
+                'sender': {
+                    'id': reply_sender_id,
+                    'name': reply_sender,
+                    'username': reply_sender_username
                 },
-                'content': reply.text or reply.caption or "[Media]"
+                'content': (reply.text or reply.caption or "[Media]")[:100] + ("..." if len(reply.text or reply.caption or "") > 100 else "")
             }
         
         # Prepare context for system prompt
         context = {
             'bot_name': userbot_info['first_name'],
             'bot_username': userbot_info['username'],
-            'message': msg_context
+            'message': current_msg_info
         }
         
         # Get formatted system prompt
@@ -675,18 +689,26 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         
         # Add chat history context to system prompt
         if formatted_history:
-            formatted_prompt += f"\n\n{formatted_history}"
+            formatted_prompt += f"\n{formatted_history}"
             formatted_prompt += "Berdasarkan riwayat percakapan di atas, jawab pertanyaan atau tanggapi pesan berikut dengan konteks yang sesuai:\n\n"
         
         # Add current message context
-        formatted_prompt += f"\nPesan saat ini:\n"
-        formatted_prompt += f"ID: #{msg_context['message_id']}\n"
-        if msg_context.get('reply_to'):
-            formatted_prompt += f"Reply ke: #{msg_context['reply_to']['message_id']} dari {msg_context['reply_to']['from_user']['name']}\n"
-        formatted_prompt += f"Dari: {msg_context['from_user']['name']}"
-        if msg_context['from_user']['username']:
-            formatted_prompt += f" (@{msg_context['from_user']['username']})"
-        formatted_prompt += f"\nPesan: {prompt}\n\n"
+        formatted_prompt += f"Pesan saat ini:\n"
+        formatted_prompt += f"ID: #{current_msg_info['message_id']}\n"
+        
+        if current_msg_info.get('reply_to'):
+            reply_info = current_msg_info['reply_to']
+            formatted_prompt += f"Reply ke: #{reply_info['message_id']} dari {reply_info['sender']['name']}"
+            if reply_info['sender']['username']:
+                formatted_prompt += f" (@{reply_info['sender']['username']})"
+            formatted_prompt += f" [ID:{reply_info['sender']['id']}]\n"
+            formatted_prompt += f"Isi pesan yang di-reply: {reply_info['content']}\n"
+        
+        formatted_prompt += f"Dari: {current_msg_info['from_user']['name']}"
+        if current_msg_info['from_user']['username']:
+            formatted_prompt += f" (@{current_msg_info['from_user']['username']})"
+        formatted_prompt += f" [ID:{current_msg_info['from_user']['id']}]\n"
+        formatted_prompt += f"Pesan: {prompt}\n\n"
         
         # Generate AI response
         response = await replicate_api.generate_response(
