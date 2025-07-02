@@ -1,288 +1,419 @@
-# syncara/shortcode/userbot_management.py
-from syncara import console
-from syncara.userbot import get_userbot, get_all_userbots
+# syncara/modules/userbot_manager.py
+from pyrogram import filters
+from syncara import bot, userbot, console
+from syncara.modules.ai_handler import USERBOT_PROMPT_MAPPING, USERBOT_INFO_CACHE, CHAT_HISTORY_CONFIG
+from syncara.modules.system_prompt import SystemPrompt
+from config.config import OWNER_ID, SESSION_STRING
+from datetime import datetime
+import pytz
 
-class UserbotManagementShortcode:
-    def __init__(self):
-        self.handlers = {
-            'USERBOT:SEND_MESSAGE': self.send_message,
-            'USERBOT:JOIN_CHAT': self.join_chat,
-            'USERBOT:LEAVE_CHAT': self.leave_chat,
-            'USERBOT:FORWARD_MESSAGE': self.forward_message,
-            'USERBOT:REACT': self.react_to_message,
-            'USERBOT:EDIT_MESSAGE': self.edit_message,
-            'USERBOT:SEND_PHOTO': self.send_photo,
-            'USERBOT:SEND_DOCUMENT': self.send_document,
-        }
+# Inisialisasi komponen
+system_prompt = SystemPrompt()
+
+from pyrogram import Client, filters
+from pyrogram.types import CallbackQuery
+from syncara.modules.music_player import music_player
+
+@bot.on_callback_query(filters.regex(r"^music_"))
+async def handle_music_callback(client: Client, callback_query: CallbackQuery):
+    """Handle music player callbacks from bot manager"""
+    try:
+        await music_player.handle_callback(client, callback_query)
+    except Exception as e:
+        console.error(f"Error handling music callback: {e}")
+        await callback_query.answer("❌ Terjadi kesalahan.")
+
+async def get_chat_history(client, chat_id, limit=None):
+    """Get chat history with detailed information including message ID, user ID, and reply info"""
+    try:
+        # Check if history is enabled
+        if not CHAT_HISTORY_CONFIG["enabled"]:
+            return []
+            
+        # Use configured limit if not specified
+        if limit is None:
+            limit = CHAT_HISTORY_CONFIG["limit"]
         
-        self.descriptions = {
-            'USERBOT:SEND_MESSAGE': 'Send message using userbot. Usage: [USERBOT:SEND_MESSAGE:userbot_name:chat_id:message_text]',
-            'USERBOT:JOIN_CHAT': 'Join chat using userbot. Usage: [USERBOT:JOIN_CHAT:userbot_name:invite_link_or_username]',
-            'USERBOT:LEAVE_CHAT': 'Leave chat using userbot. Usage: [USERBOT:LEAVE_CHAT:userbot_name:chat_id]',
-            'USERBOT:FORWARD_MESSAGE': 'Forward message using userbot. Usage: [USERBOT:FORWARD_MESSAGE:userbot_name:from_chat:message_id:to_chat]',
-            'USERBOT:REACT': 'React to message using userbot. Usage: [USERBOT:REACT:userbot_name:chat_id:message_id:emoji]',
-            'USERBOT:EDIT_MESSAGE': 'Edit message using userbot. Usage: [USERBOT:EDIT_MESSAGE:userbot_name:chat_id:message_id:new_text]',
-            'USERBOT:SEND_PHOTO': 'Send photo using userbot. Usage: [USERBOT:SEND_PHOTO:userbot_name:chat_id:photo_file_id:caption]',
-            'USERBOT:SEND_DOCUMENT': 'Send document using userbot. Usage: [USERBOT:SEND_DOCUMENT:userbot_name:chat_id:document_file_id:caption]'
-        }
-    
-    async def send_message(self, client, message, params):
-        """Send message using userbot"""
-        try:
-            parts = params.split(':', 2)
-            if len(parts) < 3:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            chat_id = parts[1]
-            text = parts[2]
-            
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
-            
-            # Convert chat_id to int if possible
+        messages = []
+        
+        # Get userbot info from cache
+        userbot_name = getattr(client, 'name', 'unknown')
+        userbot_info = USERBOT_INFO_CACHE.get(userbot_name)
+        
+        if not userbot_info:
+            # Fallback: get info but with rate limiting
             try:
-                chat_id = int(chat_id)
-            except ValueError:
-                pass  # Use as username/chat link
-            
-            await userbot.send_message(chat_id=chat_id, text=text)
-            console.info(f"Sent message to {chat_id} using userbot {userbot_name}")
-            return True
-        except Exception as e:
-            console.error(f"Error sending message via userbot: {e}")
-            return False
-    
-    async def join_chat(self, client, message, params):
-        """Join chat using userbot"""
+                me = await client.get_me()
+                userbot_info = {
+                    'id': me.id,
+                    'username': me.username,
+                    'first_name': me.first_name,
+                    'last_name': me.last_name
+                }
+                USERBOT_INFO_CACHE[userbot_name] = userbot_info
+            except Exception as e:
+                console.error(f"Error getting userbot info: {str(e)}")
+                return []
+        
+        # Get chat info
         try:
-            parts = params.split(':', 1)
-            if len(parts) < 2:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            chat_link = parts[1]
-            
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
-            
-            await userbot.join_chat(chat_link)
-            console.info(f"Joined chat {chat_link} using userbot {userbot_name}")
-            return True
+            chat = await client.get_chat(chat_id)
+            chat_info = {
+                'id': chat.id,
+                'title': chat.title if chat.title else "Private Chat",
+                'type': chat.type.name,
+                'username': chat.username if hasattr(chat, 'username') else None
+            }
         except Exception as e:
-            console.error(f"Error joining chat via userbot: {e}")
-            return False
+            console.error(f"Error getting chat info: {str(e)}")
+            chat_info = {
+                'id': chat_id,
+                'title': "Unknown Chat",
+                'type': "unknown",
+                'username': None
+            }
+        
+        # Get timezone for timestamp formatting
+        tz = pytz.timezone('Asia/Jakarta')
+        
+        async for message in client.get_chat_history(chat_id, limit=limit):
+            try:
+                # Skip service messages
+                if message.service:
+                    continue
+                
+                # Get message content
+                content = message.text or message.caption or ""
+                
+                # Handle media messages
+                if not content.strip() and CHAT_HISTORY_CONFIG["include_media_info"]:
+                    if message.photo:
+                        content = "[Foto]"
+                    elif message.video:
+                        content = "[Video]"
+                    elif message.document:
+                        content = f"[Dokumen: {message.document.file_name or 'Unknown'}]"
+                    elif message.audio:
+                        content = "[Audio]"
+                    elif message.voice:
+                        content = "[Voice Note]"
+                    elif message.sticker:
+                        content = f"[Sticker: {message.sticker.emoji or ''}]"
+                    elif message.animation:
+                        content = "[GIF]"
+                    else:
+                        content = "[Media]"
+                
+                # Skip if still empty
+                if not content.strip():
+                    continue
+                
+                # Get sender info with detailed information
+                sender_info = {
+                    'id': None,
+                    'name': "Unknown",
+                    'username': None,
+                    'is_bot': False,
+                    'is_assistant': False
+                }
+                
+                if message.from_user:
+                    sender_info = {
+                        'id': message.from_user.id,
+                        'name': message.from_user.first_name or "Unknown",
+                        'username': message.from_user.username,
+                        'is_bot': message.from_user.is_bot,
+                        'is_assistant': message.from_user.id == userbot_info['id']
+                    }
+                    
+                    # Add assistant label
+                    if sender_info['is_assistant']:
+                        sender_info['display_name'] = f"{userbot_info['first_name']} (Assistant)"
+                    else:
+                        sender_info['display_name'] = sender_info['name']
+                        
+                elif message.sender_chat:
+                    sender_info = {
+                        'id': message.sender_chat.id,
+                        'name': message.sender_chat.title or "Channel",
+                        'username': message.sender_chat.username,
+                        'is_bot': False,
+                        'is_assistant': False,
+                        'display_name': message.sender_chat.title or "Channel"
+                    }
+                
+                # Get reply info if exists
+                reply_info = None
+                if message.reply_to_message:
+                    reply_msg = message.reply_to_message
+                    reply_sender_info = {
+                        'id': None,
+                        'name': "Unknown",
+                        'username': None
+                    }
+                    
+                    if reply_msg.from_user:
+                        reply_sender_info = {
+                            'id': reply_msg.from_user.id,
+                            'name': reply_msg.from_user.first_name or "Unknown",
+                            'username': reply_msg.from_user.username
+                        }
+                        
+                        # Check if reply is to assistant
+                        if reply_msg.from_user.id == userbot_info['id']:
+                            reply_sender_info['display_name'] = f"{userbot_info['first_name']} (Assistant)"
+                        else:
+                            reply_sender_info['display_name'] = reply_sender_info['name']
+                            
+                    elif reply_msg.sender_chat:
+                        reply_sender_info = {
+                            'id': reply_msg.sender_chat.id,
+                            'name': reply_msg.sender_chat.title or "Channel",
+                            'username': reply_msg.sender_chat.username,
+                            'display_name': reply_msg.sender_chat.title or "Channel"
+                        }
+                    
+                    reply_content = reply_msg.text or reply_msg.caption or "[Media]"
+                    if len(reply_content) > 100:
+                        reply_content = reply_content[:100] + "..."
+                    
+                    reply_info = {
+                        'message_id': reply_msg.id,
+                        'sender': reply_sender_info,
+                        'content': reply_content
+                    }
+                
+                # Add to messages list with all detailed info
+                messages.append({
+                    'message_id': message.id,
+                    'sender': sender_info,
+                    'chat': chat_info,
+                    'content': content,
+                    'timestamp': message.date.astimezone(tz),
+                    'reply_to': reply_info
+                })
+                
+            except Exception as e:
+                console.error(f"Error processing message in history: {str(e)}")
+                continue
+        
+        # Reverse to get chronological order (oldest first)
+        messages.reverse()
+        
+        return messages
+        
+    except Exception as e:
+        console.error(f"Error getting chat history: {str(e)}")
+        return []
+
+def format_chat_history(messages):
+    """Format chat history with detailed information including group info, message IDs, user IDs, and reply info"""
+    if not messages or not CHAT_HISTORY_CONFIG["enabled"]:
+        return ""
     
-    async def leave_chat(self, client, message, params):
-        """Leave chat using userbot"""
-        try:
-            parts = params.split(':', 1)
-            if len(parts) < 2:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            chat_id = parts[1]
-            
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
-            
-            # Convert chat_id to int if possible
-            try:
-                chat_id = int(chat_id)
-            except ValueError:
-                pass  # Use as username
-            
-            await userbot.leave_chat(chat_id)
-            console.info(f"Left chat {chat_id} using userbot {userbot_name}")
-            return True
-        except Exception as e:
-            console.error(f"Error leaving chat via userbot: {e}")
-            return False
+    # Get chat info from first message
+    chat_info = messages[0]['chat']
     
-    async def forward_message(self, client, message, params):
-        """Forward message using userbot"""
-        try:
-            parts = params.split(':', 3)
-            if len(parts) < 4:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            from_chat = parts[1]
-            message_id = int(parts[2])
-            to_chat = parts[3]
-            
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
-            
-            # Convert chat IDs to int if possible
-            try:
-                from_chat = int(from_chat)
-            except ValueError:
-                pass
-            try:
-                to_chat = int(to_chat)
-            except ValueError:
-                pass
-            
-            await userbot.forward_messages(
-                chat_id=to_chat,
-                from_chat_id=from_chat,
-                message_ids=message_id
-            )
-            console.info(f"Forwarded message {message_id} from {from_chat} to {to_chat} using userbot {userbot_name}")
-            return True
-        except Exception as e:
-            console.error(f"Error forwarding message via userbot: {e}")
-            return False
+    # Build header with group/chat information
+    formatted_history = f"\n=== RIWAYAT PERCAKAPAN {len(messages)} PESAN TERAKHIR ===\n"
+    formatted_history += f"📍 Grup: {chat_info['title']} ({chat_info['type']})\n"
+    formatted_history += f"🆔 Chat ID: {chat_info['id']}\n"
+    if chat_info['username']:
+        formatted_history += f"👤 Username: @{chat_info['username']}\n"
+    formatted_history += "\n"
     
-    async def react_to_message(self, client, message, params):
-        """React to message using userbot"""
-        try:
-            parts = params.split(':', 3)
-            if len(parts) < 4:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            chat_id = parts[1]
-            message_id = int(parts[2])
-            emoji = parts[3]
-            
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
-            
-            # Convert chat_id to int if possible
-            try:
-                chat_id = int(chat_id)
-            except ValueError:
-                pass
-            
-            await userbot.send_reaction(
-                chat_id=chat_id,
-                message_id=message_id,
-                emoji=emoji
-            )
-            console.info(f"Reacted to message {message_id} in {chat_id} with {emoji} using userbot {userbot_name}")
-            return True
-        except Exception as e:
-            console.error(f"Error reacting to message via userbot: {e}")
-            return False
+    for msg in messages:
+        # Format timestamp
+        timestamp = msg['timestamp'].strftime("%H:%M") if CHAT_HISTORY_CONFIG["include_timestamps"] else ""
+        
+        # Build sender info with ID
+        sender = msg['sender']['display_name']
+        if msg['sender']['username']:
+            sender += f" (@{msg['sender']['username']})"
+        sender += f" [ID:{msg['sender']['id']}]"
+        
+        # Build message line with message ID
+        message_line = f"[{timestamp}] #{msg['message_id']} "
+        
+        # Add reply info if exists
+        if msg['reply_to']:
+            reply = msg['reply_to']
+            reply_sender = reply['sender']['display_name']
+            if reply['sender']['username']:
+                reply_sender += f" (@{reply['sender']['username']})"
+            message_line += f"↪️ Reply to #{reply['message_id']} from {reply_sender} [ID:{reply['sender']['id']}]: "
+        
+        message_line += f"{sender}: {msg['content']}\n"
+        
+        formatted_history += message_line
     
-    async def edit_message(self, client, message, params):
-        """Edit message using userbot"""
-        try:
-            parts = params.split(':', 3)
-            if len(parts) < 4:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            chat_id = parts[1]
-            message_id = int(parts[2])
-            new_text = parts[3]
-            
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
-            
-            # Convert chat_id to int if possible
-            try:
-                chat_id = int(chat_id)
-            except ValueError:
-                pass
-            
-            await userbot.edit_message_text(
-                chat_id=chat_id,
-                message_id=message_id,
-                text=new_text
-            )
-            console.info(f"Edited message {message_id} in {chat_id} using userbot {userbot_name}")
-            return True
-        except Exception as e:
-            console.error(f"Error editing message via userbot: {e}")
-            return False
+    formatted_history += "\n"
+    formatted_history += "=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
     
-    async def send_photo(self, client, message, params):
-        """Send photo using userbot"""
+    return formatted_history
+
+# Simplified userbot commands since we only have one userbot now
+@bot.on_message(filters.command("userbot_info") & filters.user(OWNER_ID))
+async def userbot_info_command(client, message):
+    """Get userbot information"""
+    try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
+        # Get userbot info from cache
+        userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+        if not userbot_info:
+            from syncara.modules.ai_handler import cache_userbot_info
+            userbot_info = await cache_userbot_info()
+            
+        if not userbot_info:
+            await message.reply_text("❌ Gagal mendapatkan informasi userbot.")
+            return
+            
+        # Get prompt name for this userbot
+        prompt_name = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+        
+        text = f"🎭 **Informasi Userbot:**\n\n"
+        text += f"• **Nama:** {userbot_info['first_name']}\n"
+        text += f"• **Username:** @{userbot_info['username']}\n"
+        text += f"• **ID:** `{userbot_info['id']}`\n"
+        text += f"• **System Prompt:** {prompt_name}\n"
+        text += f"• **Status:** 🟢 Online\n"
+        
+        await message.reply_text(text)
+        
+    except Exception as e:
+        console.error(f"Error in userbot_info_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil informasi userbot.")
+
+@bot.on_message(filters.command("send") & filters.user(OWNER_ID))
+async def send_as_userbot(client, message):
+    """Send a message as userbot to a specific chat"""
+    try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
+        # Check command format
+        if len(message.command) < 3:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/send [chat_id] [pesan]`")
+            return
+            
+        # Get chat_id and message text
+        chat_id = message.command[1]
+        text = message.text.split(None, 2)[2]
+        
+        # Send message
         try:
-            parts = params.split(':', 3)
-            if len(parts) < 3:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            chat_id = parts[1]
-            photo_file_id = parts[2]
-            caption = parts[3] if len(parts) > 3 else ""
+            chat_id = int(chat_id)
+        except ValueError:
+            # If not numeric, use as username/chat link
+            pass
             
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
+        await userbot.send_message(chat_id, text)
+        await message.reply_text(f"✅ Pesan berhasil dikirim ke {chat_id}")
+        
+    except Exception as e:
+        console.error(f"Error in send_as_userbot: {str(e)}")
+        await message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
+
+@bot.on_message(filters.command("join") & filters.user(OWNER_ID))
+async def join_chat(client, message):
+    """Join a chat using userbot"""
+    try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
             
-            # Convert chat_id to int if possible
-            try:
-                chat_id = int(chat_id)
-            except ValueError:
-                pass
+        # Check command format
+        if len(message.command) < 2:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/join [username/invite_link]`")
+            return
             
-            await userbot.send_photo(
-                chat_id=chat_id,
-                photo=photo_file_id,
-                caption=caption if caption else None
-            )
-            console.info(f"Sent photo to {chat_id} using userbot {userbot_name}")
-            return True
-        except Exception as e:
-            console.error(f"Error sending photo via userbot: {e}")
-            return False
-    
-    async def send_document(self, client, message, params):
-        """Send document using userbot"""
+        # Get chat link/username
+        chat = message.command[1]
+        
+        # Join chat
+        chat_info = await userbot.join_chat(chat)
+        await message.reply_text(f"✅ Userbot berhasil bergabung ke **{chat_info.title}**")
+        
+    except Exception as e:
+        console.error(f"Error in join_chat: {str(e)}")
+        await message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
+
+@bot.on_message(filters.command("leave") & filters.user(OWNER_ID))
+async def leave_chat(client, message):
+    """Leave a chat using userbot"""
+    try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
+        # Check command format
+        if len(message.command) < 2:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/leave [chat_id]`")
+            return
+            
+        # Get chat_id
+        chat_id = message.command[1]
+        
+        # Leave chat
         try:
-            parts = params.split(':', 3)
-            if len(parts) < 3:
-                return False
-                
-            userbot_name = parts[0] if parts[0] else None
-            chat_id = parts[1]
-            document_file_id = parts[2]
-            caption = parts[3] if len(parts) > 3 else ""
+            chat_id = int(chat_id)
+        except ValueError:
+            # If not numeric, use as username
+            pass
             
-            # Get userbot
-            userbot = get_userbot(userbot_name)
-            if not userbot:
-                console.warning(f"Userbot '{userbot_name}' not found")
-                return False
+        await userbot.leave_chat(chat_id)
+        await message.reply_text(f"✅ Userbot berhasil keluar dari chat {chat_id}")
+        
+    except Exception as e:
+        console.error(f"Error in leave_chat: {str(e)}")
+        await message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
+
+@bot.on_message(filters.command("history") & filters.user(OWNER_ID))
+async def test_history(client, message):
+    """Test chat history feature"""
+    try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
             
-            # Convert chat_id to int if possible
-            try:
-                chat_id = int(chat_id)
-            except ValueError:
-                pass
+        # Check command format
+        if len(message.command) < 2:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/history [chat_id]`")
+            return
             
-            await userbot.send_document(
-                chat_id=chat_id,
-                document=document_file_id,
-                caption=caption if caption else None
-            )
-            console.info(f"Sent document to {chat_id} using userbot {userbot_name}")
-            return True
-        except Exception as e:
-            console.error(f"Error sending document via userbot: {e}")
-            return False
+        # Get chat_id
+        chat_id = message.command[1]
+        
+        # Convert chat_id to int if possible
+        try:
+            chat_id = int(chat_id)
+        except ValueError:
+            # If not numeric, use as username
+            pass
+            
+        # Get chat history
+        history = await get_chat_history(userbot, chat_id, limit=20)
+        
+        if not history:
+            await message.reply_text("❌ Tidak ada riwayat chat yang ditemukan.")
+            return
+            
+        # Format and send history
+        formatted = format_chat_history(history)
+        
+        # Split message if too long
+        if len(formatted) > 4000:
+            # Send in chunks
+            chunks = [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]
+            for i, chunk in enumerate(chunks):
+                await message.reply_text(f"**Riwayat Chat (Bagian {i+1}/{len(chunks)}):**\n\n{chunk}")
+        else:
+            await message.reply_text(f"**Riwayat Chat:**\n\n{formatted}")
+        
+    except Exception as e:
+        console.error(f"Error in test_history: {str(e)}")
+        await message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")

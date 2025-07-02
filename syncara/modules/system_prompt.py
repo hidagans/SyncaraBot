@@ -1,4 +1,5 @@
-from syncara.shortcode import *
+# syncara/modules/system_prompt.py
+from syncara.shortcode import registry
 from datetime import datetime
 import pytz
 from config.config import OWNER_ID
@@ -23,7 +24,7 @@ class SystemPrompt:
         self._load_system_prompts()
         
         # Set default prompt
-        self.current_prompt_name = "STEPHANY_HUNDBERG"
+        self.current_prompt_name = "AERIS"
         
     def _load_system_prompts(self):
         """Load all system prompts from XML files"""
@@ -99,7 +100,7 @@ class SystemPrompt:
     def get_owner_section(user_id: int) -> str:
         """Get the owner section text based on user status"""
         if SystemPrompt.is_owner(user_id):
-            return """ OWNER MODE ACTIVE 
+            return """🔑 OWNER MODE ACTIVE 
 - Kamu sedang berbicara dengan owner-ku!
 - Aku akan memberikan akses penuh ke semua fitur.
 - Perintah administratif dan system settings tersedia.
@@ -150,4 +151,4 @@ class SystemPrompt:
 system_prompt = SystemPrompt()
 
 # Make it available for import
-__all__ = ['system_prompt']
+__all__ = ['system_prompt', 'SystemPrompt']
