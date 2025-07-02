@@ -370,6 +370,22 @@ class MusicPlayer:
                 return
             
             console.info(f"Audio downloaded successfully: {audio_file}")
+
+            # Check and start voice chat if needed
+            await callback_query.edit_message_text(
+                f"⏳ Preparing to play: **{current_music['title']}**\n\n"
+                "Checking voice chat status..."
+            )
+            
+            if not await self.ensure_voice_chat(client, chat_id):
+                await callback_query.edit_message_text(
+                    "❌ Gagal memulai voice chat.\n\n"
+                    "Pastikan:\n"
+                    "1. Bot adalah admin grup\n"
+                    "2. Bot memiliki izin mengelola voice chat\n"
+                    "3. Voice chat tidak sedang digunakan bot lain"
+                )
+                return
             
             # Join voice chat and play
             success = await self.join_and_play(client, chat_id, audio_file, video_id)
@@ -416,37 +432,81 @@ class MusicPlayer:
                 
         except Exception as e:
             console.error(f"Error in handle_play: {e}")
-            import traceback
-            console.error(f"Traceback: {traceback.format_exc()}")
-            await callback_query.answer("❌ Terjadi kesalahan saat memutar musik.")
+            await callback_query.edit_message_text(
+                "❌ Terjadi kesalahan saat memutar musik.\n\n"
+                "Pastikan:\n"
+                "1. Bot adalah admin grup\n" 
+                "2. Bot memiliki izin mengelola voice chat\n"
+                "3. Voice chat tidak sedang digunakan bot lain"
+            )
     
     async def join_and_play(self, client: Client, chat_id: int, audio_file: str, video_id: str) -> bool:
         """Join voice chat and play audio"""
         try:
-            # Import pytgcalls
             try:
                 from pytgcalls import PyTgCalls
                 from pytgcalls.types import AudioPiped
+                from pytgcalls.exceptions import NoActiveGroupCall
             except ImportError:
                 console.error("PyTgCalls not installed. Install with: pip install py-tgcalls")
                 return False
-            
-            # Initialize PyTgCalls if not exists
+
             if not hasattr(client, 'pytgcalls'):
                 client.pytgcalls = PyTgCalls(client)
                 await client.pytgcalls.start()
-            
-            # Join voice chat
-            await client.pytgcalls.join_group_call(
-                chat_id,
-                AudioPiped(audio_file)
-            )
-            
+
+            try:
+                # Try to join existing voice chat
+                await client.pytgcalls.join_group_call(
+                    chat_id,
+                    AudioPiped(audio_file)
+                )
+            except NoActiveGroupCall:
+                console.info("No active voice chat, trying to start one...")
+                try:
+                    # Start voice chat
+                    await client.create_group_call(chat_id)
+                    await asyncio.sleep(2)  # Wait for voice chat to initialize
+                    
+                    # Try joining again
+                    await client.pytgcalls.join_group_call(
+                        chat_id,
+                        AudioPiped(audio_file)
+                    )
+                except Exception as e:
+                    console.error(f"Error starting voice chat: {e}")
+                    return False
+
             console.info(f"Successfully joined voice chat and playing: {video_id}")
             return True
             
         except Exception as e:
             console.error(f"Error joining voice chat: {e}")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
+            return False
+        
+    async def ensure_voice_chat(self, client: Client, chat_id: int) -> bool:
+        """Ensure voice chat is active in the group"""
+        try:
+            # Check if voice chat exists
+            try:
+                await client.get_group_call(chat_id)
+                return True
+            except:
+                pass
+            
+            # Start voice chat if not exists
+            try:
+                await client.create_group_call(chat_id)
+                await asyncio.sleep(2)  # Wait for initialization
+                return True
+            except Exception as e:
+                console.error(f"Error creating voice chat: {e}")
+                return False
+                
+        except Exception as e:
+            console.error(f"Error checking voice chat: {e}")
             return False
     
     async def handle_close(self, client: Client, callback_query):
