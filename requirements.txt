@@ -1,0 +1,8 @@
+pyrogram
+pyromod
+dotenv
+replicate
+requests
+yt_dlp
+tgcrypto
+pytz
