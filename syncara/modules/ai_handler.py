@@ -7,7 +7,6 @@ from .process_shortcode import process_shortcode
 from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
-import asyncio
 
 # Inisialisasi komponen
 system_prompt = SystemPrompt()
@@ -49,6 +48,51 @@ async def cache_userbot_info():
     except Exception as e:
         console.error(f"Error caching userbot info: {str(e)}")
         return None
+
+# Create custom filter for userbot interactions
+async def userbot_filter(_, __, message):
+    """Custom filter to detect userbot interactions"""
+    try:
+        # Skip messages from bots
+        if message.from_user and message.from_user.is_bot:
+            return False
+        
+        # Get userbot info from cache
+        userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+        if not userbot_info:
+            userbot_info = await cache_userbot_info()
+            if not userbot_info:
+                return False
+        
+        # Check if in private chat
+        if message.chat.type == enums.ChatType.PRIVATE:
+            return True
+        
+        # Check if message is a reply to userbot's message
+        if message.reply_to_message:
+            if message.reply_to_message.from_user and message.reply_to_message.from_user.id == userbot_info['id']:
+                return True
+        
+        # Check if userbot is mentioned in the message
+        if message.entities:
+            for entity in message.entities:
+                if entity.type == enums.MessageEntityType.MENTION:
+                    # Extract mentioned username
+                    mentioned_username = message.text[entity.offset:entity.offset + entity.length]
+                    if mentioned_username == f"@{userbot_info['username']}":
+                        return True
+                elif entity.type == enums.MessageEntityType.TEXT_MENTION:
+                    # Check if mentioned user is this userbot
+                    if entity.user and entity.user.id == userbot_info['id']:
+                        return True
+        
+        return False
+    except Exception as e:
+        console.error(f"Error in userbot filter: {str(e)}")
+        return False
+
+# Create the filter
+custom_userbot_filter = filters.create(userbot_filter)
 
 # Bot manager commands
 @bot.on_message(filters.command(["start", "help"]))
@@ -237,135 +281,41 @@ async def set_prompt_command(client, message):
         console.error(f"Error in set_prompt_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat mengatur system prompt.")
 
-@bot.on_message(filters.command("historyconfig") & filters.user(OWNER_ID))
-async def configure_history(client, message):
-    """Configure chat history settings"""
+# Userbot message handler - seamless dengan decorator
+@userbot.on_message(custom_userbot_filter & (filters.text | filters.photo))
+async def userbot_message_handler(client, message):
+    """Handle messages for userbot assistant when mentioned or replied"""
     try:
-        # Check command format
-        if len(message.command) < 2:
-            # Show current config
-            config_text = f"⚙️ **Konfigurasi Riwayat Chat:**\n\n"
-            config_text += f"• Status: {'🟢 Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '🔴 Nonaktif'}\n"
-            config_text += f"• Jumlah Pesan: {CHAT_HISTORY_CONFIG['limit']}\n"
-            config_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
-            config_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
-            config_text += f"📋 **Perintah yang tersedia:**\n"
-            config_text += f"• `/historyconfig enable/disable` - Aktifkan/nonaktifkan riwayat\n"
-            config_text += f"• `/historyconfig limit [angka]` - Atur jumlah pesan (1-50)\n"
-            config_text += f"• `/historyconfig media on/off` - Atur info media\n"
-            config_text += f"• `/historyconfig timestamp on/off` - Atur timestamp"
-            
-            await message.reply_text(config_text)
-            return
-            
-        # Get setting and value
-        setting = message.command[1].lower()
+        # Get text from either message text or caption
+        text = message.text or message.caption
         
-        if setting == "enable":
-            CHAT_HISTORY_CONFIG["enabled"] = True
-            await message.reply_text("✅ Riwayat chat diaktifkan")
-            
-        elif setting == "disable":
-            CHAT_HISTORY_CONFIG["enabled"] = False
-            await message.reply_text("✅ Riwayat chat dinonaktifkan")
-            
-        elif setting == "limit":
-            if len(message.command) < 3:
-                await message.reply_text("❌ Gunakan: /historyconfig limit [angka]")
-                return
-                
-            try:
-                limit = int(message.command[2])
-                if 1 <= limit <= 50:
-                    CHAT_HISTORY_CONFIG["limit"] = limit
-                    await message.reply_text(f"✅ Jumlah pesan riwayat diatur ke {limit}")
-                else:
-                    await message.reply_text("❌ Jumlah pesan harus antara 1-50")
-            except ValueError:
-                await message.reply_text("❌ Masukkan angka yang valid")
-                
-        elif setting == "media":
-            if len(message.command) < 3:
-                await message.reply_text("❌ Gunakan: /historyconfig media on/off")
-                return
-                
-            value = message.command[2].lower()
-            if value == "on":
-                CHAT_HISTORY_CONFIG["include_media_info"] = True
-                await message.reply_text("✅ Info media diaktifkan")
-            elif value == "off":
-                CHAT_HISTORY_CONFIG["include_media_info"] = False
-                await message.reply_text("✅ Info media dinonaktifkan")
-            else:
-                await message.reply_text("❌ Gunakan 'on' atau 'off'")
-                
-        elif setting == "timestamp":
-            if len(message.command) < 3:
-                await message.reply_text("❌ Gunakan: /historyconfig timestamp on/off")
-                return
-                
-            value = message.command[2].lower()
-            if value == "on":
-                CHAT_HISTORY_CONFIG["include_timestamps"] = True
-                await message.reply_text("✅ Timestamp diaktifkan")
-            elif value == "off":
-                CHAT_HISTORY_CONFIG["include_timestamps"] = False
-                await message.reply_text("✅ Timestamp dinonaktifkan")
-            else:
-                await message.reply_text("❌ Gunakan 'on' atau 'off'")
-                
-        else:
-            await message.reply_text("❌ Setting tidak dikenal. Gunakan: enable, disable, limit, media, atau timestamp")
+        if not text:
+            return
+        
+        # Get userbot info from cache
+        userbot_info = USERBOT_INFO_CACHE.get(client.name)
+        if not userbot_info:
+            userbot_info = await cache_userbot_info()
+        
+        if userbot_info and f"@{userbot_info['username']}" in text:
+            text = text.replace(f"@{userbot_info['username']}", "").strip()
+        
+        # Get photo if exists
+        photo_file_id = None
+        if message.photo:
+            photo_file_id = message.photo.file_id
+        
+        # Send typing action
+        await client.send_chat_action(
+            chat_id=message.chat.id,
+            action=enums.ChatAction.TYPING
+        )
+        
+        # Process AI response
+        await process_ai_response(client, message, text, photo_file_id)
         
     except Exception as e:
-        console.error(f"Error in configure_history: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat mengatur konfigurasi.")
-
-@bot.on_message(filters.command("history") & filters.user(OWNER_ID))
-async def test_history(client, message):
-    """Test chat history feature"""
-    try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
-            return
-            
-        # Check command format
-        if len(message.command) < 2:
-            await message.reply_text("❌ Gunakan: /history [chat_id]")
-            return
-            
-        # Get chat_id
-        chat_id = message.command[1]
-        
-        # Convert chat_id to int if possible
-        try:
-            chat_id = int(chat_id)
-        except ValueError:
-            # If not numeric, use as username
-            pass
-            
-        # Get chat history
-        history = await get_chat_history(userbot, chat_id, limit=20)
-        
-        if not history:
-            await message.reply_text("❌ Tidak ada riwayat chat yang ditemukan.")
-            return
-            
-        # Format and send history
-        formatted = format_chat_history(history)
-        
-        # Split message if too long
-        if len(formatted) > 4000:
-            # Send in chunks
-            chunks = [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]
-            for i, chunk in enumerate(chunks):
-                await message.reply_text(f"📜 **Riwayat Chat (Bagian {i+1}/{len(chunks)}):**\n\n{chunk}")
-        else:
-            await message.reply_text(f"📜 **Riwayat Chat:**\n\n{formatted}")
-        
-    except Exception as e:
-        console.error(f"Error in test_history: {str(e)}")
-        await message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
+        console.error(f"Error in userbot message handler: {str(e)}")
 
 async def get_chat_history(client, chat_id, limit=None):
     """Get chat history for context"""
@@ -476,102 +426,6 @@ def format_chat_history(messages):
     formatted_history += "=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
     
     return formatted_history
-
-# Setup userbot handlers
-async def setup_userbot_handlers():
-    """Setup handlers for userbot assistant"""
-    try:
-        if not SESSION_STRING:
-            console.warning("No session string configured, skipping userbot handlers setup")
-            return
-            
-        # Cache userbot info first
-        userbot_info = await cache_userbot_info()
-        if not userbot_info:
-            console.error("Failed to cache userbot info, cannot setup handlers")
-            return
-            
-        console.info(f"Setting up handlers for userbot: {userbot.name} (@{userbot_info['username']})")
-        
-        # Create custom filter for userbot interactions
-        async def userbot_filter(_, __, message):
-            try:
-                # Skip messages from bots
-                if message.from_user and message.from_user.is_bot:
-                    return False
-                
-                # Get userbot info from cache
-                userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
-                if not userbot_info:
-                    return False
-                
-                # Check if in private chat
-                if message.chat.type == enums.ChatType.PRIVATE:
-                    return True
-                
-                # Check if message is a reply to userbot's message
-                if message.reply_to_message:
-                    if message.reply_to_message.from_user and message.reply_to_message.from_user.id == userbot_info['id']:
-                        return True
-                
-                # Check if userbot is mentioned in the message
-                if message.entities:
-                    for entity in message.entities:
-                        if entity.type == enums.MessageEntityType.MENTION:
-                            # Extract mentioned username
-                            mentioned_username = message.text[entity.offset:entity.offset + entity.length]
-                            if mentioned_username == f"@{userbot_info['username']}":
-                                return True
-                        elif entity.type == enums.MessageEntityType.TEXT_MENTION:
-                            # Check if mentioned user is this userbot
-                            if entity.user and entity.user.id == userbot_info['id']:
-                                return True
-                
-                return False
-            except Exception as e:
-                console.error(f"Error in userbot filter: {str(e)}")
-                return False
-        
-        # Apply the custom filter to userbot
-        custom_filter = filters.create(userbot_filter)
-        
-        @userbot.on_message(custom_filter & (filters.text | filters.photo))
-        async def userbot_message_handler(client, message):
-            """Handle messages for userbot assistant when mentioned or replied"""
-            try:
-                # Get text from either message text or caption
-                text = message.text or message.caption
-                
-                if not text:
-                    return
-                
-                # Get userbot info from cache
-                userbot_info = USERBOT_INFO_CACHE.get(client.name)
-                
-                if userbot_info and f"@{userbot_info['username']}" in text:
-                    text = text.replace(f"@{userbot_info['username']}", "").strip()
-                
-                # Get photo if exists
-                photo_file_id = None
-                if message.photo:
-                    photo_file_id = message.photo.file_id
-                
-                # Send typing action
-                await client.send_chat_action(
-                    chat_id=message.chat.id,
-                    action=enums.ChatAction.TYPING
-                )
-                
-                # Process AI response
-                await process_ai_response(client, message, text, photo_file_id)
-                
-            except Exception as e:
-                console.error(f"Error in userbot message handler: {str(e)}")
-        
-        console.info(f"Userbot '{userbot.name}' handler set up successfully")
-        
-    except Exception as e:
-        console.error(f"Error setting up userbot handlers: {str(e)}")
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
     """Process AI response with detailed context including current message info"""
@@ -696,145 +550,90 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         except Exception as send_error:
             console.error(f"Error sending error message: {str(send_error)}")
 
-# Initialize handlers when module is imported
-async def initialize_ai_handler():
-    """Initialize AI handler components"""
+# Additional utility commands for owner
+@bot.on_message(filters.command("historyconfig") & filters.user(OWNER_ID))
+async def configure_history(client, message):
+    """Configure chat history settings"""
     try:
-        console.info("Initializing AI handler...")
-        
-        # Cache userbot info if available
-        if SESSION_STRING:
-            await cache_userbot_info()
-        
-        # Setup userbot handlers
-        await setup_userbot_handlers()
-        
-        console.info("AI handler initialized successfully")
-        
-    except Exception as e:
-        console.error(f"Error initializing AI handler: {str(e)}")
-
-# Additional utility functions for better management
-
-async def get_userbot_stats():
-    """Get userbot statistics"""
-    try:
-        if not SESSION_STRING:
-            return {"status": "not_configured"}
+        # Check command format
+        if len(message.command) < 2:
+            # Show current config
+            config_text = f"⚙️ **Konfigurasi Riwayat Chat:**\n\n"
+            config_text += f"• Status: {'🟢 Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '🔴 Nonaktif'}\n"
+            config_text += f"• Jumlah Pesan: {CHAT_HISTORY_CONFIG['limit']}\n"
+            config_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
+            config_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
+            config_text += f"📋 **Perintah yang tersedia:**\n"
+            config_text += f"• `/historyconfig enable/disable` - Aktifkan/nonaktifkan riwayat\n"
+            config_text += f"• `/historyconfig limit [angka]` - Atur jumlah pesan (1-50)\n"
+            config_text += f"• `/historyconfig media on/off` - Atur info media\n"
+            config_text += f"• `/historyconfig timestamp on/off` - Atur timestamp"
             
-        userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
-        if not userbot_info:
-            userbot_info = await cache_userbot_info()
-            
-        if not userbot_info:
-            return {"status": "error", "message": "Failed to get userbot info"}
-            
-        current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
-        
-        return {
-            "status": "online",
-            "name": userbot_info['first_name'],
-            "username": userbot_info['username'],
-            "id": userbot_info['id'],
-            "current_prompt": current_prompt,
-            "history_enabled": CHAT_HISTORY_CONFIG['enabled'],
-            "history_limit": CHAT_HISTORY_CONFIG['limit']
-        }
-        
-    except Exception as e:
-        console.error(f"Error getting userbot stats: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-async def reload_userbot_handlers():
-    """Reload userbot handlers (useful for debugging)"""
-    try:
-        console.info("Reloading userbot handlers...")
-        
-        # Clear existing handlers
-        userbot.dispatcher.groups.clear()
-        
-        # Setup handlers again
-        await setup_userbot_handlers()
-        
-        console.info("Userbot handlers reloaded successfully")
-        return True
-        
-    except Exception as e:
-        console.error(f"Error reloading userbot handlers: {str(e)}")
-        return False
-
-@bot.on_message(filters.command("reload") & filters.user(OWNER_ID))
-async def reload_handlers_command(client, message):
-    """Reload userbot handlers command"""
-    try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            await message.reply_text(config_text)
             return
             
-        await message.reply_text("🔄 Memuat ulang handler userbot...")
+        # Get setting and value
+        setting = message.command[1].lower()
         
-        success = await reload_userbot_handlers()
-        
-        if success:
-            await message.edit_text("✅ Handler userbot berhasil dimuat ulang!")
+        if setting == "enable":
+            CHAT_HISTORY_CONFIG["enabled"] = True
+            await message.reply_text("✅ Riwayat chat diaktifkan")
+            
+        elif setting == "disable":
+            CHAT_HISTORY_CONFIG["enabled"] = False
+            await message.reply_text("✅ Riwayat chat dinonaktifkan")
+            
+        elif setting == "limit":
+            if len(message.command) < 3:
+                await message.reply_text("❌ Gunakan: /historyconfig limit [angka]")
+                return
+                
+            try:
+                limit = int(message.command[2])
+                if 1 <= limit <= 50:
+                    CHAT_HISTORY_CONFIG["limit"] = limit
+                    await message.reply_text(f"✅ Jumlah pesan riwayat diatur ke {limit}")
+                else:
+                    await message.reply_text("❌ Jumlah pesan harus antara 1-50")
+            except ValueError:
+                await message.reply_text("❌ Masukkan angka yang valid")
+                
+        elif setting == "media":
+            if len(message.command) < 3:
+                await message.reply_text("❌ Gunakan: /historyconfig media on/off")
+                return
+                
+            value = message.command[2].lower()
+            if value == "on":
+                CHAT_HISTORY_CONFIG["include_media_info"] = True
+                await message.reply_text("✅ Info media diaktifkan")
+            elif value == "off":
+                CHAT_HISTORY_CONFIG["include_media_info"] = False
+                await message.reply_text("✅ Info media dinonaktifkan")
+            else:
+                await message.reply_text("❌ Gunakan 'on' atau 'off'")
+                
+        elif setting == "timestamp":
+            if len(message.command) < 3:
+                await message.reply_text("❌ Gunakan: /historyconfig timestamp on/off")
+                return
+                
+            value = message.command[2].lower()
+            if value == "on":
+                CHAT_HISTORY_CONFIG["include_timestamps"] = True
+                await message.reply_text("✅ Timestamp diaktifkan")
+            elif value == "off":
+                CHAT_HISTORY_CONFIG["include_timestamps"] = False
+                await message.reply_text("✅ Timestamp dinonaktifkan")
+            else:
+                await message.reply_text("❌ Gunakan 'on' atau 'off'")
+                
         else:
-            await message.edit_text("❌ Gagal memuat ulang handler userbot.")
-            
-    except Exception as e:
-        console.error(f"Error in reload_handlers_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat memuat ulang handler.")
-
-@bot.on_message(filters.command("stats") & filters.user(OWNER_ID))
-async def stats_command(client, message):
-    """Show detailed statistics"""
-    try:
-        stats = await get_userbot_stats()
-        
-        if stats["status"] == "not_configured":
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
-            return
-            
-        if stats["status"] == "error":
-            await message.reply_text(f"❌ Error: {stats['message']}")
-            return
-            
-        # Format stats message
-        stats_text = f"📊 **Statistik Lengkap SyncaraBot**\n\n"
-        
-        # Bot Manager Stats
-        me = await client.get_me()
-        stats_text += f"🤖 **Manager Bot:**\n"
-        stats_text += f"• Nama: {me.first_name}\n"
-        stats_text += f"• Username: @{me.username}\n"
-        stats_text += f"• ID: `{me.id}`\n"
-        stats_text += f"• Status: 🟢 Online\n\n"
-        
-        # Userbot Stats
-        stats_text += f"🎭 **Userbot Assistant:**\n"
-        stats_text += f"• Nama: {stats['name']}\n"
-        stats_text += f"• Username: @{stats['username']}\n"
-        stats_text += f"• ID: `{stats['id']}`\n"
-        stats_text += f"• Status: 🟢 Online\n"
-        stats_text += f"• System Prompt: {stats['current_prompt']}\n\n"
-        
-        # Configuration Stats
-        stats_text += f"⚙️ **Konfigurasi:**\n"
-        stats_text += f"• Riwayat Chat: {'🟢 Aktif' if stats['history_enabled'] else '🔴 Nonaktif'}\n"
-        stats_text += f"• Limit Riwayat: {stats['history_limit']} pesan\n"
-        stats_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
-        stats_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
-        
-        # System Prompt Stats
-        available_prompts = system_prompt.get_available_prompts()
-        stats_text += f"📝 **System Prompts:**\n"
-        stats_text += f"• Tersedia: {len(available_prompts)} prompt\n"
-        stats_text += f"• Aktif: {stats['current_prompt']}\n"
-        
-        await message.reply_text(stats_text)
+            await message.reply_text("❌ Setting tidak dikenal. Gunakan: enable, disable, limit, media, atau timestamp")
         
     except Exception as e:
-        console.error(f"Error in stats_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat mengambil statistik.")
+        console.error(f"Error in configure_history: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengatur konfigurasi.")
 
 @bot.on_message(filters.command("test") & filters.user(OWNER_ID))
 async def test_ai_command(client, message):
@@ -890,10 +689,71 @@ async def test_ai_command(client, message):
         console.error(f"Error in test_ai_command: {str(e)}")
         await message.reply_text(f"❌ Terjadi kesalahan saat menguji AI: {str(e)}")
 
-# Health check function
-async def health_check():
-    """Perform health check on all components"""
+@bot.on_message(filters.command("stats") & filters.user(OWNER_ID))
+async def stats_command(client, message):
+    """Show detailed statistics"""
     try:
+        # Get bot info
+        me = await client.get_me()
+        
+        # Get userbot info
+        userbot_info = None
+        if SESSION_STRING:
+            userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+            if not userbot_info:
+                userbot_info = await cache_userbot_info()
+        
+        # Format stats message
+        stats_text = f"📊 **Statistik Lengkap SyncaraBot**\n\n"
+        
+        # Bot Manager Stats
+        stats_text += f"🤖 **Manager Bot:**\n"
+        stats_text += f"• Nama: {me.first_name}\n"
+        stats_text += f"• Username: @{me.username}\n"
+        stats_text += f"• ID: `{me.id}`\n"
+        stats_text += f"• Status: 🟢 Online\n\n"
+        
+        # Userbot Stats
+        if userbot_info:
+            stats_text += f"🎭 **Userbot Assistant:**\n"
+            stats_text += f"• Nama: {userbot_info['first_name']}\n"
+            stats_text += f"• Username: @{userbot_info['username']}\n"
+            stats_text += f"• ID: `{userbot_info['id']}`\n"
+            stats_text += f"• Status: 🟢 Online\n"
+            
+            current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+            stats_text += f"• System Prompt: {current_prompt}\n\n"
+        else:
+            stats_text += f"🎭 **Userbot Assistant:**\n"
+            stats_text += f"• Status: ⚠️ Tidak dikonfigurasi\n\n"
+        
+        # Configuration Stats
+        stats_text += f"⚙️ **Konfigurasi:**\n"
+        stats_text += f"• Riwayat Chat: {'🟢 Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '🔴 Nonaktif'}\n"
+        stats_text += f"• Limit Riwayat: {CHAT_HISTORY_CONFIG['limit']} pesan\n"
+        stats_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
+        stats_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
+        
+        # System Prompt Stats
+        available_prompts = system_prompt.get_available_prompts()
+        stats_text += f"📝 **System Prompts:**\n"
+        stats_text += f"• Tersedia: {len(available_prompts)} prompt\n"
+        if userbot_info:
+            current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+            stats_text += f"• Aktif: {current_prompt}\n"
+        
+        await message.reply_text(stats_text)
+        
+    except Exception as e:
+        console.error(f"Error in stats_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil statistik.")
+
+@bot.on_message(filters.command("health") & filters.user(OWNER_ID))
+async def health_check_command(client, message):
+    """Perform and display health check"""
+    try:
+        await message.reply_text("🏥 Melakukan pemeriksaan kesehatan sistem...")
+        
         health_status = {
             "bot_manager": False,
             "userbot": False,
@@ -904,7 +764,7 @@ async def health_check():
         
         # Check bot manager
         try:
-            me = await bot.get_me()
+            me = await client.get_me()
             health_status["bot_manager"] = True
         except Exception as e:
             console.error(f"Bot manager health check failed: {str(e)}")
@@ -931,34 +791,16 @@ async def health_check():
         except Exception as e:
             console.error(f"Replicate API health check failed: {str(e)}")
         
-        return health_status
-        
-    except Exception as e:
-        console.error(f"Error in health_check: {str(e)}")
-        return {"error": str(e), "timestamp": datetime.now().isoformat()}
-
-@bot.on_message(filters.command("health") & filters.user(OWNER_ID))
-async def health_check_command(client, message):
-    """Perform and display health check"""
-    try:
-        await message.reply_text("🏥 Melakukan pemeriksaan kesehatan sistem...")
-        
-        health = await health_check()
-        
-        if "error" in health:
-            await message.edit_text(f"❌ Error dalam pemeriksaan kesehatan: {health['error']}")
-            return
-        
         # Format health check results
         health_text = f"🏥 **Pemeriksaan Kesehatan Sistem**\n\n"
-        health_text += f"⏰ **Waktu:** {health['timestamp']}\n\n"
+        health_text += f"⏰ **Waktu:** {health_status['timestamp']}\n\n"
         
         # Check each component
         components = [
-            ("🤖 Bot Manager", health["bot_manager"]),
-            ("🎭 Userbot", health["userbot"]),
-            ("📝 System Prompt", health["system_prompt"]),
-            ("🤖 Replicate API", health["replicate_api"])
+            ("🤖 Bot Manager", health_status["bot_manager"]),
+            ("🎭 Userbot", health_status["userbot"]),
+            ("📝 System Prompt", health_status["system_prompt"]),
+            ("🤖 Replicate API", health_status["replicate_api"])
         ]
         
         all_healthy = True
@@ -977,3 +819,19 @@ async def health_check_command(client, message):
     except Exception as e:
         console.error(f"Error in health_check_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat pemeriksaan kesehatan.")
+
+# Initialize cache when module is loaded
+async def initialize_ai_handler():
+    """Initialize AI handler components"""
+    try:
+        console.info("Initializing AI handler...")
+        
+        # Cache userbot info if available
+        if SESSION_STRING:
+            await cache_userbot_info()
+            console.info("AI handler initialized with userbot support")
+        else:
+            console.warning("AI handler initialized without userbot")
+        
+    except Exception as e:
+        console.error(f"Error initializing AI handler: {str(e)}")
