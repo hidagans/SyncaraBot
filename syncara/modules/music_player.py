@@ -347,36 +347,24 @@ class MusicPlayer:
             session = self.search_results[message_id]
             chat_id = session['chat_id']
             
-            # Update button to show downloading state
-            await callback_query.message.edit_reply_markup(
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⏳ Downloading...", callback_data="music_disabled")
-                ]])
-            )
+            # Find current music info from results
+            current_music = None
+            for result in session['results']:
+                if result['id'] == video_id:
+                    current_music = result
+                    break
             
-            await callback_query.answer("⏳ Downloading and preparing music...")
+            # If not found, use current index
+            if not current_music:
+                current_music = session['results'][session['current_index']]
             
-            # Download audio
-            console.info(f"Downloading audio for video: {video_id}")
-            audio_file = await self.youtube.download_audio(video_id)
-            
-            if not audio_file:
-                console.error(f"Failed to download audio for video: {video_id}")
-                await callback_query.message.edit_reply_markup(
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("❌ Download Failed", callback_data="music_disabled")
-                    ]])
-                )
-                return
-            
-            console.info(f"Audio downloaded successfully: {audio_file}")
-
-            # Check and start voice chat if needed
+            # Update message to show preparing state
             await callback_query.edit_message_text(
                 f"⏳ Preparing to play: **{current_music['title']}**\n\n"
                 "Checking voice chat status..."
             )
             
+            # Check and start voice chat if needed
             if not await self.ensure_voice_chat(client, chat_id):
                 await callback_query.edit_message_text(
                     "❌ Gagal memulai voice chat.\n\n"
@@ -387,27 +375,55 @@ class MusicPlayer:
                 )
                 return
             
+            # Update to downloading state
+            await callback_query.edit_message_text(
+                f"⏳ Downloading: **{current_music['title']}**\n\n"
+                "Please wait while downloading audio..."
+            )
+            
+            await callback_query.answer("⏳ Downloading and preparing music...")
+            
+            # Download audio
+            console.info(f"Downloading audio for video: {video_id}")
+            audio_file = await self.youtube.download_audio(video_id)
+            
+            if not audio_file:
+                console.error(f"Failed to download audio for video: {video_id}")
+                await callback_query.edit_message_text(
+                    f"❌ Failed to download: **{current_music['title']}**\n\n"
+                    "Please try again or choose another song."
+                )
+                return
+            
+            console.info(f"Audio downloaded successfully: {audio_file}")
+            
+            # Update to joining voice chat state
+            await callback_query.edit_message_text(
+                f"⏳ Joining voice chat: **{current_music['title']}**\n\n"
+                "Connecting to voice chat..."
+            )
+            
             # Join voice chat and play
             success = await self.join_and_play(client, chat_id, audio_file, video_id)
             
             if success:
-                # Get current music info
-                current_music = None
-                for result in session['results']:
-                    if result['id'] == video_id:
-                        current_music = result
-                        break
+                # Update message to show now playing
+                duration = self.youtube.format_duration(current_music.get('duration', 0))
+                views = self.youtube.format_views(current_music.get('view_count', 0))
                 
-                if not current_music:
-                    current_music = session['results'][session['current_index']]
-                
-                # Update button to show now playing
-                await callback_query.message.edit_reply_markup(
+                await callback_query.edit_message_text(
+                    f"🎵 **Now Playing**\n\n"
+                    f"**{current_music['title']}**\n\n"
+                    f"📺 Channel: {current_music['channel']}\n"
+                    f"⏱️ Duration: {duration}\n"
+                    f"👁️ Views: {views}",
                     reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("🎵 Now Playing", callback_data="music_disabled")],
                         [
                             InlineKeyboardButton("⏸️ Pause", callback_data=f"music_pause_{chat_id}"),
                             InlineKeyboardButton("⏹️ Stop", callback_data=f"music_stop_{chat_id}")
+                        ],
+                        [
+                            InlineKeyboardButton("🔄 Search New", callback_data="music_search_again")
                         ]
                     ])
                 )
@@ -424,14 +440,18 @@ class MusicPlayer:
                 
             else:
                 console.error(f"Failed to join voice chat and play music in chat: {chat_id}")
-                await callback_query.message.edit_reply_markup(
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("❌ Failed to Play", callback_data="music_disabled")
-                    ]])
+                await callback_query.edit_message_text(
+                    f"❌ Failed to play: **{current_music['title']}**\n\n"
+                    "Pastikan:\n"
+                    "1. Bot adalah admin grup\n"
+                    "2. Bot memiliki izin mengelola voice chat\n"
+                    "3. Voice chat tidak sedang digunakan bot lain"
                 )
                 
         except Exception as e:
             console.error(f"Error in handle_play: {e}")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
             await callback_query.edit_message_text(
                 "❌ Terjadi kesalahan saat memutar musik.\n\n"
                 "Pastikan:\n"
