@@ -24,15 +24,17 @@ class YouTubeService:
         }
     
     async def search_music(self, query: str, limit: int = 5) -> List[Dict]:
-        """Search for music on YouTube"""
+        """Search for music on YouTube - Simplified version"""
         try:
-            search_opts = self.ydl_opts.copy()
-            search_opts.update({
+            console.info(f"Searching YouTube for: {query}")
+            
+            search_opts = {
                 'quiet': True,
                 'no_warnings': True,
-                'extract_flat': True,
-                'default_search': 'ytsearch' + str(limit) + ':',
-            })
+                'extract_flat': False,  # Changed to False to get more info
+                'default_search': f'ytsearch{limit}:',
+                'ignoreerrors': True,
+            }
             
             def _search():
                 with yt_dlp.YoutubeDL(search_opts) as ydl:
@@ -42,33 +44,67 @@ class YouTubeService:
             loop = asyncio.get_event_loop()
             info = await loop.run_in_executor(None, _search)
             
-            results = []
-            if 'entries' in info:
-                for entry in info['entries']:
-                    if entry:
-                        # Get detailed info for each video
-                        detailed_info = await self.get_video_info(entry['id'])
-                        if detailed_info:
-                            results.append({
-                                'id': entry['id'],
-                                'title': entry.get('title', 'Unknown Title'),
-                                'url': f"https://www.youtube.com/watch?v={entry['id']}",
-                                'thumbnail': detailed_info.get('thumbnail'),
-                                'duration': detailed_info.get('duration', 0),
-                                'channel': detailed_info.get('uploader', 'Unknown Channel'),
-                                'view_count': detailed_info.get('view_count', 0),
-                                'upload_date': detailed_info.get('upload_date', ''),
-                            })
+            console.info(f"YouTube search completed. Info type: {type(info)}")
             
+            results = []
+            if info and 'entries' in info:
+                console.info(f"Found {len(info['entries'])} entries")
+                
+                for i, entry in enumerate(info['entries']):
+                    if entry and not entry.get('_type') == 'url':
+                        try:
+                            # Extract basic info directly from search results
+                            video_id = entry.get('id', '')
+                            title = entry.get('title', 'Unknown Title')
+                            uploader = entry.get('uploader', entry.get('channel', 'Unknown Channel'))
+                            duration = entry.get('duration', 0)
+                            view_count = entry.get('view_count', 0)
+                            
+                            # Get thumbnail - try multiple sources
+                            thumbnail = None
+                            if entry.get('thumbnails'):
+                                # Get highest quality thumbnail
+                                thumbnails = entry['thumbnails']
+                                if thumbnails:
+                                    thumbnail = thumbnails[-1].get('url')
+                            
+                            if not thumbnail:
+                                thumbnail = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                            
+                            result = {
+                                'id': video_id,
+                                'title': title,
+                                'url': f"https://www.youtube.com/watch?v={video_id}",
+                                'thumbnail': thumbnail,
+                                'duration': duration or 0,
+                                'channel': uploader,
+                                'view_count': view_count or 0,
+                                'upload_date': entry.get('upload_date', ''),
+                            }
+                            
+                            results.append(result)
+                            console.info(f"Added result {i+1}: {title[:50]}...")
+                            
+                        except Exception as e:
+                            console.error(f"Error processing entry {i}: {e}")
+                            continue
+            else:
+                console.warning("No entries found in search results")
+            
+            console.info(f"Returning {len(results)} results")
             return results
             
         except Exception as e:
             console.error(f"Error searching YouTube: {e}")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
             return []
     
     async def get_video_info(self, video_id: str) -> Optional[Dict]:
         """Get detailed info for a specific video"""
         try:
+            console.info(f"Getting video info for: {video_id}")
+            
             def _get_info():
                 with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
                     return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
@@ -84,6 +120,8 @@ class YouTubeService:
     async def download_audio(self, video_id: str, output_dir: str = None) -> Optional[str]:
         """Download audio from YouTube video"""
         try:
+            console.info(f"Downloading audio for video: {video_id}")
+            
             if output_dir is None:
                 output_dir = tempfile.gettempdir()
             
@@ -103,6 +141,7 @@ class YouTubeService:
             
             # Check if file exists and return path
             if os.path.exists(filename):
+                console.info(f"Audio downloaded successfully: {filename}")
                 return filename
             
             # Try with different extensions
@@ -110,16 +149,23 @@ class YouTubeService:
             for ext in ['.m4a', '.mp3', '.webm', '.ogg']:
                 test_file = base_name + ext
                 if os.path.exists(test_file):
+                    console.info(f"Audio found with extension {ext}: {test_file}")
                     return test_file
             
+            console.error(f"Downloaded file not found: {filename}")
             return None
             
         except Exception as e:
             console.error(f"Error downloading audio: {e}")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     def format_duration(self, seconds: int) -> str:
         """Format duration from seconds to MM:SS or HH:MM:SS"""
+        if not seconds or seconds <= 0:
+            return "0:00"
+            
         if seconds < 3600:
             return f"{seconds // 60}:{seconds % 60:02d}"
         else:
@@ -130,6 +176,9 @@ class YouTubeService:
     
     def format_views(self, views: int) -> str:
         """Format view count to readable format"""
+        if not views or views <= 0:
+            return "0 views"
+            
         if views >= 1_000_000:
             return f"{views / 1_000_000:.1f}M views"
         elif views >= 1_000:

@@ -17,14 +17,18 @@ class MusicPlayer:
     async def search_and_show_results(self, client: Client, message: Message, query: str):
         """Search for music and show results with preview"""
         try:
+            console.info(f"Music search requested: '{query}' by user {message.from_user.id}")
+            
             # Send searching message
             search_msg = await message.reply("🔍 Mencari musik di YouTube...")
             
             # Search for music
             results = await self.youtube.search_music(query, limit=5)
             
+            console.info(f"Search completed. Found {len(results)} results")
+            
             if not results:
-                await search_msg.edit("❌ Tidak ditemukan hasil untuk pencarian tersebut.")
+                await search_msg.edit("❌ Tidak ditemukan hasil untuk pencarian tersebut.\n\n💡 Tips:\n• Coba kata kunci yang lebih spesifik\n• Sertakan nama artis\n• Periksa ejaan")
                 return
             
             # Store results for callback handling
@@ -35,12 +39,16 @@ class MusicPlayer:
                 'user_id': message.from_user.id
             }
             
+            console.info(f"Showing first result: {results[0]['title']}")
+            
             # Show first result
             await self.show_music_preview(client, search_msg, results[0], 0, len(results))
             
         except Exception as e:
             console.error(f"Error in search_and_show_results: {e}")
-            await message.reply("❌ Terjadi kesalahan saat mencari musik.")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
+            await message.reply("❌ Terjadi kesalahan saat mencari musik. Silakan coba lagi.")
     
     async def show_music_preview(self, client: Client, message: Message, music_info: Dict, current_index: int, total_results: int):
         """Show music preview with controls"""
