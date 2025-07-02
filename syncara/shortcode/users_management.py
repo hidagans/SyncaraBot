@@ -1,6 +1,6 @@
 # syncara/shortcode/users_management.py
 from syncara import console
-from pyrogram.types import ChatPermissions
+from pyrogram.types import ChatPermissions, ChatPrivileges  # Tambahkan ChatPrivileges
 from datetime import datetime, timedelta
 
 class UserManagementShortcode:
