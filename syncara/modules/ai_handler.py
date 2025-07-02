@@ -1,11 +1,10 @@
 # syncara/modules/ai_handler.py
 from pyrogram import filters, enums
 from syncara.services import ReplicateAPI
-from syncara import bot, console
+from syncara import bot, userbot, console
 from .system_prompt import SystemPrompt
 from .process_shortcode import process_shortcode
-from syncara.userbot import get_userbot, get_all_userbots, get_userbot_names
-from config.config import OWNER_ID
+from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
 import asyncio
@@ -19,11 +18,7 @@ USERBOT_INFO_CACHE = {}
 
 # Mapping userbot name to system prompt name
 USERBOT_PROMPT_MAPPING = {
-    "userbot1": "AERIS",
-    "userbot2": "KAIROS",
-    "userbot3": "LYRA",
-    "userbot4": "NOVA",
-    "userbot5": "ZEKE"
+    "SyncaraUbot": "AERIS",  # Default untuk userbot utama
 }
 
 # Konfigurasi untuk mengatur jumlah pesan riwayat
@@ -34,36 +29,40 @@ CHAT_HISTORY_CONFIG = {
     "include_timestamps": True
 }
 
-async def cache_userbot_info(userbot_client, userbot_name):
+async def cache_userbot_info():
     """Cache userbot information to avoid API flood"""
     try:
-        if userbot_name not in USERBOT_INFO_CACHE:
-            me = await userbot_client.get_me()
-            USERBOT_INFO_CACHE[userbot_name] = {
+        if not SESSION_STRING:
+            console.warning("No session string configured for userbot")
+            return None
+            
+        if userbot.name not in USERBOT_INFO_CACHE:
+            me = await userbot.get_me()
+            USERBOT_INFO_CACHE[userbot.name] = {
                 'id': me.id,
                 'username': me.username,
                 'first_name': me.first_name,
                 'last_name': me.last_name
             }
-            console.info(f"Cached info for userbot: {userbot_name} (@{me.username})")
-        return USERBOT_INFO_CACHE[userbot_name]
+            console.info(f"Cached info for userbot: {userbot.name} (@{me.username})")
+        return USERBOT_INFO_CACHE[userbot.name]
     except Exception as e:
-        console.error(f"Error caching userbot info for {userbot_name}: {str(e)}")
+        console.error(f"Error caching userbot info: {str(e)}")
         return None
 
-# Bot manager hanya menerima perintah dari owner
+# Bot manager commands
 @bot.on_message(filters.command(["start", "help"]))
 async def start_command(client, message):
     """Handle start command for the manager bot"""
     try:
         await message.reply_text(
-            "👋 **Halo! Saya adalah SyncaraBot Manager**\n\n"
-            "🤖 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
-            "📝 **Perintah yang tersedia:**\n"
+            "🤖 **Halo! Saya adalah SyncaraBot Manager**\n\n"
+            "🎯 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
+            "📋 **Perintah yang tersedia:**\n"
             "• `/start` atau `/help` - Tampilkan pesan ini\n"
             "• `/status` - Cek status bot dan userbot\n"
             "• `/prompts` - Lihat daftar system prompt\n"
-            "• `/userbots` - Lihat daftar userbot\n\n"
+            "• `/userbot` - Info userbot assistant\n\n"
             "💡 **Cara menggunakan:**\n"
             "Mention atau reply ke userbot assistant untuk berinteraksi dengan AI!"
         )
@@ -79,34 +78,45 @@ async def status_command(client, message):
         # Get bot info
         me = await client.get_me()
         
-        status_text = f"🤖 **Status SyncaraBot**\n\n"
-        status_text += f"📱 **Manager Bot:**\n"
+        status_text = f"📊 **Status SyncaraBot**\n\n"
+        status_text += f"🤖 **Manager Bot:**\n"
         status_text += f"• Nama: {me.first_name}\n"
         status_text += f"• Username: @{me.username}\n"
         status_text += f"• ID: `{me.id}`\n"
-        status_text += f"• Status: ✅ Online\n\n"
+        status_text += f"• Status: 🟢 Online\n\n"
         
         # Get userbot info
-        userbots = get_all_userbots()
-        if userbots:
-            status_text += f"👥 **Userbot Assistant ({len(userbots)} aktif):**\n"
-            for i, userbot in enumerate(userbots, 1):
-                try:
-                    userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
-                    if userbot_info:
-                        status_text += f"• {i}. {userbot_info['first_name']} (@{userbot_info['username']})\n"
-                    else:
-                        status_text += f"• {i}. {userbot.name} (Loading...)\n"
-                except:
-                    status_text += f"• {i}. {userbot.name} (Error)\n"
+        if SESSION_STRING:
+            try:
+                userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+                if not userbot_info:
+                    userbot_info = await cache_userbot_info()
+                
+                if userbot_info:
+                    status_text += f"🎭 **Userbot Assistant:**\n"
+                    status_text += f"• Nama: {userbot_info['first_name']}\n"
+                    status_text += f"• Username: @{userbot_info['username']}\n"
+                    status_text += f"• ID: `{userbot_info['id']}`\n"
+                    status_text += f"• Status: 🟢 Online\n"
+                    
+                    # Get current prompt
+                    current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+                    status_text += f"• System Prompt: {current_prompt}\n"
+                else:
+                    status_text += f"🎭 **Userbot Assistant:**\n"
+                    status_text += f"• Status: ❌ Error loading info\n"
+            except Exception as e:
+                status_text += f"🎭 **Userbot Assistant:**\n"
+                status_text += f"• Status: ❌ Offline ({str(e)})\n"
         else:
-            status_text += f"👥 **Userbot Assistant:**\n• ❌ Tidak ada userbot aktif\n"
+            status_text += f"🎭 **Userbot Assistant:**\n"
+            status_text += f"• Status: ⚠️ Tidak dikonfigurasi\n"
         
-        status_text += f"\n📊 **Fitur:**\n"
-        status_text += f"• AI Chat: ✅ Aktif\n"
-        status_text += f"• Shortcode: ✅ Aktif\n"
-        status_text += f"• Riwayat Chat: {'✅ Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '❌ Nonaktif'}\n"
-        status_text += f"• System Prompt: ✅ Aktif\n"
+        status_text += f"\n⚙️ **Fitur:**\n"
+        status_text += f"• AI Chat: 🟢 Aktif\n"
+        status_text += f"• Shortcode: 🟢 Aktif\n"
+        status_text += f"• Riwayat Chat: {'🟢 Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '🔴 Nonaktif'}\n"
+        status_text += f"• System Prompt: 🟢 Aktif\n"
         
         await message.reply_text(status_text)
         console.info(f"Status command executed by user {message.from_user.id}")
@@ -115,43 +125,46 @@ async def status_command(client, message):
         console.error(f"Error in status_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat mengambil status.")
 
-@bot.on_message(filters.command("userbots"))
-async def list_userbots_command(client, message):
-    """List all available userbots"""
+@bot.on_message(filters.command("userbot"))
+async def userbot_info_command(client, message):
+    """Show userbot information"""
     try:
-        userbots = get_all_userbots()
-        
-        if not userbots:
-            await message.reply_text("❌ Tidak ada userbot yang tersedia.")
+        if not SESSION_STRING:
+            await message.reply_text(
+                "⚠️ **Userbot tidak dikonfigurasi**\n\n"
+                "Untuk menggunakan fitur AI assistant, silakan konfigurasi SESSION_STRING di config."
+            )
             return
             
-        text = "👥 **Daftar Userbot Assistant:**\n\n"
+        userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+        if not userbot_info:
+            userbot_info = await cache_userbot_info()
+            
+        if not userbot_info:
+            await message.reply_text("❌ Gagal mendapatkan informasi userbot.")
+            return
+            
+        text = f"🎭 **Userbot Assistant Info:**\n\n"
+        text += f"• **Nama:** {userbot_info['first_name']}\n"
+        text += f"• **Username:** @{userbot_info['username']}\n"
+        text += f"• **ID:** `{userbot_info['id']}`\n"
+        text += f"• **Status:** 🟢 Online\n"
         
-        for i, userbot in enumerate(userbots, 1):
-            try:
-                userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
-                if userbot_info:
-                    text += f"{i}. **{userbot_info['first_name']}**\n"
-                    text += f"   • Username: @{userbot_info['username']}\n"
-                    text += f"   • ID: `{userbot_info['id']}`\n"
-                    text += f"   • Status: ✅ Online\n\n"
-                else:
-                    text += f"{i}. **{userbot.name}**\n"
-                    text += f"   • Status: 🔄 Loading...\n\n"
-            except Exception as e:
-                text += f"{i}. **{userbot.name}**\n"
-                text += f"   • Status: ❌ Error\n\n"
+        # Get current prompt
+        current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+        text += f"• **System Prompt:** {current_prompt}\n\n"
         
-        text += "💡 **Cara menggunakan:**\n"
-        text += "Mention (@username) atau reply ke pesan userbot untuk berinteraksi dengan AI!"
+        text += f"💡 **Cara menggunakan:**\n"
+        text += f"• Mention @{userbot_info['username']} untuk berinteraksi\n"
+        text += f"• Reply ke pesan userbot untuk melanjutkan percakapan\n"
+        text += f"• Kirim pesan langsung di chat pribadi"
             
         await message.reply_text(text)
-        console.info(f"Userbots command executed by user {message.from_user.id}")
+        console.info(f"Userbot info command executed by user {message.from_user.id}")
         
     except Exception as e:
-        console.error(f"Error in list_userbots_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat mengambil daftar userbot.")
-
+        console.error(f"Error in userbot_info_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil info userbot.")
 
 @bot.on_message(filters.command("prompts") & filters.user(OWNER_ID))
 async def list_prompts(client, message):
@@ -163,15 +176,18 @@ async def list_prompts(client, message):
             await message.reply_text("❌ Tidak ada system prompt yang tersedia.")
             return
             
-        text = "📝 **Daftar System Prompt yang Tersedia:**\n\n"
+        text = f"📝 **Daftar System Prompt yang Tersedia:**\n\n"
         
         for i, prompt_name in enumerate(available_prompts, 1):
             text += f"{i}. **{prompt_name}**\n"
             
-        # Add mapping info
-        text += "\n🔄 **Mapping Userbot ke System Prompt:**\n\n"
-        for userbot_name, prompt_name in USERBOT_PROMPT_MAPPING.items():
-            text += f"• **{userbot_name}** → {prompt_name}\n"
+        # Add current mapping info
+        text += f"\n🔗 **Current Mapping:**\n"
+        if SESSION_STRING:
+            current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+            text += f"• **{userbot.name}** → {current_prompt}\n"
+        else:
+            text += f"• Userbot tidak dikonfigurasi\n"
             
         await message.reply_text(text)
         console.info(f"Prompts command executed by owner {message.from_user.id}")
@@ -182,63 +198,24 @@ async def list_prompts(client, message):
 
 @bot.on_message(filters.command("setprompt") & filters.user(OWNER_ID))
 async def set_prompt_command(client, message):
-    """Set system prompt for a userbot"""
+    """Set system prompt for userbot"""
     try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
         # Check command format
-        if len(message.command) < 3:
-            await message.reply_text("Gunakan: /setprompt [userbot_name] [prompt_name]")
-            return
-            
-        # Get userbot name and prompt name
-        userbot_name = message.command[1].lower()
-        prompt_name = message.command[2].upper()
-        
-        # Check if userbot exists
-        userbot_names = get_userbot_names()
-        if userbot_name not in userbot_names:
-            await message.reply_text(f"Userbot '{userbot_name}' tidak ditemukan.\n\nUserbot yang tersedia: {', '.join(userbot_names)}")
-            return
-            
-        # Check if prompt exists
-        available_prompts = system_prompt.get_available_prompts()
-        if prompt_name not in available_prompts:
-            await message.reply_text(f"System prompt '{prompt_name}' tidak ditemukan.\n\nPrompt yang tersedia: {', '.join(available_prompts)}")
-            return
-            
-        # Update mapping
-        USERBOT_PROMPT_MAPPING[userbot_name] = prompt_name
-        await message.reply_text(f"Berhasil mengatur system prompt '{prompt_name}' untuk userbot '{userbot_name}'")
-        
-    except Exception as e:
-        console.error(f"Error in set_prompt_command: {str(e)}")
-        await message.reply_text("Terjadi kesalahan saat mengatur system prompt.")
-
-@bot.on_message(filters.command("setprompt") & filters.user(OWNER_ID))
-async def set_prompt_command(client, message):
-    """Set system prompt for a userbot"""
-    try:
-        # Check command format
-        if len(message.command) < 3:
+        if len(message.command) < 2:
             await message.reply_text(
                 "❌ **Format salah!**\n\n"
-                "**Gunakan:** `/setprompt [userbot_name] [prompt_name]`\n\n"
-                "**Contoh:** `/setprompt userbot1 AERIS`"
+                "**Gunakan:** `/setprompt [prompt_name]`\n\n"
+                "**Contoh:** `/setprompt AERIS`"
             )
             return
             
-        # Get userbot name and prompt name
-        userbot_name = message.command[1].lower()
-        prompt_name = message.command[2].upper()
+        # Get prompt name
+        prompt_name = message.command[1].upper()
         
-        # Check if userbot exists
-        userbot_names = get_userbot_names()
-        if userbot_name not in userbot_names:
-            await message.reply_text(
-                f"❌ **Userbot '{userbot_name}' tidak ditemukan.**\n\n"
-                f"**Userbot yang tersedia:** {', '.join(userbot_names)}"
-            )
-            return
-            
         # Check if prompt exists
         available_prompts = system_prompt.get_available_prompts()
         if prompt_name not in available_prompts:
@@ -249,12 +226,12 @@ async def set_prompt_command(client, message):
             return
             
         # Update mapping
-        USERBOT_PROMPT_MAPPING[userbot_name] = prompt_name
+        USERBOT_PROMPT_MAPPING[userbot.name] = prompt_name
         await message.reply_text(
             f"✅ **Berhasil!**\n\n"
-            f"System prompt **'{prompt_name}'** telah diatur untuk userbot **'{userbot_name}'**"
+            f"System prompt **'{prompt_name}'** telah diatur untuk userbot **'{userbot.name}'**"
         )
-        console.info(f"Prompt mapping updated: {userbot_name} -> {prompt_name}")
+        console.info(f"Prompt mapping updated: {userbot.name} -> {prompt_name}")
         
     except Exception as e:
         console.error(f"Error in set_prompt_command: {str(e)}")
@@ -267,16 +244,16 @@ async def configure_history(client, message):
         # Check command format
         if len(message.command) < 2:
             # Show current config
-            config_text = "⚙️ **Konfigurasi Riwayat Chat:**\n\n"
-            config_text += f"- Status: {'Aktif' if CHAT_HISTORY_CONFIG['enabled'] else 'Nonaktif'}\n"
-            config_text += f"- Jumlah Pesan: {CHAT_HISTORY_CONFIG['limit']}\n"
-            config_text += f"- Info Media: {'Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else 'Tidak'}\n"
-            config_text += f"- Timestamp: {'Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else 'Tidak'}\n\n"
-            config_text += "**Perintah yang tersedia:**\n"
-            config_text += "- `/historyconfig enable/disable` - Aktifkan/nonaktifkan riwayat\n"
-            config_text += "- `/historyconfig limit [angka]` - Atur jumlah pesan (1-50)\n"
-            config_text += "- `/historyconfig media on/off` - Atur info media\n"
-            config_text += "- `/historyconfig timestamp on/off` - Atur timestamp"
+            config_text = f"⚙️ **Konfigurasi Riwayat Chat:**\n\n"
+            config_text += f"• Status: {'🟢 Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '🔴 Nonaktif'}\n"
+            config_text += f"• Jumlah Pesan: {CHAT_HISTORY_CONFIG['limit']}\n"
+            config_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
+            config_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
+            config_text += f"📋 **Perintah yang tersedia:**\n"
+            config_text += f"• `/historyconfig enable/disable` - Aktifkan/nonaktifkan riwayat\n"
+            config_text += f"• `/historyconfig limit [angka]` - Atur jumlah pesan (1-50)\n"
+            config_text += f"• `/historyconfig media on/off` - Atur info media\n"
+            config_text += f"• `/historyconfig timestamp on/off` - Atur timestamp"
             
             await message.reply_text(config_text)
             return
@@ -290,11 +267,11 @@ async def configure_history(client, message):
             
         elif setting == "disable":
             CHAT_HISTORY_CONFIG["enabled"] = False
-            await message.reply_text("❌ Riwayat chat dinonaktifkan")
+            await message.reply_text("✅ Riwayat chat dinonaktifkan")
             
         elif setting == "limit":
             if len(message.command) < 3:
-                await message.reply_text("Gunakan: /historyconfig limit [angka]")
+                await message.reply_text("❌ Gunakan: /historyconfig limit [angka]")
                 return
                 
             try:
@@ -309,7 +286,7 @@ async def configure_history(client, message):
                 
         elif setting == "media":
             if len(message.command) < 3:
-                await message.reply_text("Gunakan: /historyconfig media on/off")
+                await message.reply_text("❌ Gunakan: /historyconfig media on/off")
                 return
                 
             value = message.command[2].lower()
@@ -318,13 +295,13 @@ async def configure_history(client, message):
                 await message.reply_text("✅ Info media diaktifkan")
             elif value == "off":
                 CHAT_HISTORY_CONFIG["include_media_info"] = False
-                await message.reply_text("❌ Info media dinonaktifkan")
+                await message.reply_text("✅ Info media dinonaktifkan")
             else:
                 await message.reply_text("❌ Gunakan 'on' atau 'off'")
                 
         elif setting == "timestamp":
             if len(message.command) < 3:
-                await message.reply_text("Gunakan: /historyconfig timestamp on/off")
+                await message.reply_text("❌ Gunakan: /historyconfig timestamp on/off")
                 return
                 
             value = message.command[2].lower()
@@ -333,7 +310,7 @@ async def configure_history(client, message):
                 await message.reply_text("✅ Timestamp diaktifkan")
             elif value == "off":
                 CHAT_HISTORY_CONFIG["include_timestamps"] = False
-                await message.reply_text("❌ Timestamp dinonaktifkan")
+                await message.reply_text("✅ Timestamp dinonaktifkan")
             else:
                 await message.reply_text("❌ Gunakan 'on' atau 'off'")
                 
@@ -342,27 +319,24 @@ async def configure_history(client, message):
         
     except Exception as e:
         console.error(f"Error in configure_history: {str(e)}")
-        await message.reply_text("Terjadi kesalahan saat mengatur konfigurasi.")
+        await message.reply_text("❌ Terjadi kesalahan saat mengatur konfigurasi.")
 
 @bot.on_message(filters.command("history") & filters.user(OWNER_ID))
 async def test_history(client, message):
     """Test chat history feature"""
     try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
         # Check command format
-        if len(message.command) < 3:
-            await message.reply_text("Gunakan: /history [userbot_name] [chat_id]")
+        if len(message.command) < 2:
+            await message.reply_text("❌ Gunakan: /history [chat_id]")
             return
             
-        # Get userbot name and chat_id
-        userbot_name = message.command[1]
-        chat_id = message.command[2]
+        # Get chat_id
+        chat_id = message.command[1]
         
-        # Get userbot
-        userbot = get_userbot(userbot_name)
-        if not userbot:
-            await message.reply_text(f"Userbot '{userbot_name}' tidak ditemukan.")
-            return
-            
         # Convert chat_id to int if possible
         try:
             chat_id = int(chat_id)
@@ -374,7 +348,7 @@ async def test_history(client, message):
         history = await get_chat_history(userbot, chat_id, limit=20)
         
         if not history:
-            await message.reply_text("Tidak ada riwayat chat yang ditemukan.")
+            await message.reply_text("❌ Tidak ada riwayat chat yang ditemukan.")
             return
             
         # Format and send history
@@ -385,13 +359,13 @@ async def test_history(client, message):
             # Send in chunks
             chunks = [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]
             for i, chunk in enumerate(chunks):
-                await message.reply_text(f"**Riwayat Chat (Bagian {i+1}/{len(chunks)}):**\n\n{chunk}")
+                await message.reply_text(f"📜 **Riwayat Chat (Bagian {i+1}/{len(chunks)}):**\n\n{chunk}")
         else:
-            await message.reply_text(f"**Riwayat Chat:**\n\n{formatted}")
+            await message.reply_text(f"📜 **Riwayat Chat:**\n\n{formatted}")
         
     except Exception as e:
         console.error(f"Error in test_history: {str(e)}")
-        await message.reply_text(f"Terjadi kesalahan: {str(e)}")
+        await message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
 
 async def get_chat_history(client, chat_id, limit=None):
     """Get chat history for context"""
@@ -407,23 +381,13 @@ async def get_chat_history(client, chat_id, limit=None):
         messages = []
         
         # Get userbot info from cache
-        userbot_name = getattr(client, 'name', 'unknown')
-        userbot_info = USERBOT_INFO_CACHE.get(userbot_name)
-        
+        userbot_info = USERBOT_INFO_CACHE.get(client.name)
         if not userbot_info:
-            # Fallback: get info but with rate limiting
-            try:
-                me = await client.get_me()
-                userbot_info = {
-                    'id': me.id,
-                    'username': me.username,
-                    'first_name': me.first_name,
-                    'last_name': me.last_name
-                }
-                USERBOT_INFO_CACHE[userbot_name] = userbot_info
-            except Exception as e:
-                console.error(f"Error getting userbot info: {str(e)}")
-                return []
+            userbot_info = await cache_userbot_info()
+            
+        if not userbot_info:
+            console.error("No userbot info available for chat history")
+            return []
         
         # Get timezone for timestamp formatting
         tz = pytz.timezone('Asia/Jakarta')
@@ -513,108 +477,98 @@ def format_chat_history(messages):
     
     return formatted_history
 
-# Userbot assistant menangani interaksi AI hanya ketika di-mention atau di-reply
+# Setup userbot handlers
 async def setup_userbot_handlers():
     """Setup handlers for userbot assistant"""
     try:
-        # Get all userbots
-        userbots = get_all_userbots()
-        if not userbots:
-            console.error("No userbot available to set up handlers")
+        if not SESSION_STRING:
+            console.warning("No session string configured, skipping userbot handlers setup")
             return
             
-        # Cache userbot info first to avoid API flood
-        for userbot in userbots:
-            userbot_name = userbot.name
-            await cache_userbot_info(userbot, userbot_name)
-            # Add small delay to avoid flood
-            await asyncio.sleep(1)
+        # Cache userbot info first
+        userbot_info = await cache_userbot_info()
+        if not userbot_info:
+            console.error("Failed to cache userbot info, cannot setup handlers")
+            return
             
-        # Set up message handler for each userbot
-        for userbot in userbots:
-            userbot_name = userbot.name
-            
-            # Create custom filter for this specific userbot
-            def create_userbot_filter(userbot_name):
-                async def userbot_filter(_, __, message):
-                    try:
-                        # Skip messages from bots
-                        if message.from_user and message.from_user.is_bot:
-                            return False
-                        
-                        # Get userbot info from cache
-                        userbot_info = USERBOT_INFO_CACHE.get(userbot_name)
-                        if not userbot_info:
-                            console.error(f"No cached info for userbot: {userbot_name}")
-                            return False
-                        
-                        # Check if in private chat
-                        if message.chat.type == enums.ChatType.PRIVATE:
-                            return True
-                        
-                        # Check if message is a reply to userbot's message
-                        if message.reply_to_message:
-                            if message.reply_to_message.from_user and message.reply_to_message.from_user.id == userbot_info['id']:
-                                return True
-                        
-                        # Check if userbot is mentioned in the message
-                        if message.entities:
-                            for entity in message.entities:
-                                if entity.type == enums.MessageEntityType.MENTION:
-                                    # Extract mentioned username
-                                    mentioned_username = message.text[entity.offset:entity.offset + entity.length]
-                                    if mentioned_username == f"@{userbot_info['username']}":
-                                        return True
-                                elif entity.type == enums.MessageEntityType.TEXT_MENTION:
-                                    # Check if mentioned user is this userbot
-                                    if entity.user and entity.user.id == userbot_info['id']:
-                                        return True
-                        
-                        return False
-                    except Exception as e:
-                        console.error(f"Error in userbot filter: {str(e)}")
-                        return False
+        console.info(f"Setting up handlers for userbot: {userbot.name} (@{userbot_info['username']})")
+        
+        # Create custom filter for userbot interactions
+        async def userbot_filter(_, __, message):
+            try:
+                # Skip messages from bots
+                if message.from_user and message.from_user.is_bot:
+                    return False
                 
-                return filters.create(userbot_filter)
-            
-            # Apply the custom filter to this userbot
-            userbot_filter = create_userbot_filter(userbot_name)
-            
-            @userbot.on_message(userbot_filter & (filters.text | filters.photo))
-            async def userbot_message_handler(client, message):
-                """Handle messages for userbot assistant when mentioned or replied"""
-                try:
-                    # Get text from either message text or caption
-                    text = message.text or message.caption
-                    
-                    if not text:
-                        return
-                    
-                    # Get userbot info from cache
-                    userbot_name = getattr(client, 'name', 'unknown')
-                    userbot_info = USERBOT_INFO_CACHE.get(userbot_name)
-                    
-                    if userbot_info and f"@{userbot_info['username']}" in text:
-                        text = text.replace(f"@{userbot_info['username']}", "").strip()
-                    
-                    # Get photo if exists
-                    photo_file_id = None
-                    if message.photo:
-                        photo_file_id = message.photo.file_id
-                    
-                    # Send typing action
-                    await client.send_chat_action(
-                        chat_id=message.chat.id,
-                        action=enums.ChatAction.TYPING
-                    )
-                    
-                    # Process AI response
-                    await process_ai_response(client, message, text, photo_file_id)
-                    
-                except Exception as e:
-                    console.error(f"Error in userbot message handler: {str(e)}")
-            
-            console.info(f"Userbot '{userbot_name}' handler set up successfully")
+                # Get userbot info from cache
+                userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+                if not userbot_info:
+                    return False
+                
+                # Check if in private chat
+                if message.chat.type == enums.ChatType.PRIVATE:
+                    return True
+                
+                # Check if message is a reply to userbot's message
+                if message.reply_to_message:
+                    if message.reply_to_message.from_user and message.reply_to_message.from_user.id == userbot_info['id']:
+                        return True
+                
+                # Check if userbot is mentioned in the message
+                if message.entities:
+                    for entity in message.entities:
+                        if entity.type == enums.MessageEntityType.MENTION:
+                            # Extract mentioned username
+                            mentioned_username = message.text[entity.offset:entity.offset + entity.length]
+                            if mentioned_username == f"@{userbot_info['username']}":
+                                return True
+                        elif entity.type == enums.MessageEntityType.TEXT_MENTION:
+                            # Check if mentioned user is this userbot
+                            if entity.user and entity.user.id == userbot_info['id']:
+                                return True
+                
+                return False
+            except Exception as e:
+                console.error(f"Error in userbot filter: {str(e)}")
+                return False
+        
+        # Apply the custom filter to userbot
+        custom_filter = filters.create(userbot_filter)
+        
+        @userbot.on_message(custom_filter & (filters.text | filters.photo))
+        async def userbot_message_handler(client, message):
+            """Handle messages for userbot assistant when mentioned or replied"""
+            try:
+                # Get text from either message text or caption
+                text = message.text or message.caption
+                
+                if not text:
+                    return
+                
+                # Get userbot info from cache
+                userbot_info = USERBOT_INFO_CACHE.get(client.name)
+                
+                if userbot_info and f"@{userbot_info['username']}" in text:
+                    text = text.replace(f"@{userbot_info['username']}", "").strip()
+                
+                # Get photo if exists
+                photo_file_id = None
+                if message.photo:
+                    photo_file_id = message.photo.file_id
+                
+                # Send typing action
+                await client.send_chat_action(
+                    chat_id=message.chat.id,
+                    action=enums.ChatAction.TYPING
+                )
+                
+                # Process AI response
+                await process_ai_response(client, message, text, photo_file_id)
+                
+            except Exception as e:
+                console.error(f"Error in userbot message handler: {str(e)}")
+        
+        console.info(f"Userbot '{userbot.name}' handler set up successfully")
         
     except Exception as e:
         console.error(f"Error setting up userbot handlers: {str(e)}")
@@ -623,15 +577,14 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
     """Process AI response with detailed context including current message info"""
     try:
         # Get userbot information from cache
-        userbot_name = getattr(client, 'name', 'unknown')
-        userbot_info = USERBOT_INFO_CACHE.get(userbot_name)
+        userbot_info = USERBOT_INFO_CACHE.get(client.name)
         
         if not userbot_info:
-            console.error(f"No cached info for userbot: {userbot_name}")
+            console.error(f"No cached info for userbot: {client.name}")
             return
         
         # Set the appropriate system prompt for this userbot
-        prompt_name = USERBOT_PROMPT_MAPPING.get(userbot_name, "DEFAULT")
+        prompt_name = USERBOT_PROMPT_MAPPING.get(client.name, "DEFAULT")
         system_prompt.set_prompt(prompt_name)
         
         # Get chat history for context
@@ -737,8 +690,290 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         try:
             await client.send_message(
                 chat_id=message.chat.id,
-                text="Maaf, terjadi kesalahan dalam memproses permintaan Anda.",
+                text="❌ Maaf, terjadi kesalahan dalam memproses permintaan Anda.",
                 reply_to_message_id=message.id
             )
-        except:
-            pass
+        except Exception as send_error:
+            console.error(f"Error sending error message: {str(send_error)}")
+
+# Initialize handlers when module is imported
+async def initialize_ai_handler():
+    """Initialize AI handler components"""
+    try:
+        console.info("Initializing AI handler...")
+        
+        # Cache userbot info if available
+        if SESSION_STRING:
+            await cache_userbot_info()
+        
+        # Setup userbot handlers
+        await setup_userbot_handlers()
+        
+        console.info("AI handler initialized successfully")
+        
+    except Exception as e:
+        console.error(f"Error initializing AI handler: {str(e)}")
+
+# Additional utility functions for better management
+
+async def get_userbot_stats():
+    """Get userbot statistics"""
+    try:
+        if not SESSION_STRING:
+            return {"status": "not_configured"}
+            
+        userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
+        if not userbot_info:
+            userbot_info = await cache_userbot_info()
+            
+        if not userbot_info:
+            return {"status": "error", "message": "Failed to get userbot info"}
+            
+        current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
+        
+        return {
+            "status": "online",
+            "name": userbot_info['first_name'],
+            "username": userbot_info['username'],
+            "id": userbot_info['id'],
+            "current_prompt": current_prompt,
+            "history_enabled": CHAT_HISTORY_CONFIG['enabled'],
+            "history_limit": CHAT_HISTORY_CONFIG['limit']
+        }
+        
+    except Exception as e:
+        console.error(f"Error getting userbot stats: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+async def reload_userbot_handlers():
+    """Reload userbot handlers (useful for debugging)"""
+    try:
+        console.info("Reloading userbot handlers...")
+        
+        # Clear existing handlers
+        userbot.dispatcher.groups.clear()
+        
+        # Setup handlers again
+        await setup_userbot_handlers()
+        
+        console.info("Userbot handlers reloaded successfully")
+        return True
+        
+    except Exception as e:
+        console.error(f"Error reloading userbot handlers: {str(e)}")
+        return False
+
+@bot.on_message(filters.command("reload") & filters.user(OWNER_ID))
+async def reload_handlers_command(client, message):
+    """Reload userbot handlers command"""
+    try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
+        await message.reply_text("🔄 Memuat ulang handler userbot...")
+        
+        success = await reload_userbot_handlers()
+        
+        if success:
+            await message.edit_text("✅ Handler userbot berhasil dimuat ulang!")
+        else:
+            await message.edit_text("❌ Gagal memuat ulang handler userbot.")
+            
+    except Exception as e:
+        console.error(f"Error in reload_handlers_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat memuat ulang handler.")
+
+@bot.on_message(filters.command("stats") & filters.user(OWNER_ID))
+async def stats_command(client, message):
+    """Show detailed statistics"""
+    try:
+        stats = await get_userbot_stats()
+        
+        if stats["status"] == "not_configured":
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
+        if stats["status"] == "error":
+            await message.reply_text(f"❌ Error: {stats['message']}")
+            return
+            
+        # Format stats message
+        stats_text = f"📊 **Statistik Lengkap SyncaraBot**\n\n"
+        
+        # Bot Manager Stats
+        me = await client.get_me()
+        stats_text += f"🤖 **Manager Bot:**\n"
+        stats_text += f"• Nama: {me.first_name}\n"
+        stats_text += f"• Username: @{me.username}\n"
+        stats_text += f"• ID: `{me.id}`\n"
+        stats_text += f"• Status: 🟢 Online\n\n"
+        
+        # Userbot Stats
+        stats_text += f"🎭 **Userbot Assistant:**\n"
+        stats_text += f"• Nama: {stats['name']}\n"
+        stats_text += f"• Username: @{stats['username']}\n"
+        stats_text += f"• ID: `{stats['id']}`\n"
+        stats_text += f"• Status: 🟢 Online\n"
+        stats_text += f"• System Prompt: {stats['current_prompt']}\n\n"
+        
+        # Configuration Stats
+        stats_text += f"⚙️ **Konfigurasi:**\n"
+        stats_text += f"• Riwayat Chat: {'🟢 Aktif' if stats['history_enabled'] else '🔴 Nonaktif'}\n"
+        stats_text += f"• Limit Riwayat: {stats['history_limit']} pesan\n"
+        stats_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
+        stats_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
+        
+        # System Prompt Stats
+        available_prompts = system_prompt.get_available_prompts()
+        stats_text += f"📝 **System Prompts:**\n"
+        stats_text += f"• Tersedia: {len(available_prompts)} prompt\n"
+        stats_text += f"• Aktif: {stats['current_prompt']}\n"
+        
+        await message.reply_text(stats_text)
+        
+    except Exception as e:
+        console.error(f"Error in stats_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil statistik.")
+
+@bot.on_message(filters.command("test") & filters.user(OWNER_ID))
+async def test_ai_command(client, message):
+    """Test AI response functionality"""
+    try:
+        if not SESSION_STRING:
+            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+            return
+            
+        # Check command format
+        if len(message.command) < 2:
+            await message.reply_text(
+                "❌ **Format salah!**\n\n"
+                "**Gunakan:** `/test [pesan_test]`\n\n"
+                "**Contoh:** `/test Halo, apa kabar?`"
+            )
+            return
+            
+        # Get test message
+        test_message = " ".join(message.command[1:])
+        
+        await message.reply_text("🧪 Menguji respons AI...")
+        
+        # Create a mock message object for testing
+        class MockMessage:
+            def __init__(self, text, chat_id, message_id, from_user_id):
+                self.text = text
+                self.caption = None
+                self.photo = None
+                self.chat = type('Chat', (), {'id': chat_id, 'type': enums.ChatType.PRIVATE})()
+                self.id = message_id
+                self.from_user = type('User', (), {
+                    'id': from_user_id,
+                    'first_name': 'Test User',
+                    'username': 'testuser'
+                })()
+                self.reply_to_message = None
+        
+        # Create mock message
+        mock_msg = MockMessage(
+            text=test_message,
+            chat_id=message.chat.id,
+            message_id=999999,
+            from_user_id=message.from_user.id
+        )
+        
+        # Process AI response
+        await process_ai_response(userbot, mock_msg, test_message)
+        
+        await message.edit_text("✅ Test AI selesai! Periksa respons di atas.")
+        
+    except Exception as e:
+        console.error(f"Error in test_ai_command: {str(e)}")
+        await message.reply_text(f"❌ Terjadi kesalahan saat menguji AI: {str(e)}")
+
+# Health check function
+async def health_check():
+    """Perform health check on all components"""
+    try:
+        health_status = {
+            "bot_manager": False,
+            "userbot": False,
+            "system_prompt": False,
+            "replicate_api": False,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Check bot manager
+        try:
+            me = await bot.get_me()
+            health_status["bot_manager"] = True
+        except Exception as e:
+            console.error(f"Bot manager health check failed: {str(e)}")
+        
+        # Check userbot
+        if SESSION_STRING:
+            try:
+                userbot_info = await cache_userbot_info()
+                health_status["userbot"] = bool(userbot_info)
+            except Exception as e:
+                console.error(f"Userbot health check failed: {str(e)}")
+        
+        # Check system prompt
+        try:
+            prompts = system_prompt.get_available_prompts()
+            health_status["system_prompt"] = len(prompts) > 0
+        except Exception as e:
+            console.error(f"System prompt health check failed: {str(e)}")
+        
+        # Check Replicate API
+        try:
+            # Simple test to see if API is accessible
+            health_status["replicate_api"] = hasattr(replicate_api, 'generate_response')
+        except Exception as e:
+            console.error(f"Replicate API health check failed: {str(e)}")
+        
+        return health_status
+        
+    except Exception as e:
+        console.error(f"Error in health_check: {str(e)}")
+        return {"error": str(e), "timestamp": datetime.now().isoformat()}
+
+@bot.on_message(filters.command("health") & filters.user(OWNER_ID))
+async def health_check_command(client, message):
+    """Perform and display health check"""
+    try:
+        await message.reply_text("🏥 Melakukan pemeriksaan kesehatan sistem...")
+        
+        health = await health_check()
+        
+        if "error" in health:
+            await message.edit_text(f"❌ Error dalam pemeriksaan kesehatan: {health['error']}")
+            return
+        
+        # Format health check results
+        health_text = f"🏥 **Pemeriksaan Kesehatan Sistem**\n\n"
+        health_text += f"⏰ **Waktu:** {health['timestamp']}\n\n"
+        
+        # Check each component
+        components = [
+            ("🤖 Bot Manager", health["bot_manager"]),
+            ("🎭 Userbot", health["userbot"]),
+            ("📝 System Prompt", health["system_prompt"]),
+            ("🤖 Replicate API", health["replicate_api"])
+        ]
+        
+        all_healthy = True
+        for name, status in components:
+            icon = "✅" if status else "❌"
+            health_text += f"{icon} {name}: {'Sehat' if status else 'Bermasalah'}\n"
+            if not status:
+                all_healthy = False
+        
+        # Overall status
+        health_text += f"\n🎯 **Status Keseluruhan:** "
+        health_text += f"{'✅ Semua Sistem Sehat' if all_healthy else '⚠️ Ada Masalah pada Sistem'}"
+        
+        await message.edit_text(health_text)
+        
+    except Exception as e:
+        console.error(f"Error in health_check_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat pemeriksaan kesehatan.")

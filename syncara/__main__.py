@@ -6,7 +6,7 @@ from pyrogram import idle
 from importlib import import_module
 from syncara import *
 from syncara.modules import loadModule
-from syncara import initialize_syncara, stop_syncara, console
+from syncara.userbot import initialize_userbots, stop_userbots
 from config.config import USERBOTS
 
 shutdown_event = asyncio.Event()
@@ -42,6 +42,8 @@ async def main():
     try:
         # Initialize both bot and userbot
         bot, userbot = await initialize_syncara()
+        await loadPlugins()
+        await setup_userbot_handlers(userbot)
         
         # Keep the application running
         await asyncio.Event().wait()
