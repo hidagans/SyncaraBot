@@ -6,7 +6,7 @@ from pyrogram import idle
 from importlib import import_module
 from syncara import *
 from syncara.modules import loadModule
-from syncara.userbot import initialize_userbots, stop_userbots
+from syncara import initialize_syncara, stop_syncara, console
 from config.config import USERBOTS
 
 shutdown_event = asyncio.Event()
@@ -40,38 +40,15 @@ async def loadPlugins():
 
 async def main():
     try:
-        # Start the manager bot
-        await bot.start()
-        console.info(f"Manager bot started as @{bot.me.username}")
+        # Initialize both bot and userbot
+        bot, userbot = await initialize_syncara()
         
-        # Initialize userbots if available
-        if has_userbot and USERBOTS:
-            await initialize_userbots()
-            console.info("Userbots initialized")
-            
-            # Set up userbot handlers
-            await setup_userbot_handlers()
-            console.info("Userbot handlers set up")
-        else:
-            console.warning("No userbots configured, running with manager bot only")
-        
-        # Load plugins
-        await loadPlugins()
-        
-        # Set up signal handlers
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            signal.signal(sig, handle_signal)
-        
-        # Wait until shutdown
-        await shutdown_event.wait()
-        
-    except Exception as e:
-        console.error(f"Error in main: {str(e)}")
+        # Keep the application running
+        await asyncio.Event().wait()
+    except KeyboardInterrupt:
+        console.warning("Received keyboard interrupt")
     finally:
-        # Cleanup
-        if has_userbot and USERBOTS:
-            await stop_userbots()
-        await bot.stop()
+        await stop_syncara()
 
 if __name__ == "__main__":
     try:
