@@ -14,13 +14,10 @@ class MusicPlayer:
         self.search_results = {}    # message_id -> search_results
         self.download_cache = {}    # video_id -> file_path
         
-    async def search_and_show_results(self, client: Client, message: Message, query: str):
-        """Search for music and show results with preview"""
+    async def search_and_show_results(self, client: Client, original_message: Message, query: str):
+        """Search for music and show results with preview via bot manager"""
         try:
-            console.info(f"Music search requested: '{query}' by user {message.from_user.id}")
-            
-            # Send searching message
-            search_msg = await message.reply("🔍 Mencari musik di YouTube...")
+            console.info(f"Music search requested: '{query}' by user {original_message.from_user.id}")
             
             # Search for music
             results = await self.youtube.search_music(query, limit=5)
@@ -28,27 +25,85 @@ class MusicPlayer:
             console.info(f"Search completed. Found {len(results)} results")
             
             if not results:
-                await search_msg.edit("❌ Tidak ditemukan hasil untuk pencarian tersebut.\n\n💡 Tips:\n• Coba kata kunci yang lebih spesifik\n• Sertakan nama artis\n• Periksa ejaan")
+                await client.send_message(
+                    chat_id=original_message.chat.id,
+                    text="❌ Tidak ditemukan hasil untuk pencarian tersebut.\n\n💡 Tips:\n• Coba kata kunci yang lebih spesifik\n• Sertakan nama artis\n• Periksa ejaan"
+                )
                 return
+            
+            # Send results via bot manager with buttons
+            search_msg = await client.send_photo(
+                chat_id=original_message.chat.id,
+                photo=results[0]['thumbnail'],
+                caption=self.format_music_info(results[0], 0, len(results)),
+                reply_markup=self.create_music_keyboard(results[0], 0, len(results))
+            )
             
             # Store results for callback handling
             self.search_results[search_msg.id] = {
                 'results': results,
                 'current_index': 0,
-                'chat_id': message.chat.id,
-                'user_id': message.from_user.id
+                'chat_id': original_message.chat.id,
+                'user_id': original_message.from_user.id
             }
             
-            console.info(f"Showing first result: {results[0]['title']}")
-            
-            # Show first result
-            await self.show_music_preview(client, search_msg, results[0], 0, len(results))
+            console.info(f"Music results sent via bot manager")
             
         except Exception as e:
             console.error(f"Error in search_and_show_results: {e}")
             import traceback
             console.error(f"Traceback: {traceback.format_exc()}")
-            await message.reply("❌ Terjadi kesalahan saat mencari musik. Silakan coba lagi.")
+            await client.send_message(
+                chat_id=original_message.chat.id,
+                text="❌ Terjadi kesalahan saat mencari musik. Silakan coba lagi."
+            )
+
+    def format_music_info(self, music_info: Dict, current_index: int, total_results: int) -> str:
+        """Format music info for display"""
+        title = music_info['title'][:50] + "..." if len(music_info['title']) > 50 else music_info['title']
+        channel = music_info['channel'][:30] + "..." if len(music_info['channel']) > 30 else music_info['channel']
+        duration = self.youtube.format_duration(music_info['duration'])
+        views = self.youtube.format_views(music_info['view_count'])
+        
+        return f"""🎵 **{title}**
+
+    📺 **Channel:** {channel}
+    ⏱️ **Duration:** {duration}
+    👁️ **Views:** {views}
+    🔗 **URL:** [YouTube]({music_info['url']})
+
+    📍 **Result {current_index + 1} of {total_results}**"""
+
+    def create_music_keyboard(self, music_info: Dict, current_index: int, total_results: int):
+        """Create inline keyboard for music controls"""
+        from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        
+        keyboard = []
+        
+        # Navigation row
+        nav_row = []
+        if current_index > 0:
+            nav_row.append(InlineKeyboardButton("⏮️", callback_data=f"music_prev_{current_index}"))
+        else:
+            nav_row.append(InlineKeyboardButton("⏸️", callback_data="music_disabled"))
+        
+        nav_row.append(InlineKeyboardButton("▶️ PLAY", callback_data=f"music_play_{music_info['id']}"))
+        
+        if current_index < total_results - 1:
+            nav_row.append(InlineKeyboardButton("⏭️", callback_data=f"music_next_{current_index}"))
+        else:
+            nav_row.append(InlineKeyboardButton("⏸️", callback_data="music_disabled"))
+        
+        keyboard.append(nav_row)
+        
+        # Control row
+        control_row = [
+            InlineKeyboardButton("🔄 Search Again", callback_data="music_search_again"),
+            InlineKeyboardButton("❌ Close", callback_data="music_close")
+        ]
+        keyboard.append(control_row)
+        
+        return InlineKeyboardMarkup(keyboard)
     
     async def show_music_preview(self, client: Client, message: Message, music_info: Dict, current_index: int, total_results: int):
         """Show music preview with controls"""

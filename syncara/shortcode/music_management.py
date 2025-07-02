@@ -1,3 +1,4 @@
+import os
 from syncara import console
 from syncara.modules.music_player import music_player
 
@@ -22,13 +23,23 @@ class MusicManagementShortcode:
         }
     
     async def play_music(self, client, message, params):
-        """Search and show music options for playing"""
+        """Search and show music options for playing - Bot will handle the UI"""
         try:
             if not params.strip():
                 await message.reply("❌ Mohon berikan nama lagu yang ingin dicari.\nContoh: [MUSIC:PLAY:Shape of You]")
                 return False
             
-            await music_player.search_and_show_results(client, message, params)
+            # Get bot instance from the manager
+            from syncara import bot
+            
+            # Send search request via bot (not assistant)
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text=f"🔍 Mencari musik: **{params}**\n\nTunggu sebentar..."
+            )
+            
+            # Let the bot handle the search and display
+            await music_player.search_and_show_results(bot, message, params)
             return True
             
         except Exception as e:
@@ -36,13 +47,23 @@ class MusicManagementShortcode:
             return False
     
     async def search_music(self, client, message, params):
-        """Search for music without playing"""
+        """Search for music without playing - Bot will handle the UI"""
         try:
             if not params.strip():
                 await message.reply("❌ Mohon berikan nama lagu yang ingin dicari.\nContoh: [MUSIC:SEARCH:Shape of You]")
                 return False
             
-            await music_player.search_and_show_results(client, message, params)
+            # Get bot instance from the manager
+            from syncara import bot
+            
+            # Send search request via bot (not assistant)
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text=f"🔍 Mencari musik: **{params}**\n\nTunggu sebentar..."
+            )
+            
+            # Let the bot handle the search and display
+            await music_player.search_and_show_results(bot, message, params)
             return True
             
         except Exception as e:
