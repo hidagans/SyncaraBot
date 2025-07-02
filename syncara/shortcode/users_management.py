@@ -17,22 +17,60 @@ class UserManagementShortcode:
         }
         
         self.descriptions = {
-            'USER:BAN': 'Ban a user from the group. Usage: [USER:BAN:user_id]',
-            'USER:UNBAN': 'Unban a user from the group. Usage: [USER:UNBAN:user_id]',
-            'USER:KICK': 'Kick a user from the group. Usage: [USER:KICK:user_id]',
-            'USER:MUTE': 'Mute a user in the group. Usage: [USER:MUTE:user_id:duration_minutes]',
-            'USER:UNMUTE': 'Unmute a user in the group. Usage: [USER:UNMUTE:user_id]',
-            'USER:WARN': 'Warn a user. Usage: [USER:WARN:user_id:reason]',
-            'USER:PROMOTE': 'Promote a user to admin. Usage: [USER:PROMOTE:user_id:title]',
-            'USER:DEMOTE': 'Demote a user from admin. Usage: [USER:DEMOTE:user_id]'
+            'USER:BAN': 'Ban a user from the group. Usage: [USER:BAN:user_id_or_username]',
+            'USER:UNBAN': 'Unban a user from the group. Usage: [USER:UNBAN:user_id_or_username]',
+            'USER:KICK': 'Kick a user from the group. Usage: [USER:KICK:user_id_or_username]',
+            'USER:MUTE': 'Mute a user in the group. Usage: [USER:MUTE:user_id_or_username:duration_minutes]',
+            'USER:UNMUTE': 'Unmute a user in the group. Usage: [USER:UNMUTE:user_id_or_username]',
+            'USER:WARN': 'Warn a user. Usage: [USER:WARN:user_id_or_username:reason]',
+            'USER:PROMOTE': 'Promote a user to admin. Usage: [USER:PROMOTE:user_id_or_username:title]',
+            'USER:DEMOTE': 'Demote a user from admin. Usage: [USER:DEMOTE:user_id_or_username]'
         }
+
+    async def resolve_user_id(self, client, message, user_identifier):
+        """
+        Resolve user identifier (username, user_id, or mention) to user_id
+        """
+        try:
+            # If it's already a number, return it
+            if user_identifier.isdigit():
+                return int(user_identifier)
+            
+            # Remove @ if present
+            if user_identifier.startswith('@'):
+                user_identifier = user_identifier[1:]
+            
+            # Try to get user info by username
+            try:
+                user = await client.get_users(user_identifier)
+                return user.id
+            except Exception:
+                # If username doesn't work, try to find in chat members
+                try:
+                    async for member in client.get_chat_members(message.chat.id):
+                        if (member.user.username and member.user.username.lower() == user_identifier.lower()) or \
+                           (member.user.first_name and member.user.first_name.lower() == user_identifier.lower()):
+                            return member.user.id
+                except Exception:
+                    pass
+                
+                # Last resort: try to parse as int
+                return int(user_identifier)
+                
+        except Exception as e:
+            console.error(f"Error resolving user ID for '{user_identifier}': {e}")
+            return None
     
     async def ban_user(self, client, message, params):
         """Ban a user from the group"""
         try:
-            user_id = int(params)
+            user_id = await self.resolve_user_id(client, message, params)
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {params}")
+                return False
+                
             await client.ban_chat_member(chat_id=message.chat.id, user_id=user_id)
-            console.info(f"Banned user {user_id} from chat {message.chat.id}")
+            console.info(f"Banned user {user_id} ({params}) from chat {message.chat.id}")
             return True
         except Exception as e:
             console.error(f"Error banning user: {e}")
@@ -41,9 +79,13 @@ class UserManagementShortcode:
     async def unban_user(self, client, message, params):
         """Unban a user from the group"""
         try:
-            user_id = int(params)
+            user_id = await self.resolve_user_id(client, message, params)
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {params}")
+                return False
+                
             await client.unban_chat_member(chat_id=message.chat.id, user_id=user_id)
-            console.info(f"Unbanned user {user_id} from chat {message.chat.id}")
+            console.info(f"Unbanned user {user_id} ({params}) from chat {message.chat.id}")
             return True
         except Exception as e:
             console.error(f"Error unbanning user: {e}")
@@ -52,10 +94,14 @@ class UserManagementShortcode:
     async def kick_user(self, client, message, params):
         """Kick a user from the group"""
         try:
-            user_id = int(params)
+            user_id = await self.resolve_user_id(client, message, params)
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {params}")
+                return False
+                
             await client.ban_chat_member(chat_id=message.chat.id, user_id=user_id)
             await client.unban_chat_member(chat_id=message.chat.id, user_id=user_id)
-            console.info(f"Kicked user {user_id} from chat {message.chat.id}")
+            console.info(f"Kicked user {user_id} ({params}) from chat {message.chat.id}")
             return True
         except Exception as e:
             console.error(f"Error kicking user: {e}")
@@ -65,7 +111,10 @@ class UserManagementShortcode:
         """Mute a user in the group"""
         try:
             parts = params.split(':')
-            user_id = int(parts[0])
+            user_id = await self.resolve_user_id(client, message, parts[0])
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {parts[0]}")
+                return False
             
             # Calculate until_date if duration is provided
             until_date = None
@@ -93,7 +142,7 @@ class UserManagementShortcode:
             )
             
             duration_text = f" for {parts[1]} minutes" if len(parts) > 1 else ""
-            console.info(f"Muted user {user_id} in chat {message.chat.id}{duration_text}")
+            console.info(f"Muted user {user_id} ({parts[0]}) in chat {message.chat.id}{duration_text}")
             return True
         except Exception as e:
             console.error(f"Error muting user: {e}")
@@ -102,7 +151,10 @@ class UserManagementShortcode:
     async def unmute_user(self, client, message, params):
         """Unmute a user in the group"""
         try:
-            user_id = int(params)
+            user_id = await self.resolve_user_id(client, message, params)
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {params}")
+                return False
             
             # Restore default permissions
             permissions = ChatPermissions(
@@ -122,7 +174,7 @@ class UserManagementShortcode:
                 permissions=permissions
             )
             
-            console.info(f"Unmuted user {user_id} in chat {message.chat.id}")
+            console.info(f"Unmuted user {user_id} ({params}) in chat {message.chat.id}")
             return True
         except Exception as e:
             console.error(f"Error unmuting user: {e}")
@@ -132,12 +184,16 @@ class UserManagementShortcode:
         """Warn a user (placeholder - you can implement warning system)"""
         try:
             parts = params.split(':', 1)
-            user_id = int(parts[0])
+            user_id = await self.resolve_user_id(client, message, parts[0])
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {parts[0]}")
+                return False
+                
             reason = parts[1] if len(parts) > 1 else "No reason provided"
             
             # Here you can implement warning system with database
             # For now, just log the warning
-            console.info(f"Warning issued to user {user_id} in chat {message.chat.id}: {reason}")
+            console.info(f"Warning issued to user {user_id} ({parts[0]}) in chat {message.chat.id}: {reason}")
             return True
         except Exception as e:
             console.error(f"Error warning user: {e}")
@@ -147,7 +203,11 @@ class UserManagementShortcode:
         """Promote a user to admin"""
         try:
             parts = params.split(':', 1)
-            user_id = int(parts[0])
+            user_id = await self.resolve_user_id(client, message, parts[0])
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {parts[0]}")
+                return False
+                
             title = parts[1] if len(parts) > 1 else "Admin"
             
             await client.promote_chat_member(
@@ -173,7 +233,7 @@ class UserManagementShortcode:
                     title=title
                 )
             
-            console.info(f"Promoted user {user_id} to admin in chat {message.chat.id}")
+            console.info(f"Promoted user {user_id} ({parts[0]}) to admin in chat {message.chat.id} with title: {title}")
             return True
         except Exception as e:
             console.error(f"Error promoting user: {e}")
@@ -182,7 +242,10 @@ class UserManagementShortcode:
     async def demote_user(self, client, message, params):
         """Demote a user from admin"""
         try:
-            user_id = int(params)
+            user_id = await self.resolve_user_id(client, message, params)
+            if user_id is None:
+                console.error(f"Could not resolve user ID for: {params}")
+                return False
             
             await client.promote_chat_member(
                 chat_id=message.chat.id,
@@ -199,7 +262,7 @@ class UserManagementShortcode:
                 )
             )
             
-            console.info(f"Demoted user {user_id} from admin in chat {message.chat.id}")
+            console.info(f"Demoted user {user_id} ({params}) from admin in chat {message.chat.id}")
             return True
         except Exception as e:
             console.error(f"Error demoting user: {e}")
