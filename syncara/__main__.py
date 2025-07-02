@@ -20,15 +20,6 @@ signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
 
 
-
-try:
-    from syncara.userbot import initialize_userbots, stop_userbots
-    from syncara.modules.ai_handler import setup_userbot_handlers
-    has_userbot = True
-except ImportError:
-    has_userbot = False
-
-
 # Fungsi untuk memuat plugin secara dinamis
 async def loadPlugins():
     modules = loadModule()
@@ -41,7 +32,6 @@ async def main():
         # Initialize both bot and userbot
         bot, userbot = await initialize_syncara()
         await loadPlugins()
-        await setup_userbot_handlers(userbot)
         
         # Keep the application running
         await asyncio.Event().wait()
