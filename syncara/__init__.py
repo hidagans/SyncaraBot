@@ -1,18 +1,10 @@
+# syncara/__init__.py
 import logging
 import os
-import re
-import subprocess
-import sys
-from typing import Callable
-
-import pyrogram
-from pyrogram import Client, filters
-from pyrogram.enums import ParseMode
-from pyrogram.handlers import MessageHandler, CallbackQueryHandler  # Tambahkan ini
-from pyromod import listen
-
+from pyrogram import Client
 from config.config import *
 
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format="[ %(levelname)s ] - %(name)s - %(message)s",
@@ -29,35 +21,28 @@ logging.getLogger("pyrogram.session.session").setLevel(logging.WARNING)
 console = logging.getLogger(__name__)
 
 class Bot(Client):
-    __module__ = "pyrogram.client"
-    _bot = []
-
+    """Enhanced Bot class with custom handlers"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.me = None
 
-    def on_message(self, filters=None):
-        def decorator(func):
-            # Register handler to this specific bot instance
-            self.add_handler(MessageHandler(func, filters))
-            return func
-        return decorator
+    async def start(self):
+        await super().start()
+        self.me = await self.get_me()
+        console.info(f"Bot Manager started as @{self.me.username} ({self.me.id})")
 
-    def on_callback_query(self, filters=None):
-        def decorator(func):
-            # Register handler to this specific bot instance
-            self.add_handler(CallbackQueryHandler(func, filters))
-            return func
-        return decorator
+class Ubot(Client):
+    """Enhanced Userbot class"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.me = None
 
     async def start(self):
         await super().start()
         self.me = await self.get_me()
-        if self not in self._bot:
-            self._bot.append(self)
-        console.info(f"Starting Bot ({self.me.first_name})")
+        console.info(f"Userbot started as @{self.me.username} ({self.me.id})")
 
-# Inisialisasi bot
+# Global instances
 bot = Bot(
     name="SyncaraBot",
     api_id=API_ID,
@@ -65,5 +50,33 @@ bot = Bot(
     bot_token=BOT_TOKEN,
 )
 
-# Check if userbot is available
-has_userbot = bool(USERBOTS)
+userbot = Ubot(
+    name="SyncaraUbot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    session_string=SESSION_STRING,  # Menggunakan session string untuk userbot
+)
+
+# Initialize both instances
+async def initialize_syncara():
+    """Initialize both bot and userbot"""
+    console.info("Initializing SyncaraBot...")
+    await bot.start()
+    
+    if SESSION_STRING:
+        await userbot.start()
+        console.info("SyncaraBot initialized with userbot")
+    else:
+        console.warning("SyncaraBot initialized without userbot")
+    
+    return bot, userbot
+
+async def stop_syncara():
+    """Stop both bot and userbot"""
+    console.info("Stopping SyncaraBot...")
+    
+    if userbot.is_connected:
+        await userbot.stop()
+    
+    await bot.stop()
+    console.info("SyncaraBot stopped")
