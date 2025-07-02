@@ -47,7 +47,7 @@ class MusicPlayer:
                 'user_id': original_message.from_user.id
             }
             
-            console.info(f"Music results sent via bot manager")
+            console.info(f"Music results sent via bot manager with message ID: {search_msg.id}")
             
         except Exception as e:
             console.error(f"Error in search_and_show_results: {e}")
@@ -251,89 +251,117 @@ class MusicPlayer:
             message = callback_query.message
             user_id = callback_query.from_user.id
             
-            # Check if user has permission (same user who initiated search)
+            console.info(f"Handling music callback: {data}")
+            
+            # Check user authorization for existing sessions
             if message.id in self.search_results:
                 if self.search_results[message.id]['user_id'] != user_id:
                     await callback_query.answer("❌ Hanya yang meminta musik yang bisa mengontrol player.", show_alert=True)
                     return
             
+            # Handle different callback types
             if data.startswith("music_prev_"):
                 await self.handle_navigation(client, callback_query, "prev")
             elif data.startswith("music_next_"):
                 await self.handle_navigation(client, callback_query, "next")
             elif data.startswith("music_play_"):
                 await self.handle_play(client, callback_query)
-            elif data.startswith("music_close_"):
+            elif data == "music_close":
                 await self.handle_close(client, callback_query)
-            elif data.startswith("music_search_again_"):
+            elif data == "music_search_again":
                 await self.handle_search_again(client, callback_query)
             elif data == "music_disabled":
+                await callback_query.answer()
+            else:
+                console.warning(f"Unknown callback data: {data}")
                 await callback_query.answer()
                 
         except Exception as e:
             console.error(f"Error handling music callback: {e}")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
             await callback_query.answer("❌ Terjadi kesalahan.")
     
     async def handle_navigation(self, client: Client, callback_query, direction: str):
-        """Handle prev/next navigation"""
+        """Handle navigation (prev/next) buttons"""
         try:
             message_id = callback_query.message.id
+            
             if message_id not in self.search_results:
                 await callback_query.answer("❌ Session expired.")
                 return
             
             session = self.search_results[message_id]
-            results = session['results']
             current_index = session['current_index']
+            results = session['results']
             
+            # Calculate new index
             if direction == "prev" and current_index > 0:
-                session['current_index'] -= 1
+                new_index = current_index - 1
             elif direction == "next" and current_index < len(results) - 1:
-                session['current_index'] += 1
+                new_index = current_index + 1
             else:
                 await callback_query.answer()
                 return
             
-            new_index = session['current_index']
-            await self.show_music_preview(
-                client, 
-                callback_query.message, 
-                results[new_index], 
-                new_index, 
-                len(results)
+            # Update session
+            session['current_index'] = new_index
+            
+            # Update message with new result
+            new_result = results[new_index]
+            caption = self.format_music_info(new_result, new_index, len(results))
+            keyboard = self.create_music_keyboard(new_result, new_index, len(results), message_id)
+            
+            await callback_query.message.edit_media(
+                media=f"photo:{new_result['thumbnail']}",
+                caption=caption,
+                reply_markup=keyboard
             )
+            
             await callback_query.answer()
             
         except Exception as e:
-            console.error(f"Error in navigation: {e}")
+            console.error(f"Error in handle_navigation: {e}")
             await callback_query.answer("❌ Terjadi kesalahan.")
     
     async def handle_play(self, client: Client, callback_query):
-        """Handle play button - join voice chat and play music"""
+        """Handle play button - Join voice chat and play music"""
         try:
+            # Parse callback data: music_play_{video_id}
             data_parts = callback_query.data.split("_")
-            video_id = data_parts[-1]
-            message_id = int(data_parts[-2])
+            if len(data_parts) < 3:
+                console.error(f"Invalid callback data format: {callback_query.data}")
+                await callback_query.answer("❌ Invalid callback data")
+                return
+                
+            video_id = "_".join(data_parts[2:])  # Handle video IDs with underscores
+            message_id = callback_query.message.id
             
+            console.info(f"Playing video: {video_id} from message: {message_id}")
+            
+            # Check if session exists
             if message_id not in self.search_results:
-                await callback_query.answer("❌ Session expired.")
+                await callback_query.answer("❌ Session expired. Please search again.")
                 return
             
             session = self.search_results[message_id]
             chat_id = session['chat_id']
             
-            # Update message to show loading
+            # Update button to show downloading state
             await callback_query.message.edit_reply_markup(
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("⏳ Downloading...", callback_data="music_disabled")
                 ]])
             )
             
-            await callback_query.answer("🎵 Downloading and preparing music...")
+            await callback_query.answer("⏳ Downloading and preparing music...")
             
             # Download audio
+            console.info(f"Downloading audio for video: {video_id}")
             audio_file = await self.youtube.download_audio(video_id)
+            
             if not audio_file:
+                console.error(f"Failed to download audio for video: {video_id}")
                 await callback_query.message.edit_reply_markup(
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("❌ Download Failed", callback_data="music_disabled")
@@ -341,12 +369,23 @@ class MusicPlayer:
                 )
                 return
             
+            console.info(f"Audio downloaded successfully: {audio_file}")
+            
             # Join voice chat and play
             success = await self.join_and_play(client, chat_id, audio_file, video_id)
             
             if success:
-                # Update message to show now playing
-                current_music = session['results'][session['current_index']]
+                # Get current music info
+                current_music = None
+                for result in session['results']:
+                    if result['id'] == video_id:
+                        current_music = result
+                        break
+                
+                if not current_music:
+                    current_music = session['results'][session['current_index']]
+                
+                # Update button to show now playing
                 await callback_query.message.edit_reply_markup(
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("🎵 Now Playing", callback_data="music_disabled")],
@@ -364,7 +403,11 @@ class MusicPlayer:
                     'music_info': current_music,
                     'message_id': message_id
                 }
+                
+                console.info(f"Music started playing in chat: {chat_id}")
+                
             else:
+                console.error(f"Failed to join voice chat and play music in chat: {chat_id}")
                 await callback_query.message.edit_reply_markup(
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("❌ Failed to Play", callback_data="music_disabled")
@@ -373,6 +416,8 @@ class MusicPlayer:
                 
         except Exception as e:
             console.error(f"Error in handle_play: {e}")
+            import traceback
+            console.error(f"Traceback: {traceback.format_exc()}")
             await callback_query.answer("❌ Terjadi kesalahan saat memutar musik.")
     
     async def join_and_play(self, client: Client, chat_id: int, audio_file: str, video_id: str) -> bool:
@@ -408,25 +453,64 @@ class MusicPlayer:
         """Handle close button"""
         try:
             message_id = callback_query.message.id
+            
+            # Clean up session
             if message_id in self.search_results:
                 del self.search_results[message_id]
             
+            # Delete message
             await callback_query.message.delete()
-            await callback_query.answer("✅ Music player closed.")
             
         except Exception as e:
-            console.error(f"Error closing music player: {e}")
+            console.error(f"Error in handle_close: {e}")
             await callback_query.answer("❌ Terjadi kesalahan.")
     
     async def handle_search_again(self, client: Client, callback_query):
         """Handle search again button"""
         try:
-            await callback_query.answer("🔍 Ketik perintah musik lagi untuk pencarian baru.")
-            await self.handle_close(client, callback_query)
+            await callback_query.message.edit_text(
+                "🔍 Silakan kirim nama lagu yang ingin dicari:",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("❌ Cancel", callback_data="music_close")
+                ]])
+            )
+            
+            await callback_query.answer()
             
         except Exception as e:
-            console.error(f"Error in search again: {e}")
+            console.error(f"Error in handle_search_again: {e}")
             await callback_query.answer("❌ Terjadi kesalahan.")
+
+    def create_music_keyboard(self, music_info: Dict, current_index: int, total_results: int, message_id: int = None):
+        """Create inline keyboard for music controls"""
+        from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        
+        keyboard = []
+        
+        # Navigation row
+        nav_row = []
+        if current_index > 0:
+            nav_row.append(InlineKeyboardButton("⏮️", callback_data=f"music_prev_{current_index}"))
+        else:
+            nav_row.append(InlineKeyboardButton("⏸️", callback_data="music_disabled"))
+        
+        nav_row.append(InlineKeyboardButton("▶️ PLAY", callback_data=f"music_play_{music_info['id']}"))
+        
+        if current_index < total_results - 1:
+            nav_row.append(InlineKeyboardButton("⏭️", callback_data=f"music_next_{current_index}"))
+        else:
+            nav_row.append(InlineKeyboardButton("⏸️", callback_data="music_disabled"))
+        
+        keyboard.append(nav_row)
+        
+        # Control row
+        control_row = [
+            InlineKeyboardButton("🔄 Search Again", callback_data="music_search_again"),
+            InlineKeyboardButton("❌ Close", callback_data="music_close")
+        ]
+        keyboard.append(control_row)
+        
+        return InlineKeyboardMarkup(keyboard)
 
 # Global music player instance
 music_player = MusicPlayer()
