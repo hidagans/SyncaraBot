@@ -620,7 +620,7 @@ async def setup_userbot_handlers():
         console.error(f"Error setting up userbot handlers: {str(e)}")
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
-    """Process AI response for userbot assistant with chat history context"""
+    """Process AI response with detailed context"""
     try:
         # Get userbot information from cache
         userbot_name = getattr(client, 'name', 'unknown')
@@ -638,12 +638,36 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         chat_history = await get_chat_history(client, message.chat.id, limit=CHAT_HISTORY_CONFIG["limit"])
         formatted_history = format_chat_history(chat_history)
         
-        # Prepare context
+        # Prepare message context
+        msg_context = {
+            'message_id': message.id,
+            'chat_id': message.chat.id,
+            'chat_type': message.chat.type.name,
+            'chat_title': message.chat.title if message.chat.title else "Private Chat",
+            'from_user': {
+                'id': message.from_user.id if message.from_user else None,
+                'name': message.from_user.first_name if message.from_user else "Unknown",
+                'username': message.from_user.username if message.from_user else None
+            }
+        }
+        
+        if message.reply_to_message:
+            reply = message.reply_to_message
+            msg_context['reply_to'] = {
+                'message_id': reply.id,
+                'from_user': {
+                    'id': reply.from_user.id if reply.from_user else None,
+                    'name': reply.from_user.first_name if reply.from_user else "Unknown",
+                    'username': reply.from_user.username if reply.from_user else None
+                },
+                'content': reply.text or reply.caption or "[Media]"
+            }
+        
+        # Prepare context for system prompt
         context = {
             'bot_name': userbot_info['first_name'],
             'bot_username': userbot_info['username'],
-            'user_id': message.from_user.id,
-            'chat_id': message.chat.id
+            'message': msg_context
         }
         
         # Get formatted system prompt
@@ -653,6 +677,16 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         if formatted_history:
             formatted_prompt += f"\n\n{formatted_history}"
             formatted_prompt += "Berdasarkan riwayat percakapan di atas, jawab pertanyaan atau tanggapi pesan berikut dengan konteks yang sesuai:\n\n"
+        
+        # Add current message context
+        formatted_prompt += f"\nPesan saat ini:\n"
+        formatted_prompt += f"ID: #{msg_context['message_id']}\n"
+        if msg_context.get('reply_to'):
+            formatted_prompt += f"Reply ke: #{msg_context['reply_to']['message_id']} dari {msg_context['reply_to']['from_user']['name']}\n"
+        formatted_prompt += f"Dari: {msg_context['from_user']['name']}"
+        if msg_context['from_user']['username']:
+            formatted_prompt += f" (@{msg_context['from_user']['username']})"
+        formatted_prompt += f"\nPesan: {prompt}\n\n"
         
         # Generate AI response
         response = await replicate_api.generate_response(
@@ -667,16 +701,22 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         
         # Send response if not empty
         if processed_response.strip():
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=processed_response,
-                reply_to_message_id=message.id
-            )
+            try:
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text=processed_response,
+                    reply_to_message_id=message.id
+                )
+            except Exception as e:
+                console.error(f"Error sending AI response: {str(e)}")
         
     except Exception as e:
-        console.error(f"Error in AI response: {str(e)}")
-        await client.send_message(
-            chat_id=message.chat.id,
-            text="Maaf, terjadi kesalahan dalam memproses permintaan Anda.",
-            reply_to_message_id=message.id
-        )
+        console.error(f"Error in process_ai_response: {str(e)}")
+        try:
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="Maaf, terjadi kesalahan dalam memproses permintaan Anda.",
+                reply_to_message_id=message.id
+            )
+        except:
+            pass

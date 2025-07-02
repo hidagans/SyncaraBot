@@ -10,7 +10,7 @@ from config.config import OWNER_ID
 system_prompt = SystemPrompt()
 
 async def get_chat_history(client, chat_id, limit=None):
-    """Get chat history for context"""
+    """Get chat history with detailed information"""
     try:
         # Check if history is enabled
         if not CHAT_HISTORY_CONFIG["enabled"]:
@@ -21,7 +21,43 @@ async def get_chat_history(client, chat_id, limit=None):
             limit = CHAT_HISTORY_CONFIG["limit"]
         
         messages = []
-        me = await client.get_me()
+        
+        # Get userbot info from cache
+        userbot_name = getattr(client, 'name', 'unknown')
+        userbot_info = USERBOT_INFO_CACHE.get(userbot_name)
+        
+        if not userbot_info:
+            # Fallback: get info but with rate limiting
+            try:
+                me = await client.get_me()
+                userbot_info = {
+                    'id': me.id,
+                    'username': me.username,
+                    'first_name': me.first_name,
+                    'last_name': me.last_name
+                }
+                USERBOT_INFO_CACHE[userbot_name] = userbot_info
+            except Exception as e:
+                console.error(f"Error getting userbot info: {str(e)}")
+                return []
+        
+        # Get chat info
+        try:
+            chat = await client.get_chat(chat_id)
+            chat_info = {
+                'id': chat.id,
+                'title': chat.title if chat.title else "Private Chat",
+                'type': chat.type.name,
+                'username': chat.username if hasattr(chat, 'username') else None
+            }
+        except Exception as e:
+            console.error(f"Error getting chat info: {str(e)}")
+            chat_info = {
+                'id': chat_id,
+                'title': "Unknown Chat",
+                'type': "unknown",
+                'username': None
+            }
         
         # Get timezone for timestamp formatting
         tz = pytz.timezone('Asia/Jakarta')
@@ -59,26 +95,58 @@ async def get_chat_history(client, chat_id, limit=None):
                     continue
                 
                 # Get sender info
-                sender_name = "Unknown"
+                sender_info = {
+                    'id': None,
+                    'name': "Unknown",
+                    'username': None,
+                    'is_bot': False
+                }
+                
                 if message.from_user:
-                    if message.from_user.id == me.id:
-                        sender_name = f"{me.first_name} (Assistant)"
-                    else:
-                        sender_name = message.from_user.first_name or message.from_user.username or "User"
+                    sender_info = {
+                        'id': message.from_user.id,
+                        'name': message.from_user.first_name,
+                        'username': message.from_user.username,
+                        'is_bot': message.from_user.is_bot
+                    }
+                    if message.from_user.id == userbot_info['id']:
+                        sender_info['name'] = f"{userbot_info['first_name']} (Assistant)"
                 elif message.sender_chat:
-                    sender_name = message.sender_chat.title or "Channel"
+                    sender_info = {
+                        'id': message.sender_chat.id,
+                        'name': message.sender_chat.title,
+                        'username': message.sender_chat.username,
+                        'is_bot': False
+                    }
                 
-                # Format timestamp if enabled
-                timestamp = ""
-                if CHAT_HISTORY_CONFIG["include_timestamps"]:
-                    timestamp = message.date.astimezone(tz).strftime("%H:%M")
+                # Get reply info
+                reply_info = None
+                if message.reply_to_message:
+                    reply_msg = message.reply_to_message
+                    reply_sender = "Unknown"
+                    
+                    if reply_msg.from_user:
+                        reply_sender = reply_msg.from_user.first_name
+                        if reply_msg.from_user.id == userbot_info['id']:
+                            reply_sender = f"{userbot_info['first_name']} (Assistant)"
+                    elif reply_msg.sender_chat:
+                        reply_sender = reply_msg.sender_chat.title
+                    
+                    reply_info = {
+                        'message_id': reply_msg.id,
+                        'sender': reply_sender,
+                        'content': reply_msg.text or reply_msg.caption or "[Media]"
+                    }
                 
-                # Add to messages list
+                # Add to messages list with detailed info
                 messages.append({
-                    'sender': sender_name,
+                    'message_id': message.id,
+                    'sender': sender_info,
+                    'chat': chat_info,
                     'content': content,
-                    'timestamp': timestamp,
-                    'is_assistant': message.from_user and message.from_user.id == me.id
+                    'timestamp': message.date.astimezone(tz),
+                    'reply_to': reply_info,
+                    'is_assistant': message.from_user and message.from_user.id == userbot_info['id']
                 })
                 
             except Exception as e:
@@ -95,19 +163,47 @@ async def get_chat_history(client, chat_id, limit=None):
         return []
 
 def format_chat_history(messages):
-    """Format chat history for AI context"""
+    """Format chat history with detailed information"""
     if not messages or not CHAT_HISTORY_CONFIG["enabled"]:
         return ""
     
-    formatted_history = f"\n=== RIWAYAT PERCAKAPAN {len(messages)} PESAN TERAKHIR ===\n"
+    formatted_history = "\n=== RIWAYAT PERCAKAPAN DETAIL ===\n"
+    formatted_history += f"📍 Grup: {messages[0]['chat']['title']} ({messages[0]['chat']['type']})\n"
+    formatted_history += f"🆔 Chat ID: {messages[0]['chat']['id']}\n"
+    if messages[0]['chat']['username']:
+        formatted_history += f"🔗 Username: @{messages[0]['chat']['username']}\n"
+    formatted_history += f"📝 {len(messages)} Pesan Terakhir\n"
+    formatted_history += "──────────────────────\n\n"
     
     for msg in messages:
-        if CHAT_HISTORY_CONFIG["include_timestamps"] and msg['timestamp']:
-            formatted_history += f"[{msg['timestamp']}] {msg['sender']}: {msg['content']}\n"
-        else:
-            formatted_history += f"{msg['sender']}: {msg['content']}\n"
+        # Format timestamp
+        timestamp = msg['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Format sender info
+        sender = f"{msg['sender']['name']}"
+        if msg['sender']['username']:
+            sender += f" (@{msg['sender']['username']})"
+        if msg['sender']['is_bot']:
+            sender += " [BOT]"
+        sender += f" [{msg['sender']['id']}]"
+        
+        # Build message header
+        header = f"[{timestamp}] #{msg['message_id']}"
+        
+        # Add reply info if exists
+        if msg['reply_to']:
+            reply = msg['reply_to']
+            header += f" ↩️ Reply to #{reply['message_id']} from {reply['sender']}"
+            
+        # Format the message
+        formatted_history += f"{header}\n"
+        formatted_history += f"👤 {sender}\n"
+        formatted_history += f"💬 {msg['content']}\n"
+        
+        # Add separator between messages
+        formatted_history += "──────────────────────\n"
     
-    formatted_history += "=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
+    formatted_history += "\n=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
     
     return formatted_history
 
