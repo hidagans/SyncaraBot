@@ -5,6 +5,7 @@ from syncara import bot, userbot, console
 from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
+from syncara.modules.assistant_memory import kenalan_dan_update
 
 # Inisialisasi komponen
 replicate_api = ReplicateAPI()
@@ -334,9 +335,11 @@ async def userbot_message_handler(client, message):
 async def simple_private_handler(client, message):
     """Handler for private messages to userbot"""
     try:
-        # Process with AI response
+        # Tambahkan auto-kenalan & ingatan
+        if message.from_user:
+            await kenalan_dan_update(client, message.from_user)
+        # Lanjutkan proses AI response seperti biasa
         await process_ai_response(client, message, message.text)
-        
     except Exception as e:
         console.error(f"Error in private handler: {str(e)}")
         # Fallback response
