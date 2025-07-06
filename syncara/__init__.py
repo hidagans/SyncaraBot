@@ -31,10 +31,8 @@ class Bot(Client):
 
     def on_message(self, filters=None):
         def decorator(func):
-            for ub in self._bot:
-                ub.add_handler(MessageHandler(func, filters))
+            self.add_handler(MessageHandler(func, filters))
             return func
-
         return decorator
 
     async def start(self):
@@ -45,7 +43,6 @@ class Bot(Client):
 class Ubot(Client):
     """Enhanced Userbot class"""
     __module__ = "pyrogram.client"
-    _bot = []
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -53,10 +50,8 @@ class Ubot(Client):
 
     def on_message(self, filters=None):
         def decorator(func):
-            for ub in self._bot:
-                ub.add_handler(MessageHandler(func, filters))
+            self.add_handler(MessageHandler(func, filters))
             return func
-
         return decorator
 
     async def start(self):
