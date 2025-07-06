@@ -92,81 +92,57 @@ class ReplicateAPI:
         except Exception as e:
             yield f"Error: {str(e)}"
 
-REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
-REPLICATE_API_URL = "https://api.replicate.com/v1/predictions"
-
-HEADERS = {
-    "Authorization": f"Token {REPLICATE_API_TOKEN}",
-    "Content-Type": "application/json"
-}
-
-async def run_replicate_model(model: str, version: str, input_data: dict) -> dict:
-    async with httpx.AsyncClient() as client:
-        payload = {
-            "version": version,
-            "input": input_data
+    async def generate_image(
+        prompt: str,
+        image: str = None,
+        mask: str = None,
+        seed: int = None,
+        resolution: str = None,
+        style_type: str = None,
+        aspect_ratio: str = None,
+        magic_prompt_option: str = None,
+        style_reference_images: list = None
+    ) -> str:
+        input_data = {
+            "prompt": prompt
         }
-        response = await client.post(REPLICATE_API_URL, headers=HEADERS, json=payload, timeout=120)
-        response.raise_for_status()
-        prediction = response.json()
-        # Poll for result
-        prediction_id = prediction["id"]
-        status = prediction["status"]
-        while status not in ("succeeded", "failed", "canceled"):
-            await asyncio.sleep(2)
-            poll = await client.get(f"{REPLICATE_API_URL}/{prediction_id}", headers=HEADERS)
-            poll.raise_for_status()
-            prediction = poll.json()
-            status = prediction["status"]
-        return prediction
+        if image:
+            input_data["image"] = image
+        if mask:
+            input_data["mask"] = mask
+        if seed is not None:
+            input_data["seed"] = seed
+        if resolution:
+            input_data["resolution"] = resolution
+        if style_type:
+            input_data["style_type"] = style_type
+        if aspect_ratio:
+            input_data["aspect_ratio"] = aspect_ratio
+        if magic_prompt_option:
+            input_data["magic_prompt_option"] = magic_prompt_option
+        if style_reference_images:
+            input_data["style_reference_images"] = style_reference_images
 
-# Image generation (inpainting & text2img) dengan model ideogram-ai/ideogram-v3-balanced
-async def generate_image(
-    prompt: str,
-    image: str = None,
-    mask: str = None,
-    seed: int = None,
-    resolution: str = None,
-    style_type: str = None,
-    aspect_ratio: str = None,
-    magic_prompt_option: str = None,
-    style_reference_images: list = None
-) -> str:
-    """
-    Generate image using Replicate model (ideogram-ai/ideogram-v3-balanced)
-    Returns: URL hasil gambar
-    """
-    model = "ideogram-ai/ideogram-v3-balanced"
-    version = None  # Gunakan versi default terbaru
-    input_data = {
-        "prompt": prompt
-    }
-    if image:
-        input_data["image"] = image
-    if mask:
-        input_data["mask"] = mask
-    if seed is not None:
-        input_data["seed"] = seed
-    if resolution:
-        input_data["resolution"] = resolution
-    if style_type:
-        input_data["style_type"] = style_type
-    if aspect_ratio:
-        input_data["aspect_ratio"] = aspect_ratio
-    if magic_prompt_option:
-        input_data["magic_prompt_option"] = magic_prompt_option
-    if style_reference_images:
-        input_data["style_reference_images"] = style_reference_images
+        # Hapus key yang valuenya None
+        input_data = {k: v for k, v in input_data.items() if v is not None}
 
-    console.info(f"[IMAGEGEN] Request: {input_data}")
-    result = await run_replicate_model(model, version, input_data)
-    if result["status"] == "succeeded":
-        output = result.get("output")
-        if isinstance(output, list) and output:
-            return output[0]  # URL gambar
-        elif isinstance(output, str):
-            return output
-        else:
-            raise Exception("No image output from model")
-    else:
-        raise Exception(f"Image generation failed: {result.get('error', result['status'])}")
+        console.info(f"[IMAGEGEN] Request: {input_data}")
+        try:
+            # Model name tanpa versi, biar selalu pakai versi terbaru
+            output = replicate_client.run(
+                "ideogram-ai/ideogram-v3-balanced",
+                input=input_data
+            )
+            # Output bisa berupa list of URL atau file-like object
+            if isinstance(output, list) and output:
+                return output[0]
+            elif hasattr(output, 'read'):
+                # Jika output file-like, simpan ke file dan return path/URL
+                with open("output.png", "wb") as f:
+                    f.write(output.read())
+                return "output.png"
+            else:
+                raise Exception("No image output from model")
+        except Exception as e:
+            console.error(f"[IMAGEGEN] Error: {e}")
+            raise
