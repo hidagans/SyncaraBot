@@ -8,6 +8,11 @@ import httpx
 import os
 from syncara import console
 
+def get_replicate_client():
+    return replicate
+
+replicate_client = get_replicate_client()
+
 class ReplicateAPI:
     def __init__(self):
         replicate.api_token = API_KEY
