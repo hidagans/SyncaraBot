@@ -22,28 +22,24 @@ class ShortcodeRegistry:
             from syncara.shortcode.group_management import GroupManagementShortcode
             from syncara.shortcode.users_management import UserManagementShortcode
             from syncara.shortcode.userbot_management import UserbotManagementShortcode
-            from syncara.shortcode.music_management import MusicManagementShortcode
             from syncara.shortcode.image_generation import ImageGenerationShortcode
             
             # Create instances
             group_shortcode = GroupManagementShortcode()
             user_shortcode = UserManagementShortcode()
             userbot_shortcode = UserbotManagementShortcode()
-            music_shortcode = MusicManagementShortcode()
             image_shortcode = ImageGenerationShortcode()
             
             # Register handlers
             self.shortcodes.update(group_shortcode.handlers)
             self.shortcodes.update(user_shortcode.handlers)
             self.shortcodes.update(userbot_shortcode.handlers)
-            self.shortcodes.update(music_shortcode.handlers)
             self.shortcodes.update(image_shortcode.handlers)
             
             # Register descriptions
             self.descriptions.update(group_shortcode.descriptions)
             self.descriptions.update(user_shortcode.descriptions)
             self.descriptions.update(userbot_shortcode.descriptions)
-            self.descriptions.update(music_shortcode.descriptions)
             self.descriptions.update(image_shortcode.descriptions)
             
             print(f"Loaded {len(self.shortcodes)} shortcode handlers")
@@ -61,15 +57,15 @@ class ShortcodeRegistry:
             self.shortcodes = {
                 'GROUP:INFO': self._dummy_handler,
                 'USER:INFO': self._dummy_handler,
-                'MUSIC:PLAY': self._dummy_handler,
                 'USERBOT:STATUS': self._dummy_handler,
+                'IMAGE:GEN': self._dummy_handler,
             }
             
             self.descriptions = {
                 'GROUP:INFO': 'Get group information',
                 'USER:INFO': 'Get user information',
-                'MUSIC:PLAY': 'Play music',
                 'USERBOT:STATUS': 'Get userbot status',
+                'IMAGE:GEN': 'Generate image from text prompt. Usage: [IMAGE:GEN:prompt]',
             }
             
             print("Loaded fallback shortcodes")
