@@ -153,7 +153,8 @@ async def start_command(client, message):
             "• `/start` atau `/help` - Tampilkan pesan ini\n"
             "• `/test` - Test command\n"
             "• `/prompt` - Ganti AI personality (owner only)\n"
-            "• `/debug` - Debug info (owner only)\n\n"
+            "• `/debug` - Debug info (owner only)\n"
+            "• `/startvc` - Start voice chat\n\n"
             "💡 **Cara menggunakan:**\n"
             "• Kirim pesan private ke @Aeris_sync\n"
             "• Mention @Aeris_sync di group\n"
@@ -291,6 +292,61 @@ async def test_userbot_command(client, message):
     except Exception as e:
         console.error(f"Error in test_userbot_command: {str(e)}")
         await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("startvc") & filters.user(OWNER_ID))
+async def start_voice_chat_command(client, message):
+    """Start voice chat in the group"""
+    try:
+        chat_id = message.chat.id
+        
+        # Check if bot is admin
+        try:
+            bot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
+            if bot_member.status not in ["administrator", "creator"]:
+                await message.reply_text(
+                    "❌ **Bot harus menjadi admin untuk start voice chat!**\n\n"
+                    "**Izin yang diperlukan:**\n"
+                    "• Mengelola voice chat\n"
+                    "• Mengirim pesan\n"
+                    "• Mengelola grup"
+                )
+                return
+        except Exception as e:
+            console.error(f"Error checking bot admin status: {e}")
+            await message.reply_text("❌ Gagal memeriksa status admin bot")
+            return
+        
+        # Check if voice chat already exists
+        try:
+            await client.get_group_call(chat_id)
+            await message.reply_text("ℹ️ Voice chat sudah aktif di grup ini!")
+            return
+        except:
+            pass
+        
+        # Try to start voice chat
+        try:
+            # Note: Pyrogram doesn't have direct method to start voice chat
+            # This is a limitation - admin must start manually
+            await message.reply_text(
+                "🎵 **Voice Chat Setup**\n\n"
+                "❌ **Bot tidak dapat start voice chat secara otomatis.**\n\n"
+                "**Cara manual:**\n"
+                "1. Admin grup harus klik tombol 'Start Voice Chat'\n"
+                "2. Atau gunakan fitur voice chat di Telegram\n"
+                "3. Setelah voice chat aktif, bot bisa join dan play musik\n\n"
+                "💡 **Tips:**\n"
+                "• Pastikan bot adalah admin dengan izin mengelola voice chat\n"
+                "• Voice chat harus di-start oleh admin grup\n"
+                "• Setelah voice chat aktif, coba play musik lagi"
+            )
+        except Exception as e:
+            console.error(f"Error starting voice chat: {e}")
+            await message.reply_text(f"❌ Gagal start voice chat: {str(e)}")
+            
+    except Exception as e:
+        console.error(f"Error in start_voice_chat_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat start voice chat")
 
 # Userbot message handler for group interactions
 @userbot.on_message(custom_userbot_filter & (filters.text | filters.photo))

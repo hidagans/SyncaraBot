@@ -441,11 +441,17 @@ class MusicPlayer:
             else:
                 console.error(f"Failed to join voice chat and play music in chat: {chat_id}")
                 await callback_query.edit_message_text(
-                    f"❌ Failed to play: **{current_music['title']}**\n\n"
-                    "Pastikan:\n"
-                    "1. Bot adalah admin grup\n"
-                    "2. Bot memiliki izin mengelola voice chat\n"
-                    "3. Voice chat tidak sedang digunakan bot lain"
+                    f"❌ **Gagal memutar:** {current_music['title']}\n\n"
+                    "🎵 **Music Player Setup**\n\n"
+                    "❌ **Tidak ada voice chat yang aktif.**\n\n"
+                    "**Cara menggunakan:**\n"
+                    "1. Admin grup harus start voice chat terlebih dahulu\n"
+                    "2. Pastikan bot adalah admin dengan izin mengelola voice chat\n"
+                    "3. Setelah voice chat aktif, coba play musik lagi\n\n"
+                    "💡 **Tips:**\n"
+                    "• Admin bisa start voice chat dengan klik tombol 'Start Voice Chat'\n"
+                    "• Atau gunakan command `/startvc` (owner only)\n"
+                    "• Bot akan otomatis join voice chat yang sudah aktif"
                 )
                 
         except Exception as e:
@@ -453,11 +459,17 @@ class MusicPlayer:
             import traceback
             console.error(f"Traceback: {traceback.format_exc()}")
             await callback_query.edit_message_text(
-                "❌ Terjadi kesalahan saat memutar musik.\n\n"
-                "Pastikan:\n"
-                "1. Bot adalah admin grup\n" 
+                "❌ **Terjadi kesalahan saat memutar musik.**\n\n"
+                "🎵 **Music Player Setup**\n\n"
+                "**Pastikan:**\n"
+                "1. Bot adalah admin grup\n"
                 "2. Bot memiliki izin mengelola voice chat\n"
-                "3. Voice chat tidak sedang digunakan bot lain"
+                "3. Voice chat sudah aktif (admin harus start manual)\n"
+                "4. Voice chat tidak sedang digunakan bot lain\n\n"
+                "💡 **Tips:**\n"
+                "• Gunakan command `/startvc` untuk info voice chat\n"
+                "• Admin harus start voice chat terlebih dahulu\n"
+                "• Bot akan otomatis join voice chat yang aktif"
             )
     
     async def join_and_play(self, client: Client, chat_id: int, audio_file: str, video_id: str) -> bool:
@@ -481,25 +493,26 @@ class MusicPlayer:
                     chat_id,
                     AudioPiped(audio_file)
                 )
+                console.info(f"Successfully joined existing voice chat and playing: {video_id}")
+                return True
+                
             except NoActiveGroupCall:
-                console.info("No active voice chat, trying to start one...")
-                try:
-                    # Start voice chat
-                    await client.create_group_call(chat_id)
-                    await asyncio.sleep(2)  # Wait for voice chat to initialize
-                    
-                    # Try joining again
-                    await client.pytgcalls.join_group_call(
-                        chat_id,
-                        AudioPiped(audio_file)
-                    )
-                except Exception as e:
-                    console.error(f"Error starting voice chat: {e}")
-                    return False
+                console.info("No active voice chat found")
+                # Send message to user to start voice chat manually
+                await client.send_message(
+                    chat_id=chat_id,
+                    text="🎵 **Music Player**\n\n"
+                         "❌ Tidak ada voice chat yang aktif.\n\n"
+                         "**Cara menggunakan:**\n"
+                         "1. Admin grup harus start voice chat terlebih dahulu\n"
+                         "2. Pastikan bot adalah admin dengan izin mengelola voice chat\n"
+                         "3. Setelah voice chat aktif, coba play musik lagi\n\n"
+                         "💡 **Tips:** Admin bisa start voice chat dengan:\n"
+                         "• Klik tombol 'Start Voice Chat' di grup\n"
+                         "• Atau gunakan command `/startvc` (jika tersedia)"
+                )
+                return False
 
-            console.info(f"Successfully joined voice chat and playing: {video_id}")
-            return True
-            
         except Exception as e:
             console.error(f"Error joining voice chat: {e}")
             import traceback
@@ -512,17 +525,10 @@ class MusicPlayer:
             # Check if voice chat exists
             try:
                 await client.get_group_call(chat_id)
-                return True
-            except:
-                pass
-            
-            # Start voice chat if not exists
-            try:
-                await client.create_group_call(chat_id)
-                await asyncio.sleep(2)  # Wait for initialization
+                console.info(f"Voice chat already active in chat: {chat_id}")
                 return True
             except Exception as e:
-                console.error(f"Error creating voice chat: {e}")
+                console.info(f"No active voice chat in chat: {chat_id}")
                 return False
                 
         except Exception as e:
