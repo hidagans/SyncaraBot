@@ -59,27 +59,37 @@ class Ubot(Client):
         self.me = await self.get_me()
         console.info(f"Userbot started as @{self.me.username} ({self.me.id})")
 
-# Global instances
-bot = Bot(
-    name="SyncaraBot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
-)
-
-userbot = Ubot(
-    name="SyncaraUbot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    session_string=SESSION_STRING,  # Menggunakan session string untuk userbot
-)
+# Global instances - akan diinisialisasi nanti
+bot = None
+userbot = None
 
 # Initialize both instances
 async def initialize_syncara():
     """Initialize both bot and userbot"""
+    global bot, userbot
+    
     console.info("Initializing SyncaraBot...")
+    
+    # Create bot instance
+    bot = Bot(
+        name="SyncaraBot",
+        api_id=API_ID,
+        api_hash=API_HASH,
+        bot_token=BOT_TOKEN,
+    )
+    
+    # Create userbot instance
+    userbot = Ubot(
+        name="SyncaraUbot",
+        api_id=API_ID,
+        api_hash=API_HASH,
+        session_string=SESSION_STRING,
+    )
+    
+    # Start bot
     await bot.start()
     
+    # Start userbot if session string is available
     if SESSION_STRING:
         await userbot.start()
         console.info("SyncaraBot initialized with userbot")

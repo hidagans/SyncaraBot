@@ -48,7 +48,8 @@ async def main():
         console.info("Starting SyncaraBot...")
         bot_manager, userbot_client = await initialize_syncara()
         
-        # Load plugins
+        # Load plugins AFTER bot initialization
+        console.info("Loading plugins...")
         await loadPlugins()
         
         # Setup AI handler - PENTING: Ini yang hilang sebelumnya!
