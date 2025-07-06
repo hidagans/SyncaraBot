@@ -44,6 +44,9 @@ class Bot(Client):
 
 class Ubot(Client):
     """Enhanced Userbot class"""
+    __module__ = "pyrogram.client"
+    _bot = []
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.me = None
