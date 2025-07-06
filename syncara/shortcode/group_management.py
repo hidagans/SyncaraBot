@@ -2,6 +2,10 @@
 from syncara import console
 from pyrogram.types import ChatPermissions
 
+async def is_admin_or_owner(client, message):
+    member = await client.get_chat_member(message.chat.id, message.from_user.id)
+    return member.status in ("administrator", "creator")
+
 class GroupManagementShortcode:
     def __init__(self):
         self.handlers = {
@@ -27,6 +31,13 @@ class GroupManagementShortcode:
         }
     
     async def delete_message(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Delete a message by its ID"""
         try:
             message_id = int(params)
@@ -53,6 +64,13 @@ class GroupManagementShortcode:
             return False
     
     async def pin_message(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Pin a message in the chat"""
         try:
             message_id = int(params)
@@ -83,6 +101,13 @@ class GroupManagementShortcode:
             return False
     
     async def unpin_message(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Unpin a specific message"""
         try:
             message_id = int(params)
@@ -112,6 +137,13 @@ class GroupManagementShortcode:
             return False
     
     async def unpin_all_messages(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Unpin all messages in the chat"""
         try:
             await client.unpin_all_chat_messages(chat_id=message.chat.id)
@@ -137,6 +169,13 @@ class GroupManagementShortcode:
             return False
     
     async def set_chat_title(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Set chat title"""
         try:
             new_title = params.strip()
@@ -171,6 +210,13 @@ class GroupManagementShortcode:
             return False
     
     async def set_chat_description(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Set chat description"""
         try:
             new_description = params.strip()
@@ -205,6 +251,13 @@ class GroupManagementShortcode:
             return False
     
     async def set_chat_photo(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Set chat photo"""
         try:
             photo_file_id = params.strip()
@@ -239,6 +292,13 @@ class GroupManagementShortcode:
             return False
     
     async def delete_chat_photo(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Delete chat photo"""
         try:
             await client.delete_chat_photo(chat_id=message.chat.id)

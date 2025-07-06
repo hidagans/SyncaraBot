@@ -3,6 +3,10 @@ from syncara import console
 from pyrogram.types import ChatPermissions, ChatPrivileges  # Tambahkan ChatPrivileges
 from datetime import datetime, timedelta
 
+async def is_admin_or_owner(client, message):
+    member = await client.get_chat_member(message.chat.id, message.from_user.id)
+    return member.status in ("administrator", "creator")
+
 class UserManagementShortcode:
     def __init__(self):
         self.handlers = {
@@ -78,6 +82,13 @@ class UserManagementShortcode:
             return None
     
     async def ban_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Ban a user from the group"""
         try:
             user_identifier = params.strip()
@@ -116,6 +127,13 @@ class UserManagementShortcode:
             return False
     
     async def unban_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Unban a user from the group"""
         try:
             user_identifier = params.strip()
@@ -154,6 +172,13 @@ class UserManagementShortcode:
             return False
     
     async def kick_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Kick a user from the group"""
         try:
             user_identifier = params.strip()
@@ -193,6 +218,13 @@ class UserManagementShortcode:
             return False
     
     async def mute_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Mute a user in the group"""
         try:
             parts = params.split(':')
@@ -257,6 +289,13 @@ class UserManagementShortcode:
             return False
     
     async def unmute_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Unmute a user in the group"""
         try:
             user_identifier = params.strip()
@@ -311,6 +350,13 @@ class UserManagementShortcode:
             return False
     
     async def warn_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Warn a user (placeholder - you can implement warning system)"""
         try:
             parts = params.split(':', 1)
@@ -352,6 +398,13 @@ class UserManagementShortcode:
             return False
     
     async def promote_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Promote a user to admin"""
         try:
             parts = params.split(':', 1)
@@ -436,6 +489,13 @@ class UserManagementShortcode:
             return False
     
     async def demote_user(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Demote a user from admin"""
         try:
             user_identifier = params.strip()

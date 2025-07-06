@@ -2,6 +2,10 @@
 from syncara import console
 from pyrogram.types import ChatPermissions
 
+async def is_admin_or_owner(client, message):
+    member = await client.get_chat_member(message.chat.id, message.from_user.id)
+    return member.status in ("administrator", "creator")
+
 class UserbotManagementShortcode:
     def __init__(self):
         self.handlers = {
@@ -21,6 +25,13 @@ class UserbotManagementShortcode:
         }
     
     async def get_status(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Get userbot status"""
         try:
             from syncara import userbot
@@ -45,6 +56,13 @@ class UserbotManagementShortcode:
             return False
     
     async def get_info(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Get detailed userbot information"""
         try:
             from syncara import userbot
@@ -67,6 +85,13 @@ class UserbotManagementShortcode:
             return False
     
     async def join_chat(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Join a chat/group"""
         try:
             from syncara import userbot
@@ -86,6 +111,13 @@ class UserbotManagementShortcode:
             return False
     
     async def leave_chat(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Leave a chat/group"""
         try:
             from syncara import userbot
@@ -105,6 +137,13 @@ class UserbotManagementShortcode:
             return False
     
     async def send_message(self, client, message, params):
+        if not await is_admin_or_owner(client, message):
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
+                reply_to_message_id=message.id
+            )
+            return False
         """Send message as userbot"""
         try:
             from syncara import userbot
