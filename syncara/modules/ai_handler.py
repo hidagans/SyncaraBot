@@ -570,29 +570,24 @@ async def process_shortcodes_in_response(response_text, client, message):
         import re
         from syncara.shortcode import registry
         
-        # Pattern to match shortcodes like [shortcode:param1,param2]
-        shortcode_pattern = r'\[([^:]+):([^\]]*)\]'
+        # Pattern to match shortcodes like [CATEGORY:ACTION:params]
+        shortcode_pattern = r'\[([A-Z]+:[A-Z_]+):([^\]]*)\]'
         
         async def replace_shortcode(match):
-            shortcode_name = match.group(1).strip()
-            params_str = match.group(2).strip()
+            full_shortcode = match.group(0)  # Full match like [USER:PROMOTE:7691971162]
+            shortcode_name = match.group(1).strip()  # USER:PROMOTE
+            params_str = match.group(2).strip()  # 7691971162
             
-            # Parse parameters
-            params = {}
-            if params_str:
-                for param in params_str.split(','):
-                    if '=' in param:
-                        key, value = param.split('=', 1)
-                        params[key.strip()] = value.strip()
-                    else:
-                        params[param.strip()] = True
+            console.info(f"Processing shortcode: {shortcode_name} with params: '{params_str}'")
             
-            # Execute shortcode
+            # Execute shortcode with params as string
             try:
-                result = await registry.execute_shortcode(shortcode_name, client, message, params)
+                result = await registry.execute_shortcode(shortcode_name, client, message, params_str)
                 if result:
+                    console.info(f"Shortcode {shortcode_name} executed successfully")
                     return f"[Executed: {shortcode_name}]"
                 else:
+                    console.error(f"Shortcode {shortcode_name} failed")
                     return f"[Failed: {shortcode_name}]"
             except Exception as e:
                 console.error(f"Error executing shortcode {shortcode_name}: {str(e)}")
@@ -600,11 +595,13 @@ async def process_shortcodes_in_response(response_text, client, message):
         
         # Process shortcodes one by one since re.sub doesn't support async
         processed_response = response_text
-        matches = re.finditer(shortcode_pattern, response_text)
+        matches = list(re.finditer(shortcode_pattern, response_text))
         
-        for match in matches:
+        # Process in reverse order to avoid index issues
+        for match in reversed(matches):
             replacement = await replace_shortcode(match)
-            processed_response = processed_response.replace(match.group(0), replacement)
+            start, end = match.span()
+            processed_response = processed_response[:start] + replacement + processed_response[end:]
         
         return processed_response
         
