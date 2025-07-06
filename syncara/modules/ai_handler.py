@@ -150,17 +150,23 @@ async def debug_all_bot_messages(client, message):
         debug_log(f"   Chat: {message.chat.title if message.chat.title else 'Private'}")
         debug_log(f"   Text: {message.text[:50] if message.text else 'No text'}...")
         debug_log(f"   Message ID: {message.id}")
+        
+        # Check if it's a command
+        if message.text and message.text.startswith('/'):
+            debug_log(f"🎯 COMMAND DETECTED: {message.text}")
+            console.info(f"COMMAND: {message.text}")
     except Exception as e:
         debug_log(f"Error in bot debug handler: {str(e)}")
         console.error(f"Error in bot debug handler: {str(e)}")
 
 # Bot manager commands
-@bot.on_message(filters.command(["start", "help"]))
+@bot.on_message(filters.command("start") | filters.command("help"))
 async def start_command(client, message):
     """Handle start command for the manager bot"""
     try:
+        debug_log(f"🚀 START COMMAND HANDLER TRIGGERED!")
         debug_log(f"Start command from user {message.from_user.id}")
-        console.info(f"BOT CMD: Start command from user {message.from_user.id}")
+        console.info(f"🚀 START COMMAND: from user {message.from_user.id}")
         await message.reply_text(
             "🤖 **Halo! Saya adalah SyncaraBot Manager**\n\n"
             "🎯 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
@@ -173,9 +179,9 @@ async def start_command(client, message):
             "💡 **Cara menggunakan:**\n"
             "Mention atau reply ke userbot assistant untuk berinteraksi dengan AI!"
         )
-        console.info(f"Start command executed by user {message.from_user.id}")
+        console.info(f"✅ Start command executed by user {message.from_user.id}")
     except Exception as e:
-        console.error(f"Error in start_command: {str(e)}")
+        console.error(f"❌ Error in start_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat memproses perintah.")
 
 @bot.on_message(filters.command("debug") & filters.user(OWNER_ID))
@@ -214,6 +220,16 @@ async def debug_command(client, message):
     except Exception as e:
         console.error(f"Error in debug command: {str(e)}")
         await message.reply_text(f"❌ Debug error: {str(e)}")
+
+@bot.on_message(filters.command("test"))
+async def test_command(client, message):
+    """Simple test command"""
+    try:
+        debug_log(f"🧪 TEST COMMAND HANDLER TRIGGERED!")
+        console.info(f"🧪 TEST COMMAND: from user {message.from_user.id}")
+        await message.reply_text("✅ Test command berhasil! Bot berfungsi dengan baik.")
+    except Exception as e:
+        console.error(f"❌ Error in test_command: {str(e)}")
 
 @bot.on_message(filters.command("test_userbot") & filters.user(OWNER_ID))
 async def test_userbot_command(client, message):
