@@ -44,6 +44,7 @@ async def setup_ai_handler():
 async def main():
     """Main application entry point"""
     try:
+        await bot.start()
         # Initialize SyncaraBot (both bot and userbot)
         console.info("Starting SyncaraBot...")
         bot_manager, userbot_client = await initialize_syncara()
