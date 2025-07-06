@@ -23,24 +23,28 @@ class ShortcodeRegistry:
             from syncara.shortcode.users_management import UserManagementShortcode
             from syncara.shortcode.userbot_management import UserbotManagementShortcode
             from syncara.shortcode.image_generation import ImageGenerationShortcode
+            from syncara.shortcode.canvas_management import CanvasManagementShortcode
             
             # Create instances
             group_shortcode = GroupManagementShortcode()
             user_shortcode = UserManagementShortcode()
             userbot_shortcode = UserbotManagementShortcode()
             image_shortcode = ImageGenerationShortcode()
+            canvas_shortcode = CanvasManagementShortcode()
             
             # Register handlers
             self.shortcodes.update(group_shortcode.handlers)
             self.shortcodes.update(user_shortcode.handlers)
             self.shortcodes.update(userbot_shortcode.handlers)
             self.shortcodes.update(image_shortcode.handlers)
+            self.shortcodes.update(canvas_shortcode.handlers)
             
             # Register descriptions
             self.descriptions.update(group_shortcode.descriptions)
             self.descriptions.update(user_shortcode.descriptions)
             self.descriptions.update(userbot_shortcode.descriptions)
             self.descriptions.update(image_shortcode.descriptions)
+            self.descriptions.update(canvas_shortcode.descriptions)
             
             print(f"Loaded {len(self.shortcodes)} shortcode handlers")
             print(f"Loaded {len(self.descriptions)} shortcode descriptions")
