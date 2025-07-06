@@ -132,8 +132,27 @@ async def test_all_messages(client, message):
         debug_log(f"   Chat: {message.chat.title if message.chat.title else 'Private'}")
         debug_log(f"   Text: {message.text[:50] if message.text else 'No text'}...")
         debug_log(f"   Message ID: {message.id}")
+        
+        # Also log to console for visibility
+        console.info(f"USERBOT MSG: {message.from_user.first_name if message.from_user else 'Unknown'} -> {message.text[:50] if message.text else 'No text'}")
     except Exception as e:
         debug_log(f"Error in test handler: {str(e)}")
+        console.error(f"Error in test handler: {str(e)}")
+
+# Debug handler for all bot messages
+@bot.on_message(filters.all)
+async def debug_all_bot_messages(client, message):
+    """Debug handler to see all messages received by bot manager"""
+    try:
+        console.info(f"BOT MSG: {message.from_user.first_name if message.from_user else 'Unknown'} -> {message.text[:50] if message.text else 'No text'}")
+        debug_log(f"🔔 BOT RECEIVED MESSAGE:")
+        debug_log(f"   From: {message.from_user.first_name if message.from_user else 'Unknown'}")
+        debug_log(f"   Chat: {message.chat.title if message.chat.title else 'Private'}")
+        debug_log(f"   Text: {message.text[:50] if message.text else 'No text'}...")
+        debug_log(f"   Message ID: {message.id}")
+    except Exception as e:
+        debug_log(f"Error in bot debug handler: {str(e)}")
+        console.error(f"Error in bot debug handler: {str(e)}")
 
 # Bot manager commands
 @bot.on_message(filters.command(["start", "help"]))
@@ -141,6 +160,7 @@ async def start_command(client, message):
     """Handle start command for the manager bot"""
     try:
         debug_log(f"Start command from user {message.from_user.id}")
+        console.info(f"BOT CMD: Start command from user {message.from_user.id}")
         await message.reply_text(
             "🤖 **Halo! Saya adalah SyncaraBot Manager**\n\n"
             "🎯 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
@@ -332,6 +352,22 @@ async def initialize_ai_handler():
         
         # Test handler registration
         debug_log(f"Userbot handlers registered: {len(userbot.dispatcher.groups) if hasattr(userbot, 'dispatcher') else 'Unknown'}")
+        
+        # Check bot handlers
+        if hasattr(bot, 'dispatcher'):
+            console.info(f"Bot handlers registered: {len(bot.dispatcher.groups)}")
+            for group_id, handlers in bot.dispatcher.groups.items():
+                console.info(f"  Group {group_id}: {len(handlers)} handlers")
+        else:
+            console.warning("Bot dispatcher not available")
+            
+        # Check userbot handlers
+        if hasattr(userbot, 'dispatcher'):
+            console.info(f"Userbot handlers registered: {len(userbot.dispatcher.groups)}")
+            for group_id, handlers in userbot.dispatcher.groups.items():
+                console.info(f"  Group {group_id}: {len(handlers)} handlers")
+        else:
+            console.warning("Userbot dispatcher not available")
         
     except Exception as e:
         console.error(f"Error initializing AI handler: {str(e)}")
