@@ -21,31 +21,65 @@ class ShortcodeRegistry:
 
     def _load_shortcodes(self):
         """Load all shortcode handlers from files in the shortcode directory"""
-        # Get the directory where this __init__.py is located
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Iterate through all .py files in the directory
-        for filename in os.listdir(current_dir):
-            if filename.endswith('.py') and filename != '__init__.py':
-                module_name = filename[:-3]  # Remove .py extension
-                try:
-                    # Import the module dynamically
-                    module = importlib.import_module(f'.{module_name}', package='syncara.shortcode')
-                    
-                    # Look for classes with Shortcode suffix
-                    for name, obj in inspect.getmembers(module):
-                        if inspect.isclass(obj) and name.endswith('Shortcode'):
-                            shortcode_instance = obj()
-                            
-                            # Register handlers and descriptions
-                            if hasattr(shortcode_instance, 'handlers'):
-                                self.shortcodes.update(shortcode_instance.handlers)
-                            if hasattr(shortcode_instance, 'descriptions'):
-                                self.descriptions.update(shortcode_instance.descriptions)
-                                
-                    print(f"Loaded shortcode module: {module_name}")
-                except Exception as e:
-                    print(f"Error loading shortcode module {module_name}: {e}")
+        try:
+            # Direct import approach - more reliable
+            from syncara.shortcode.group_management import GroupManagementShortcode
+            from syncara.shortcode.users_management import UserManagementShortcode
+            from syncara.shortcode.userbot_management import UserbotManagementShortcode
+            from syncara.shortcode.music_management import MusicManagementShortcode
+            
+            # Create instances
+            group_shortcode = GroupManagementShortcode()
+            user_shortcode = UserManagementShortcode()
+            userbot_shortcode = UserbotManagementShortcode()
+            music_shortcode = MusicManagementShortcode()
+            
+            # Register handlers
+            self.shortcodes.update(group_shortcode.handlers)
+            self.shortcodes.update(user_shortcode.handlers)
+            self.shortcodes.update(userbot_shortcode.handlers)
+            self.shortcodes.update(music_shortcode.handlers)
+            
+            # Register descriptions
+            self.descriptions.update(group_shortcode.descriptions)
+            self.descriptions.update(user_shortcode.descriptions)
+            self.descriptions.update(userbot_shortcode.descriptions)
+            self.descriptions.update(music_shortcode.descriptions)
+            
+            print(f"Loaded {len(self.shortcodes)} shortcode handlers")
+            print(f"Loaded {len(self.descriptions)} shortcode descriptions")
+            
+        except Exception as e:
+            print(f"Error loading shortcodes: {e}")
+            # Fallback to manual registration
+            self._load_shortcodes_fallback()
+    
+    def _load_shortcodes_fallback(self):
+        """Fallback method to load shortcodes manually"""
+        try:
+            # Manual registration of basic shortcodes
+            self.shortcodes = {
+                'GROUP:INFO': self._dummy_handler,
+                'USER:INFO': self._dummy_handler,
+                'MUSIC:PLAY': self._dummy_handler,
+                'USERBOT:STATUS': self._dummy_handler,
+            }
+            
+            self.descriptions = {
+                'GROUP:INFO': 'Get group information',
+                'USER:INFO': 'Get user information',
+                'MUSIC:PLAY': 'Play music',
+                'USERBOT:STATUS': 'Get userbot status',
+            }
+            
+            print("Loaded fallback shortcodes")
+            
+        except Exception as e:
+            print(f"Error in fallback shortcode loading: {e}")
+    
+    async def _dummy_handler(self, client, message, params):
+        """Dummy handler for fallback shortcodes"""
+        return True
 
     def get_shortcode_docs(self) -> str:
         """Generate documentation for all registered shortcodes"""

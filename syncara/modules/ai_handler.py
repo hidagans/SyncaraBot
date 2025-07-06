@@ -245,6 +245,29 @@ async def change_prompt_command(client, message):
         console.error(f"Error in change_prompt_command: {str(e)}")
         await message.reply_text("❌ Error changing prompt")
 
+@bot.on_message(filters.command("shortcodes") & filters.user(OWNER_ID))
+async def shortcodes_command(client, message):
+    """Show available shortcodes"""
+    try:
+        from syncara.shortcode import registry
+        
+        response = f"🔧 **Shortcode Registry Status**\n\n"
+        response += f"**Handlers:** {len(registry.shortcodes)}\n"
+        response += f"**Descriptions:** {len(registry.descriptions)}\n\n"
+        
+        if registry.descriptions:
+            response += "**Available Shortcodes:**\n"
+            for shortcode, desc in registry.descriptions.items():
+                response += f"• `{shortcode}` - {desc}\n"
+        else:
+            response += "❌ No shortcodes available"
+        
+        await message.reply_text(response)
+        
+    except Exception as e:
+        console.error(f"Error in shortcodes_command: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")
+
 @bot.on_message(filters.command("test_userbot") & filters.user(OWNER_ID))
 async def test_userbot_command(client, message):
     """Test userbot functionality"""
@@ -514,8 +537,13 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         # Process shortcodes in AI response
         try:
             from syncara.shortcode import registry
+            console.info(f"Shortcode registry loaded with {len(registry.shortcodes)} handlers")
             processed_response = await process_shortcodes_in_response(ai_response, client, message)
-        except ImportError:
+        except ImportError as e:
+            console.error(f"Import error for shortcode registry: {e}")
+            processed_response = ai_response
+        except Exception as e:
+            console.error(f"Error processing shortcodes: {e}")
             processed_response = ai_response
         
         # Send the AI response

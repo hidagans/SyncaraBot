@@ -117,15 +117,21 @@ class SystemPrompt:
             try:
                 from syncara.shortcode import registry
                 shortcode_capabilities = registry.get_shortcode_docs()
-            except ImportError:
+                print(f"Shortcode capabilities loaded: {len(registry.descriptions)} descriptions")
+            except ImportError as e:
+                print(f"Import error for shortcode registry: {e}")
                 try:
                     # Fallback to direct import
                     from syncara.shortcode import SHORTCODE_DESCRIPTIONS
                     shortcode_capabilities = "Available Shortcodes:\n"
                     for shortcode, desc in SHORTCODE_DESCRIPTIONS.items():
                         shortcode_capabilities += f"- [{shortcode}] - {desc}\n"
-                except ImportError:
+                except ImportError as e2:
+                    print(f"Fallback import error: {e2}")
                     shortcode_capabilities = "Shortcode system not available"
+            except Exception as e:
+                print(f"Error getting shortcode capabilities: {e}")
+                shortcode_capabilities = "Shortcode system not available"
             
             # Default values
             bot_name = context.get('bot_name', 'Syncara')
