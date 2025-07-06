@@ -30,6 +30,17 @@ async def loadPlugins():
             console.error(f"Failed to load plugin {mod}: {str(e)}")
     console.info("All plugins loaded")
 
+async def setup_ai_handler():
+    """Setup AI handler after initialization"""
+    try:
+        from syncara.modules.ai_handler import initialize_ai_handler
+        await initialize_ai_handler()
+        console.info("✅ AI handler setup completed")
+    except ImportError:
+        console.warning("⚠️ AI handler not available")
+    except Exception as e:
+        console.error(f"❌ Error setting up AI handler: {str(e)}")
+
 async def main():
     """Main application entry point"""
     try:
@@ -40,7 +51,14 @@ async def main():
         # Load plugins
         await loadPlugins()
         
+        # Setup AI handler - PENTING: Ini yang hilang sebelumnya!
+        await setup_ai_handler()
+        
         console.info("🚀 SyncaraBot is ready and running!")
+        console.info("💡 Try:")
+        console.info("   - Send /start to the bot manager")
+        console.info("   - Mention or reply to the userbot assistant")
+        console.info("   - Send message in private chat to userbot")
         console.info("Press Ctrl+C to stop the bot")
         
         # Keep the bot running using pyrogram's idle

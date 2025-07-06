@@ -25,6 +25,13 @@ CHAT_HISTORY_CONFIG = {
     "include_timestamps": True
 }
 
+DEBUG_MODE = True
+
+def debug_log(message):
+    """Debug logging helper"""
+    if DEBUG_MODE:
+        console.info(f"[DEBUG] {message}")
+
 async def cache_userbot_info():
     """Cache userbot information to avoid API flood"""
     try:
@@ -50,24 +57,33 @@ async def cache_userbot_info():
 async def userbot_filter(_, __, message):
     """Custom filter to detect userbot interactions"""
     try:
+        debug_log(f"Filter checking message from {message.from_user.first_name if message.from_user else 'Unknown'}")
+        
         # Skip messages from bots
         if message.from_user and message.from_user.is_bot:
+            debug_log("Skipping bot message")
             return False
         
         # Get userbot info from cache
         userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
         if not userbot_info:
+            debug_log("Userbot info not in cache, trying to cache...")
             userbot_info = await cache_userbot_info()
             if not userbot_info:
+                debug_log("Failed to get userbot info")
                 return False
+        
+        debug_log(f"Userbot info: @{userbot_info['username']} (ID: {userbot_info['id']})")
         
         # Check if in private chat
         if message.chat.type == enums.ChatType.PRIVATE:
+            debug_log("Private chat detected - will respond")
             return True
         
         # Check if message is a reply to userbot's message
         if message.reply_to_message:
             if message.reply_to_message.from_user and message.reply_to_message.from_user.id == userbot_info['id']:
+                debug_log("Reply to userbot detected - will respond")
                 return True
         
         # Check if userbot is mentioned in the message
@@ -76,13 +92,17 @@ async def userbot_filter(_, __, message):
                 if entity.type == enums.MessageEntityType.MENTION:
                     # Extract mentioned username
                     mentioned_username = message.text[entity.offset:entity.offset + entity.length]
+                    debug_log(f"Found mention: {mentioned_username}")
                     if mentioned_username == f"@{userbot_info['username']}":
+                        debug_log("Userbot mentioned - will respond")
                         return True
                 elif entity.type == enums.MessageEntityType.TEXT_MENTION:
                     # Check if mentioned user is this userbot
                     if entity.user and entity.user.id == userbot_info['id']:
+                        debug_log("Userbot text mention detected - will respond")
                         return True
         
+        debug_log("No trigger conditions met - will not respond")
         return False
     except Exception as e:
         console.error(f"Error in userbot filter: {str(e)}")
@@ -291,10 +311,13 @@ async def set_prompt_command(client, message):
 async def userbot_message_handler(client, message):
     """Handle messages for userbot assistant when mentioned or replied"""
     try:
+        debug_log(f"Handler triggered for message: {message.text[:50] if message.text else 'No text'}...")
+        
         # Get text from either message text or caption
         text = message.text or message.caption
         
         if not text:
+            debug_log("No text found in message")
             return
         
         # Get userbot info from cache
@@ -304,19 +327,23 @@ async def userbot_message_handler(client, message):
         
         if userbot_info and f"@{userbot_info['username']}" in text:
             text = text.replace(f"@{userbot_info['username']}", "").strip()
+            debug_log("Removed username mention from text")
         
         # Get photo if exists
         photo_file_id = None
         if message.photo:
             photo_file_id = message.photo.file_id
+            debug_log("Photo detected in message")
         
         # Send typing action
+        debug_log("Sending typing action...")
         await client.send_chat_action(
             chat_id=message.chat.id,
             action=enums.ChatAction.TYPING
         )
         
         # Process AI response
+        debug_log("Processing AI response...")
         await process_ai_response(client, message, text, photo_file_id)
         
     except Exception as e:
@@ -569,10 +596,14 @@ async def initialize_ai_handler():
         
         # Cache userbot info if available
         if SESSION_STRING:
-            await cache_userbot_info()
-            console.info("AI handler initialized with userbot support")
+            userbot_info = await cache_userbot_info()
+            if userbot_info:
+                console.info(f"✅ AI handler initialized with userbot: @{userbot_info['username']} (ID: {userbot_info['id']})")
+                debug_log(f"Userbot cached: {userbot_info}")
+            else:
+                console.error("❌ Failed to cache userbot info")
         else:
-            console.warning("AI handler initialized without userbot")
+            console.warning("⚠️ AI handler initialized without userbot (no SESSION_STRING)")
         
     except Exception as e:
         console.error(f"Error initializing AI handler: {str(e)}")
