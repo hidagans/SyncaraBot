@@ -23,51 +23,41 @@ class MusicManagementShortcode:
         }
     
     async def play_music(self, client, message, params):
-        """Search and show music options for playing - Bot will handle the UI"""
+        """Search and show music options for playing - Assistant will handle the UI"""
         try:
             if not params.strip():
                 await message.reply("❌ Mohon berikan nama lagu yang ingin dicari.\nContoh: [MUSIC:PLAY:Shape of You]")
                 return False
             
-            # Get bot instance from the manager
-            from syncara import bot
+            # Send search request via assistant (userbot)
+            await message.reply(f"🔍 Mencari musik: **{params}**\n\nTunggu sebentar...")
             
-            # Send search request via bot (not assistant)
-            await bot.send_message(
-                chat_id=message.chat.id,
-                text=f"🔍 Mencari musik: **{params}**\n\nTunggu sebentar..."
-            )
-            
-            # Let the bot handle the search and display
-            await music_player.search_and_show_results(bot, message, params)
+            # Let the assistant handle the search and display
+            await music_player.search_and_show_results(client, message, params)
             return True
             
         except Exception as e:
             console.error(f"Error in play_music: {e}")
+            await message.reply(f"❌ Terjadi kesalahan saat mencari musik: {str(e)}")
             return False
     
     async def search_music(self, client, message, params):
-        """Search for music without playing - Bot will handle the UI"""
+        """Search for music without playing - Assistant will handle the UI"""
         try:
             if not params.strip():
                 await message.reply("❌ Mohon berikan nama lagu yang ingin dicari.\nContoh: [MUSIC:SEARCH:Shape of You]")
                 return False
             
-            # Get bot instance from the manager
-            from syncara import bot
+            # Send search request via assistant (userbot)
+            await message.reply(f"🔍 Mencari musik: **{params}**\n\nTunggu sebentar...")
             
-            # Send search request via bot (not assistant)
-            await bot.send_message(
-                chat_id=message.chat.id,
-                text=f"🔍 Mencari musik: **{params}**\n\nTunggu sebentar..."
-            )
-            
-            # Let the bot handle the search and display
-            await music_player.search_and_show_results(bot, message, params)
+            # Let the assistant handle the search and display
+            await music_player.search_and_show_results(client, message, params)
             return True
             
         except Exception as e:
             console.error(f"Error in search_music: {e}")
+            await message.reply(f"❌ Terjadi kesalahan saat mencari musik: {str(e)}")
             return False
     
     async def stop_music(self, client, message, params):

@@ -31,7 +31,7 @@ class MusicPlayer:
                 )
                 return
             
-            # Send results via bot manager with buttons
+            # Send results via assistant with buttons
             search_msg = await client.send_photo(
                 chat_id=original_message.chat.id,
                 photo=results[0]['thumbnail'],
@@ -74,7 +74,7 @@ class MusicPlayer:
 
     📍 **Result {current_index + 1} of {total_results}**"""
 
-    def create_music_keyboard(self, music_info: Dict, current_index: int, total_results: int):
+    def create_music_keyboard(self, music_info: Dict, current_index: int, total_results: int, message_id: int = None):
         """Create inline keyboard for music controls"""
         from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         
@@ -274,7 +274,7 @@ class MusicPlayer:
                 await callback_query.answer()
             else:
                 console.warning(f"Unknown callback data: {data}")
-                await callback_query.answer()
+                await callback_query.answer("❌ Unknown callback")
                 
         except Exception as e:
             console.error(f"Error handling music callback: {e}")
@@ -392,11 +392,8 @@ class MusicPlayer:
                 "Connecting to voice chat..."
             )
             
-            # Import userbot for voice call
-            from syncara.modules.ai_handler import userbot
-            
-            # Join voice chat and play using userbot
-            success = await self.join_and_play(userbot, chat_id, audio_file, video_id)
+            # Join voice chat and play using the same client (userbot)
+            success = await self.join_and_play(client, chat_id, audio_file, video_id)
             
             if success:
                 # Update message to show now playing
@@ -559,37 +556,6 @@ class MusicPlayer:
         except Exception as e:
             console.error(f"Error in handle_search_again: {e}")
             await callback_query.answer("❌ Terjadi kesalahan.")
-
-    def create_music_keyboard(self, music_info: Dict, current_index: int, total_results: int, message_id: int = None):
-        """Create inline keyboard for music controls"""
-        from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        
-        keyboard = []
-        
-        # Navigation row
-        nav_row = []
-        if current_index > 0:
-            nav_row.append(InlineKeyboardButton("⏮️", callback_data=f"music_prev_{current_index}"))
-        else:
-            nav_row.append(InlineKeyboardButton("⏸️", callback_data="music_disabled"))
-        
-        nav_row.append(InlineKeyboardButton("▶️ PLAY", callback_data=f"music_play_{music_info['id']}"))
-        
-        if current_index < total_results - 1:
-            nav_row.append(InlineKeyboardButton("⏭️", callback_data=f"music_next_{current_index}"))
-        else:
-            nav_row.append(InlineKeyboardButton("⏸️", callback_data="music_disabled"))
-        
-        keyboard.append(nav_row)
-        
-        # Control row
-        control_row = [
-            InlineKeyboardButton("🔄 Search Again", callback_data="music_search_again"),
-            InlineKeyboardButton("❌ Close", callback_data="music_close")
-        ]
-        keyboard.append(control_row)
-        
-        return InlineKeyboardMarkup(keyboard)
 
 # Global music player instance
 music_player = MusicPlayer()

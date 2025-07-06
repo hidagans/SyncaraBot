@@ -6,9 +6,9 @@ from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
 
-@bot.on_callback_query(filters.regex(r"^music_"))
+@userbot.on_callback_query(filters.regex(r"^music_"))
 async def handle_music_callback(client: Client, callback_query: CallbackQuery):
-    """Handle music player callbacks from bot manager"""
+    """Handle music player callbacks from userbot assistant"""
     try:
         from syncara.modules.music_player import music_player
         await music_player.handle_callback(client, callback_query)
