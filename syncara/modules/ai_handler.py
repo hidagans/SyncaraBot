@@ -2,14 +2,11 @@
 from pyrogram import filters, enums
 from syncara.services import ReplicateAPI
 from syncara import bot, userbot, console
-from .system_prompt import SystemPrompt
-from .process_shortcode import process_shortcode
 from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
 
 # Inisialisasi komponen
-system_prompt = SystemPrompt()
 replicate_api = ReplicateAPI()
 
 # Cache untuk informasi userbot agar tidak flood API
@@ -214,6 +211,10 @@ async def userbot_info_command(client, message):
 async def list_prompts(client, message):
     """List all available system prompts"""
     try:
+        # Import di dalam fungsi untuk menghindari circular import
+        from syncara.modules.system_prompt import SystemPrompt
+        system_prompt = SystemPrompt()
+        
         available_prompts = system_prompt.get_available_prompts()
         
         if not available_prompts:
@@ -259,6 +260,10 @@ async def set_prompt_command(client, message):
             
         # Get prompt name
         prompt_name = message.command[1].upper()
+        
+        # Import di dalam fungsi untuk menghindari circular import
+        from syncara.modules.system_prompt import SystemPrompt
+        system_prompt = SystemPrompt()
         
         # Check if prompt exists
         available_prompts = system_prompt.get_available_prompts()
@@ -430,6 +435,10 @@ def format_chat_history(messages):
 async def process_ai_response(client, message, prompt, photo_file_id=None):
     """Process AI response with detailed context including current message info"""
     try:
+        # Import di dalam fungsi untuk menghindari circular import
+        from syncara.modules.system_prompt import SystemPrompt
+        from syncara.modules.process_shortcode import process_shortcode
+        
         # Get userbot information from cache
         userbot_info = USERBOT_INFO_CACHE.get(client.name)
         
@@ -438,6 +447,7 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             return
         
         # Set the appropriate system prompt for this userbot
+        system_prompt = SystemPrompt()
         prompt_name = USERBOT_PROMPT_MAPPING.get(client.name, "DEFAULT")
         system_prompt.set_prompt(prompt_name)
         
@@ -488,7 +498,8 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         context = {
             'bot_name': userbot_info['first_name'],
             'bot_username': userbot_info['username'],
-            'message': current_msg_info
+            'message': current_msg_info,
+            'user_id': current_msg_info['from_user']['id']
         }
         
         # Get formatted system prompt
@@ -549,276 +560,6 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             )
         except Exception as send_error:
             console.error(f"Error sending error message: {str(send_error)}")
-
-# Additional utility commands for owner
-@bot.on_message(filters.command("historyconfig") & filters.user(OWNER_ID))
-async def configure_history(client, message):
-    """Configure chat history settings"""
-    try:
-        # Check command format
-        if len(message.command) < 2:
-            # Show current config
-            config_text = f"⚙️ **Konfigurasi Riwayat Chat:**\n\n"
-            config_text += f"• Status: {'🟢 Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '🔴 Nonaktif'}\n"
-            config_text += f"• Jumlah Pesan: {CHAT_HISTORY_CONFIG['limit']}\n"
-            config_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
-            config_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
-            config_text += f"📋 **Perintah yang tersedia:**\n"
-            config_text += f"• `/historyconfig enable/disable` - Aktifkan/nonaktifkan riwayat\n"
-            config_text += f"• `/historyconfig limit [angka]` - Atur jumlah pesan (1-50)\n"
-            config_text += f"• `/historyconfig media on/off` - Atur info media\n"
-            config_text += f"• `/historyconfig timestamp on/off` - Atur timestamp"
-            
-            await message.reply_text(config_text)
-            return
-            
-        # Get setting and value
-        setting = message.command[1].lower()
-        
-        if setting == "enable":
-            CHAT_HISTORY_CONFIG["enabled"] = True
-            await message.reply_text("✅ Riwayat chat diaktifkan")
-            
-        elif setting == "disable":
-            CHAT_HISTORY_CONFIG["enabled"] = False
-            await message.reply_text("✅ Riwayat chat dinonaktifkan")
-            
-        elif setting == "limit":
-            if len(message.command) < 3:
-                await message.reply_text("❌ Gunakan: /historyconfig limit [angka]")
-                return
-                
-            try:
-                limit = int(message.command[2])
-                if 1 <= limit <= 50:
-                    CHAT_HISTORY_CONFIG["limit"] = limit
-                    await message.reply_text(f"✅ Jumlah pesan riwayat diatur ke {limit}")
-                else:
-                    await message.reply_text("❌ Jumlah pesan harus antara 1-50")
-            except ValueError:
-                await message.reply_text("❌ Masukkan angka yang valid")
-                
-        elif setting == "media":
-            if len(message.command) < 3:
-                await message.reply_text("❌ Gunakan: /historyconfig media on/off")
-                return
-                
-            value = message.command[2].lower()
-            if value == "on":
-                CHAT_HISTORY_CONFIG["include_media_info"] = True
-                await message.reply_text("✅ Info media diaktifkan")
-            elif value == "off":
-                CHAT_HISTORY_CONFIG["include_media_info"] = False
-                await message.reply_text("✅ Info media dinonaktifkan")
-            else:
-                await message.reply_text("❌ Gunakan 'on' atau 'off'")
-                
-        elif setting == "timestamp":
-            if len(message.command) < 3:
-                await message.reply_text("❌ Gunakan: /historyconfig timestamp on/off")
-                return
-                
-            value = message.command[2].lower()
-            if value == "on":
-                CHAT_HISTORY_CONFIG["include_timestamps"] = True
-                await message.reply_text("✅ Timestamp diaktifkan")
-            elif value == "off":
-                CHAT_HISTORY_CONFIG["include_timestamps"] = False
-                await message.reply_text("✅ Timestamp dinonaktifkan")
-            else:
-                await message.reply_text("❌ Gunakan 'on' atau 'off'")
-                
-        else:
-            await message.reply_text("❌ Setting tidak dikenal. Gunakan: enable, disable, limit, media, atau timestamp")
-        
-    except Exception as e:
-        console.error(f"Error in configure_history: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat mengatur konfigurasi.")
-
-@bot.on_message(filters.command("test") & filters.user(OWNER_ID))
-async def test_ai_command(client, message):
-    """Test AI response functionality"""
-    try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
-            return
-            
-        # Check command format
-        if len(message.command) < 2:
-            await message.reply_text(
-                "❌ **Format salah!**\n\n"
-                "**Gunakan:** `/test [pesan_test]`\n\n"
-                "**Contoh:** `/test Halo, apa kabar?`"
-            )
-            return
-            
-        # Get test message
-        test_message = " ".join(message.command[1:])
-        
-        await message.reply_text("🧪 Menguji respons AI...")
-        
-        # Create a mock message object for testing
-        class MockMessage:
-            def __init__(self, text, chat_id, message_id, from_user_id):
-                self.text = text
-                self.caption = None
-                self.photo = None
-                self.chat = type('Chat', (), {'id': chat_id, 'type': enums.ChatType.PRIVATE})()
-                self.id = message_id
-                self.from_user = type('User', (), {
-                    'id': from_user_id,
-                    'first_name': 'Test User',
-                    'username': 'testuser'
-                })()
-                self.reply_to_message = None
-        
-        # Create mock message
-        mock_msg = MockMessage(
-            text=test_message,
-            chat_id=message.chat.id,
-            message_id=999999,
-            from_user_id=message.from_user.id
-        )
-        
-        # Process AI response
-        await process_ai_response(userbot, mock_msg, test_message)
-        
-        await message.edit_text("✅ Test AI selesai! Periksa respons di atas.")
-        
-    except Exception as e:
-        console.error(f"Error in test_ai_command: {str(e)}")
-        await message.reply_text(f"❌ Terjadi kesalahan saat menguji AI: {str(e)}")
-
-@bot.on_message(filters.command("stats") & filters.user(OWNER_ID))
-async def stats_command(client, message):
-    """Show detailed statistics"""
-    try:
-        # Get bot info
-        me = await client.get_me()
-        
-        # Get userbot info
-        userbot_info = None
-        if SESSION_STRING:
-            userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
-            if not userbot_info:
-                userbot_info = await cache_userbot_info()
-        
-        # Format stats message
-        stats_text = f"📊 **Statistik Lengkap SyncaraBot**\n\n"
-        
-        # Bot Manager Stats
-        stats_text += f"🤖 **Manager Bot:**\n"
-        stats_text += f"• Nama: {me.first_name}\n"
-        stats_text += f"• Username: @{me.username}\n"
-        stats_text += f"• ID: `{me.id}`\n"
-        stats_text += f"• Status: 🟢 Online\n\n"
-        
-        # Userbot Stats
-        if userbot_info:
-            stats_text += f"🎭 **Userbot Assistant:**\n"
-            stats_text += f"• Nama: {userbot_info['first_name']}\n"
-            stats_text += f"• Username: @{userbot_info['username']}\n"
-            stats_text += f"• ID: `{userbot_info['id']}`\n"
-            stats_text += f"• Status: 🟢 Online\n"
-            
-            current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
-            stats_text += f"• System Prompt: {current_prompt}\n\n"
-        else:
-            stats_text += f"🎭 **Userbot Assistant:**\n"
-            stats_text += f"• Status: ⚠️ Tidak dikonfigurasi\n\n"
-        
-        # Configuration Stats
-        stats_text += f"⚙️ **Konfigurasi:**\n"
-        stats_text += f"• Riwayat Chat: {'🟢 Aktif' if CHAT_HISTORY_CONFIG['enabled'] else '🔴 Nonaktif'}\n"
-        stats_text += f"• Limit Riwayat: {CHAT_HISTORY_CONFIG['limit']} pesan\n"
-        stats_text += f"• Info Media: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_media_info'] else '❌ Tidak'}\n"
-        stats_text += f"• Timestamp: {'✅ Ya' if CHAT_HISTORY_CONFIG['include_timestamps'] else '❌ Tidak'}\n\n"
-        
-        # System Prompt Stats
-        available_prompts = system_prompt.get_available_prompts()
-        stats_text += f"📝 **System Prompts:**\n"
-        stats_text += f"• Tersedia: {len(available_prompts)} prompt\n"
-        if userbot_info:
-            current_prompt = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
-            stats_text += f"• Aktif: {current_prompt}\n"
-        
-        await message.reply_text(stats_text)
-        
-    except Exception as e:
-        console.error(f"Error in stats_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat mengambil statistik.")
-
-@bot.on_message(filters.command("health") & filters.user(OWNER_ID))
-async def health_check_command(client, message):
-    """Perform and display health check"""
-    try:
-        await message.reply_text("🏥 Melakukan pemeriksaan kesehatan sistem...")
-        
-        health_status = {
-            "bot_manager": False,
-            "userbot": False,
-            "system_prompt": False,
-            "replicate_api": False,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        # Check bot manager
-        try:
-            me = await client.get_me()
-            health_status["bot_manager"] = True
-        except Exception as e:
-            console.error(f"Bot manager health check failed: {str(e)}")
-        
-        # Check userbot
-        if SESSION_STRING:
-            try:
-                userbot_info = await cache_userbot_info()
-                health_status["userbot"] = bool(userbot_info)
-            except Exception as e:
-                console.error(f"Userbot health check failed: {str(e)}")
-        
-        # Check system prompt
-        try:
-            prompts = system_prompt.get_available_prompts()
-            health_status["system_prompt"] = len(prompts) > 0
-        except Exception as e:
-            console.error(f"System prompt health check failed: {str(e)}")
-        
-        # Check Replicate API
-        try:
-            # Simple test to see if API is accessible
-            health_status["replicate_api"] = hasattr(replicate_api, 'generate_response')
-        except Exception as e:
-            console.error(f"Replicate API health check failed: {str(e)}")
-        
-        # Format health check results
-        health_text = f"🏥 **Pemeriksaan Kesehatan Sistem**\n\n"
-        health_text += f"⏰ **Waktu:** {health_status['timestamp']}\n\n"
-        
-        # Check each component
-        components = [
-            ("🤖 Bot Manager", health_status["bot_manager"]),
-            ("🎭 Userbot", health_status["userbot"]),
-            ("📝 System Prompt", health_status["system_prompt"]),
-            ("🤖 Replicate API", health_status["replicate_api"])
-        ]
-        
-        all_healthy = True
-        for name, status in components:
-            icon = "✅" if status else "❌"
-            health_text += f"{icon} {name}: {'Sehat' if status else 'Bermasalah'}\n"
-            if not status:
-                all_healthy = False
-        
-        # Overall status
-        health_text += f"\n🎯 **Status Keseluruhan:** "
-        health_text += f"{'✅ Semua Sistem Sehat' if all_healthy else '⚠️ Ada Masalah pada Sistem'}"
-        
-        await message.edit_text(health_text)
-        
-    except Exception as e:
-        console.error(f"Error in health_check_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat pemeriksaan kesehatan.")
 
 # Initialize cache when module is loaded
 async def initialize_ai_handler():

@@ -1,5 +1,4 @@
 # syncara/modules/system_prompt.py
-from syncara.shortcode import registry
 from datetime import datetime
 import pytz
 from config.config import OWNER_ID
@@ -114,8 +113,12 @@ class SystemPrompt:
             tz = pytz.timezone('Asia/Jakarta')
             current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
             
-            # Get shortcode capabilities from registry
-            shortcode_capabilities = registry.get_shortcode_docs()
+            # Get shortcode capabilities from registry - import di dalam fungsi
+            try:
+                from syncara.shortcode import registry
+                shortcode_capabilities = registry.get_shortcode_docs()
+            except ImportError:
+                shortcode_capabilities = "Shortcode system not available"
             
             # Default values
             bot_name = context.get('bot_name', 'Syncara')
@@ -149,6 +152,3 @@ class SystemPrompt:
 
 # Create singleton instance
 system_prompt = SystemPrompt()
-
-# Make it available for import
-__all__ = ['system_prompt', 'SystemPrompt']

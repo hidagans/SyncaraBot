@@ -1,11 +1,12 @@
-# syncara/modules/process_shortcode.py
 import re
-from syncara import console
-from syncara.shortcode import registry
 
 async def process_shortcode(client, message, text):
-    """Process shortcodes in AI response text using the shortcode registry"""
+    """Process shortcodes in AI response text"""
     try:
+        # Import registry di dalam fungsi untuk menghindari circular import
+        from syncara.shortcode import registry
+        from syncara import console
+        
         # Pattern untuk mendeteksi shortcode [CATEGORY:ACTION:PARAMS]
         pattern = r'\[(.*?):(.*?):(.*?)\]'
         
@@ -49,5 +50,10 @@ async def process_shortcode(client, message, text):
         return text.strip()
         
     except Exception as e:
-        console.error(f"Error in process_shortcode: {str(e)}")
+        # Import console di sini juga untuk error handling
+        try:
+            from syncara import console
+            console.error(f"Error in process_shortcode: {str(e)}")
+        except:
+            print(f"Error in process_shortcode: {str(e)}")
         return text
