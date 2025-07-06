@@ -271,8 +271,9 @@ async def test_userbot_command(client, message):
 async def userbot_message_handler(client, message):
     """Handle messages for userbot assistant when mentioned or replied"""
     try:
-        debug_log(f"🚀 HANDLER TRIGGERED!")
+        debug_log(f"🚀 GROUP HANDLER TRIGGERED!")
         debug_log(f"Handler triggered for message: {message.text[:50] if message.text else 'No text'}...")
+        console.info(f"🚀 USERBOT GROUP: {message.text[:50]}...")
         
         # Get text from either message text or caption
         text = message.text or message.caption
@@ -321,10 +322,11 @@ async def simple_private_handler(client, message):
     try:
         debug_log(f"🔥 SIMPLE PRIVATE HANDLER TRIGGERED!")
         debug_log(f"Private message: {message.text[:50]}...")
+        console.info(f"🔥 USERBOT PRIVATE: {message.text[:50]}...")
         
         await client.send_message(
             chat_id=message.chat.id,
-            text=f"🤖 **Test Response**\n\nSaya menerima pesan: {message.text[:100]}...",
+            text=f"🤖 **Halo! Saya adalah AERIS Assistant**\n\nSaya menerima pesan Anda: {message.text[:100]}...\n\nSilakan ajukan pertanyaan atau request yang Anda butuhkan!",
             reply_to_message_id=message.id
         )
         
@@ -348,14 +350,16 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         debug_log(f"🎯 Starting AI response processing...")
         debug_log(f"Prompt: {prompt[:100]}...")
         
-        # For now, send a simple test response
+        # For now, send a simple response
+        response_text = f"🤖 **AERIS Assistant**\n\nSaya menerima permintaan Anda: {prompt[:200]}...\n\n_AI processing akan diimplementasikan di sini_\n\n💡 **Fitur yang tersedia:**\n• Chat AI dengan konteks\n• Analisis gambar\n• Musik player\n• Dan banyak lagi!"
+        
         await client.send_message(
             chat_id=message.chat.id,
-            text=f"🤖 **AI Response Test**\n\nPrompt received: {prompt[:200]}...\n\n_AI processing will be implemented here_",
+            text=response_text,
             reply_to_message_id=message.id
         )
         
-        debug_log("✅ Test response sent")
+        debug_log("✅ AI response sent")
         
     except Exception as e:
         console.error(f"Error in process_ai_response: {str(e)}")
@@ -403,6 +407,8 @@ async def initialize_ai_handler():
             console.warning("Userbot dispatcher not available")
         
         # Add manual test handler
+        from pyrogram.handlers import MessageHandler
+        
         async def manual_test_handler(client, message):
             if message.text == "/test":
                 console.info(f"🧪 MANUAL TEST HANDLER TRIGGERED!")
