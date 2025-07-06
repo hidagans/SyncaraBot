@@ -113,12 +113,19 @@ class SystemPrompt:
             tz = pytz.timezone('Asia/Jakarta')
             current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
             
-            # Get shortcode capabilities from registry - import di dalam fungsi
+            # Get shortcode capabilities from registry
             try:
                 from syncara.shortcode import registry
                 shortcode_capabilities = registry.get_shortcode_docs()
             except ImportError:
-                shortcode_capabilities = "Shortcode system not available"
+                try:
+                    # Fallback to direct import
+                    from syncara.shortcode import SHORTCODE_DESCRIPTIONS
+                    shortcode_capabilities = "Available Shortcodes:\n"
+                    for shortcode, desc in SHORTCODE_DESCRIPTIONS.items():
+                        shortcode_capabilities += f"- [{shortcode}] - {desc}\n"
+                except ImportError:
+                    shortcode_capabilities = "Shortcode system not available"
             
             # Default values
             bot_name = context.get('bot_name', 'Syncara')

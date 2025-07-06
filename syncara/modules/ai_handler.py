@@ -324,17 +324,151 @@ async def simple_private_handler(client, message):
 
 # Rest of the functions remain the same...
 async def get_chat_history(client, chat_id, limit=None):
-    """Get chat history for context"""
-    # ... existing implementation ...
-    return []
+    """Get chat history with detailed information including message ID, user ID, and reply info"""
+    try:
+        # Check if history is enabled
+        if not CHAT_HISTORY_CONFIG["enabled"]:
+            return []
+            
+        # Use configured limit if not specified
+        if limit is None:
+            limit = CHAT_HISTORY_CONFIG["limit"]
+        
+        messages = []
+        
+        # Get userbot info from cache
+        userbot_name = getattr(client, 'name', 'unknown')
+        userbot_info = USERBOT_INFO_CACHE.get(userbot_name)
+        
+        if not userbot_info:
+            # Fallback: get info but with rate limiting
+            try:
+                me = await client.get_me()
+                userbot_info = {
+                    'id': me.id,
+                    'username': me.username,
+                    'first_name': me.first_name,
+                    'last_name': me.last_name
+                }
+                USERBOT_INFO_CACHE[userbot_name] = userbot_info
+            except Exception as e:
+                console.error(f"Error getting userbot info: {str(e)}")
+                return []
+        
+        # Get timezone for timestamp formatting
+        tz = pytz.timezone('Asia/Jakarta')
+        
+        async for message in client.get_chat_history(chat_id, limit=limit):
+            try:
+                # Skip service messages
+                if message.service:
+                    continue
+                
+                # Get message content
+                content = message.text or message.caption or ""
+                
+                # Handle media messages
+                if not content.strip() and CHAT_HISTORY_CONFIG["include_media_info"]:
+                    if message.photo:
+                        content = "[Foto]"
+                    elif message.video:
+                        content = "[Video]"
+                    elif message.document:
+                        content = f"[Dokumen: {message.document.file_name or 'Unknown'}]"
+                    elif message.audio:
+                        content = "[Audio]"
+                    elif message.voice:
+                        content = "[Voice Note]"
+                    elif message.sticker:
+                        content = f"[Sticker: {message.sticker.emoji or ''}]"
+                    elif message.animation:
+                        content = "[GIF]"
+                    else:
+                        content = "[Media]"
+                
+                # Skip if still empty
+                if not content.strip():
+                    continue
+                
+                # Get sender info
+                sender_info = {
+                    'id': None,
+                    'name': "Unknown",
+                    'username': None,
+                    'is_bot': False,
+                    'is_assistant': False
+                }
+                
+                if message.from_user:
+                    sender_info = {
+                        'id': message.from_user.id,
+                        'name': message.from_user.first_name or "Unknown",
+                        'username': message.from_user.username,
+                        'is_bot': message.from_user.is_bot,
+                        'is_assistant': message.from_user.id == userbot_info['id']
+                    }
+                    
+                    # Add assistant label
+                    if sender_info['is_assistant']:
+                        sender_info['display_name'] = f"{userbot_info['first_name']} (Assistant)"
+                    else:
+                        sender_info['display_name'] = sender_info['name']
+                        
+                elif message.sender_chat:
+                    sender_info = {
+                        'id': message.sender_chat.id,
+                        'name': message.sender_chat.title or "Channel",
+                        'username': message.sender_chat.username,
+                        'is_bot': False,
+                        'is_assistant': False,
+                        'display_name': message.sender_chat.title or "Channel"
+                    }
+                
+                # Add to messages list
+                messages.append({
+                    'message_id': message.id,
+                    'sender': sender_info,
+                    'content': content,
+                    'timestamp': message.date.astimezone(tz),
+                })
+                
+            except Exception as e:
+                console.error(f"Error processing message in history: {str(e)}")
+                continue
+        
+        # Reverse to get chronological order (oldest first)
+        messages.reverse()
+        
+        return messages
+        
+    except Exception as e:
+        console.error(f"Error getting chat history: {str(e)}")
+        return []
 
 def format_chat_history(messages):
     """Format chat history for AI context"""
-    # ... existing implementation ...
-    return ""
+    try:
+        if not messages:
+            return ""
+        
+        formatted_history = []
+        
+        for msg in messages:
+            sender_name = msg['sender']['display_name']
+            content = msg['content']
+            timestamp = msg['timestamp'].strftime("%H:%M")
+            
+            # Format: [HH:MM] Sender: Message
+            formatted_history.append(f"[{timestamp}] {sender_name}: {content}")
+        
+        return "\n".join(formatted_history)
+        
+    except Exception as e:
+        console.error(f"Error formatting chat history: {str(e)}")
+        return ""
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
-    """Process AI response using Replicate API with system prompt"""
+    """Process AI response using Replicate API with system prompt and chat history"""
     try:
         # Send typing action
         await client.send_chat_action(
@@ -354,11 +488,22 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         
         system_prompt_text = system_prompt.get_chat_prompt(context)
         
+        # Get chat history for context
+        chat_history = await get_chat_history(client, message.chat.id)
+        formatted_history = format_chat_history(chat_history)
+        
+        # Prepare full prompt with context
+        full_prompt = prompt
+        
+        # Add chat history if available
+        if formatted_history:
+            full_prompt = f"📝 **Chat History:**\n{formatted_history}\n\n💬 **Current Message:**\n{prompt}"
+        
         # Generate AI response using Replicate
         console.info(f"Generating AI response for: {prompt[:50]}...")
         
         ai_response = await replicate_api.generate_response(
-            prompt=prompt,
+            prompt=full_prompt,
             system_prompt=system_prompt_text,
             temperature=0.7,
             max_tokens=2048,
@@ -366,10 +511,17 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             client=client
         )
         
+        # Process shortcodes in AI response
+        try:
+            from syncara.shortcode import registry
+            processed_response = await process_shortcodes_in_response(ai_response, client, message)
+        except ImportError:
+            processed_response = ai_response
+        
         # Send the AI response
         await client.send_message(
             chat_id=message.chat.id,
-            text=f"{ai_response}",
+            text=f"{processed_response}",
             reply_to_message_id=message.id
         )
         
@@ -383,6 +535,54 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             text=f"❌ Maaf, terjadi kesalahan saat memproses permintaan Anda.\n\nError: {str(e)[:100]}...",
             reply_to_message_id=message.id
         )
+
+async def process_shortcodes_in_response(response_text, client, message):
+    """Process shortcodes in AI response and execute them"""
+    try:
+        import re
+        from syncara.shortcode import registry
+        
+        # Pattern to match shortcodes like [shortcode:param1,param2]
+        shortcode_pattern = r'\[([^:]+):([^\]]*)\]'
+        
+        async def replace_shortcode(match):
+            shortcode_name = match.group(1).strip()
+            params_str = match.group(2).strip()
+            
+            # Parse parameters
+            params = {}
+            if params_str:
+                for param in params_str.split(','):
+                    if '=' in param:
+                        key, value = param.split('=', 1)
+                        params[key.strip()] = value.strip()
+                    else:
+                        params[param.strip()] = True
+            
+            # Execute shortcode
+            try:
+                result = await registry.execute_shortcode(shortcode_name, client, message, params)
+                if result:
+                    return f"[Executed: {shortcode_name}]"
+                else:
+                    return f"[Failed: {shortcode_name}]"
+            except Exception as e:
+                console.error(f"Error executing shortcode {shortcode_name}: {str(e)}")
+                return f"[Error: {shortcode_name}]"
+        
+        # Process shortcodes one by one since re.sub doesn't support async
+        processed_response = response_text
+        matches = re.finditer(shortcode_pattern, response_text)
+        
+        for match in matches:
+            replacement = await replace_shortcode(match)
+            processed_response = processed_response.replace(match.group(0), replacement)
+        
+        return processed_response
+        
+    except Exception as e:
+        console.error(f"Error processing shortcodes: {str(e)}")
+        return response_text
 
 async def initialize_ai_handler():
     """Initialize AI handler components"""
