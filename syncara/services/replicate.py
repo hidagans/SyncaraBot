@@ -97,57 +97,57 @@ class ReplicateAPI:
         except Exception as e:
             yield f"Error: {str(e)}"
 
-    async def generate_image(
-        prompt: str,
-        image: str = None,
-        mask: str = None,
-        seed: int = None,
-        resolution: str = None,
-        style_type: str = None,
-        aspect_ratio: str = None,
-        magic_prompt_option: str = None,
-        style_reference_images: list = None
-    ) -> str:
-        input_data = {
-            "prompt": prompt
-        }
-        if image:
-            input_data["image"] = image
-        if mask:
-            input_data["mask"] = mask
-        if seed is not None:
-            input_data["seed"] = seed
-        if resolution:
-            input_data["resolution"] = resolution
-        if style_type:
-            input_data["style_type"] = style_type
-        if aspect_ratio:
-            input_data["aspect_ratio"] = aspect_ratio
-        if magic_prompt_option:
-            input_data["magic_prompt_option"] = magic_prompt_option
-        if style_reference_images:
-            input_data["style_reference_images"] = style_reference_images
+async def generate_image(
+    prompt: str,
+    image: str = None,
+    mask: str = None,
+    seed: int = None,
+    resolution: str = None,
+    style_type: str = None,
+    aspect_ratio: str = None,
+    magic_prompt_option: str = None,
+    style_reference_images: list = None
+) -> str:
+    input_data = {
+        "prompt": prompt
+    }
+    if image:
+        input_data["image"] = image
+    if mask:
+        input_data["mask"] = mask
+    if seed is not None:
+        input_data["seed"] = seed
+    if resolution:
+        input_data["resolution"] = resolution
+    if style_type:
+        input_data["style_type"] = style_type
+    if aspect_ratio:
+        input_data["aspect_ratio"] = aspect_ratio
+    if magic_prompt_option:
+        input_data["magic_prompt_option"] = magic_prompt_option
+    if style_reference_images:
+        input_data["style_reference_images"] = style_reference_images
 
-        # Hapus key yang valuenya None
-        input_data = {k: v for k, v in input_data.items() if v is not None}
+    # Hapus key yang valuenya None
+    input_data = {k: v for k, v in input_data.items() if v is not None}
 
-        console.info(f"[IMAGEGEN] Request: {input_data}")
-        try:
-            # Model name tanpa versi, biar selalu pakai versi terbaru
-            output = replicate_client.run(
-                "ideogram-ai/ideogram-v3-balanced",
-                input=input_data
-            )
-            # Output bisa berupa list of URL atau file-like object
-            if isinstance(output, list) and output:
-                return output[0]
-            elif hasattr(output, 'read'):
-                # Jika output file-like, simpan ke file dan return path/URL
-                with open("output.png", "wb") as f:
-                    f.write(output.read())
-                return "output.png"
-            else:
-                raise Exception("No image output from model")
-        except Exception as e:
-            console.error(f"[IMAGEGEN] Error: {e}")
-            raise
+    console.info(f"[IMAGEGEN] Request: {input_data}")
+    try:
+        # Model name tanpa versi, biar selalu pakai versi terbaru
+        output = replicate_client.run(
+            "ideogram-ai/ideogram-v3-balanced",
+            input=input_data
+        )
+        # Output bisa berupa list of URL atau file-like object
+        if isinstance(output, list) and output:
+            return output[0]
+        elif hasattr(output, 'read'):
+            # Jika output file-like, simpan ke file dan return path/URL
+            with open("output.png", "wb") as f:
+                f.write(output.read())
+            return "output.png"
+        else:
+            raise Exception("No image output from model")
+    except Exception as e:
+        console.error(f"[IMAGEGEN] Error: {e}")
+        raise
