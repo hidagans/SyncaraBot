@@ -297,133 +297,6 @@ async def test_userbot_command(client, message):
         console.error(f"Error in test_userbot_command: {str(e)}")
         await message.reply_text(f"❌ Test error: {str(e)}")
 
-# Voice chat commands for userbot assistant
-@userbot.on_message(filters.command("startvc") & filters.user(OWNER_ID))
-async def userbot_start_voice_chat_command(client, message):
-    """Start voice chat in the group via userbot assistant"""
-    try:
-        chat_id = message.chat.id
-        
-        # Check if userbot is admin
-        try:
-            userbot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
-            if userbot_member.status not in ["administrator", "creator"]:
-                await message.reply_text(
-                    "❌ **Assistant harus menjadi admin untuk start voice chat!**\n\n"
-                    "**Izin yang diperlukan:**\n"
-                    "• Mengelola voice chat\n"
-                    "• Mengirim pesan\n"
-                    "• Mengelola grup"
-                )
-                return
-        except Exception as e:
-            console.error(f"Error checking userbot admin status: {e}")
-            await message.reply_text("❌ Gagal memeriksa status admin assistant")
-            return
-        
-        # Check if voice chat already exists
-        try:
-            await client.get_group_call(chat_id)
-            await message.reply_text("ℹ️ Voice chat sudah aktif di grup ini!")
-            return
-        except:
-            pass
-        
-        # Try to start voice chat
-        try:
-            # Note: Pyrogram doesn't have direct method to start voice chat
-            # This is a limitation - admin must start manually
-            await message.reply_text(
-                "🎵 **Voice Chat Setup**\n\n"
-                "❌ **Assistant tidak dapat start voice chat secara otomatis.**\n\n"
-                "**Cara manual:**\n"
-                "1. Admin grup harus klik tombol 'Start Voice Chat'\n"
-                "2. Atau gunakan fitur voice chat di Telegram\n"
-                "3. Setelah voice chat aktif, assistant bisa join dan play musik\n\n"
-                "💡 **Tips:**\n"
-                "• Pastikan assistant adalah admin dengan izin mengelola voice chat\n"
-                "• Voice chat harus di-start oleh admin grup\n"
-                "• Setelah voice chat aktif, coba play musik lagi"
-            )
-        except Exception as e:
-            console.error(f"Error starting voice chat: {e}")
-            await message.reply_text(f"❌ Gagal start voice chat: {str(e)}")
-            
-    except Exception as e:
-        console.error(f"Error in userbot_start_voice_chat_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat start voice chat")
-
-@userbot.on_message(filters.command("testvc") & filters.user(OWNER_ID))
-async def userbot_test_voice_chat_command(client, message):
-    """Test voice chat functionality via userbot assistant"""
-    try:
-        chat_id = message.chat.id
-        
-        # Check if userbot is admin
-        try:
-            userbot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
-            if userbot_member.status not in ["administrator", "creator"]:
-                await message.reply_text("❌ Assistant harus menjadi admin untuk test voice chat!")
-                return
-        except Exception as e:
-            console.error(f"Error checking userbot admin status: {e}")
-            await message.reply_text("❌ Gagal memeriksa status admin assistant")
-            return
-        
-        # Test PyTgCalls
-        try:
-            from pytgcalls import PyTgCalls
-            from pytgcalls.types import AudioPiped
-            from pytgcalls.exceptions import NoActiveGroupCall
-            
-            if not hasattr(client, 'pytgcalls'):
-                console.info("Initializing PyTgCalls for test...")
-                client.pytgcalls = PyTgCalls(client)
-                await client.pytgcalls.start()
-                console.info("PyTgCalls started successfully")
-            
-            # Try to get group call info
-            try:
-                group_call = await client.get_group_call(chat_id)
-                await message.reply_text(
-                    f"✅ **Voice Chat Test**\n\n"
-                    f"**Status:** Voice chat aktif\n"
-                    f"**Participants:** {len(group_call.participants) if hasattr(group_call, 'participants') else 'Unknown'}\n"
-                    f"**PyTgCalls:** ✅ Ready\n"
-                    f"**Assistant:** ✅ Ready\n\n"
-                    f"Assistant siap untuk join dan play musik!"
-                )
-            except Exception as e:
-                await message.reply_text(
-                    f"⚠️ **Voice Chat Test**\n\n"
-                    f"**Status:** Tidak ada voice chat aktif\n"
-                    f"**Error:** {str(e)}\n"
-                    f"**PyTgCalls:** ✅ Ready\n"
-                    f"**Assistant:** ✅ Ready\n\n"
-                    f"Admin perlu start voice chat terlebih dahulu."
-                )
-                
-        except ImportError:
-            await message.reply_text(
-                "❌ **PyTgCalls Test**\n\n"
-                "PyTgCalls tidak terinstall!\n\n"
-                "**Install dengan:**\n"
-                "```bash\npip install py-tgcalls\n```"
-            )
-        except Exception as e:
-            await message.reply_text(
-                f"❌ **PyTgCalls Test**\n\n"
-                f"**Error:** {str(e)}\n\n"
-                f"**Kemungkinan penyebab:**\n"
-                f"• PyTgCalls tidak terinstall dengan benar\n"
-                f"• Koneksi PyTgCalls bermasalah\n"
-                f"• Assistant tidak memiliki izin yang cukup"
-            )
-            
-    except Exception as e:
-        console.error(f"Error in userbot_test_voice_chat_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat test voice chat")
-
 # Userbot message handler for group interactions
 @userbot.on_message(custom_userbot_filter & (filters.text | filters.photo))
 async def userbot_message_handler(client, message):
@@ -791,3 +664,7 @@ __all__ = [
     'USERBOT_PROMPT_MAPPING',
     'CHAT_HISTORY_CONFIG'
 ]
+
+# Hapus semua command terkait music player dan voice chat
+def remove_music_commands():
+    pass  # Placeholder agar tidak error import

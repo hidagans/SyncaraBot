@@ -6,16 +6,6 @@ from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
 
-@userbot.on_callback_query(filters.regex(r"^music_"))
-async def handle_music_callback(client: Client, callback_query: CallbackQuery):
-    """Handle music player callbacks from userbot assistant"""
-    try:
-        from syncara.modules.music_player import music_player
-        await music_player.handle_callback(client, callback_query)
-    except Exception as e:
-        console.error(f"Error handling music callback: {e}")
-        await callback_query.answer("❌ Terjadi kesalahan.")
-
 async def get_chat_history(client, chat_id, limit=None):
     """Get chat history with detailed information including message ID, user ID, and reply info"""
     try:
