@@ -156,18 +156,14 @@ async def start_command(client, message):
             "• `/debug` - Debug info (owner only)\n"
             "• `/shortcodes` - Lihat shortcode yang tersedia (owner only)\n"
             "• `/test_userbot` - Test userbot assistant (owner only)\n\n"
-            "💡 **Cara menggunakan:**\n"
-            "• Kirim pesan private ke @Aeris_sync\n"
-            "• Mention @Aeris_sync di group\n"
-            "• Reply ke pesan @Aeris_sync\n\n"
-            "🎵 **Voice Chat Commands (via Assistant):**\n"
-            "• `/startvc` - Start voice chat (owner only)\n"
-            "• `/testvc` - Test voice chat (owner only)\n\n"
+            "💡 **Shortcode AI & Image Gen:**\n"
+            "• `[IMAGE:GEN:kucing lucu di luar angkasa]` - Generate gambar dari prompt\n"
+            "• `[IMAGE:GEN:{\"prompt\":\"kucing\",\"style_type\":\"cartoon\"}]` - Advanced (JSON)\n\n"
             "🚀 **AI Features:**\n"
             "• Chat AI dengan konteks\n"
             "• Analisis gambar\n"
             "• Multiple personality\n"
-            "• Music player integration"
+            "• Image generation (Replicate)\n"
         )
     except Exception as e:
         console.error(f"Error in start_command: {str(e)}")
