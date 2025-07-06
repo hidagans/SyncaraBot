@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from config import MONGO_URI
+from config.config import MONGO_URI
 
 # function database
 mongo_client = AsyncIOMotorClient(MONGO_URI)
