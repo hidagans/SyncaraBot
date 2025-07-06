@@ -154,12 +154,15 @@ async def start_command(client, message):
             "• `/test` - Test command\n"
             "• `/prompt` - Ganti AI personality (owner only)\n"
             "• `/debug` - Debug info (owner only)\n"
-            "• `/startvc` - Start voice chat\n"
-            "• `/testvc` - Test voice chat (owner only)\n\n"
+            "• `/shortcodes` - Lihat shortcode yang tersedia (owner only)\n"
+            "• `/test_userbot` - Test userbot assistant (owner only)\n\n"
             "💡 **Cara menggunakan:**\n"
             "• Kirim pesan private ke @Aeris_sync\n"
             "• Mention @Aeris_sync di group\n"
             "• Reply ke pesan @Aeris_sync\n\n"
+            "🎵 **Voice Chat Commands (via Assistant):**\n"
+            "• `/startvc` - Start voice chat (owner only)\n"
+            "• `/testvc` - Test voice chat (owner only)\n\n"
             "🚀 **AI Features:**\n"
             "• Chat AI dengan konteks\n"
             "• Analisis gambar\n"
@@ -294,18 +297,19 @@ async def test_userbot_command(client, message):
         console.error(f"Error in test_userbot_command: {str(e)}")
         await message.reply_text(f"❌ Test error: {str(e)}")
 
-@bot.on_message(filters.command("startvc") & filters.user(OWNER_ID))
-async def start_voice_chat_command(client, message):
-    """Start voice chat in the group"""
+# Voice chat commands for userbot assistant
+@userbot.on_message(filters.command("startvc") & filters.user(OWNER_ID))
+async def userbot_start_voice_chat_command(client, message):
+    """Start voice chat in the group via userbot assistant"""
     try:
         chat_id = message.chat.id
         
-        # Check if bot is admin
+        # Check if userbot is admin
         try:
-            bot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
-            if bot_member.status not in ["administrator", "creator"]:
+            userbot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
+            if userbot_member.status not in ["administrator", "creator"]:
                 await message.reply_text(
-                    "❌ **Bot harus menjadi admin untuk start voice chat!**\n\n"
+                    "❌ **Assistant harus menjadi admin untuk start voice chat!**\n\n"
                     "**Izin yang diperlukan:**\n"
                     "• Mengelola voice chat\n"
                     "• Mengirim pesan\n"
@@ -313,8 +317,8 @@ async def start_voice_chat_command(client, message):
                 )
                 return
         except Exception as e:
-            console.error(f"Error checking bot admin status: {e}")
-            await message.reply_text("❌ Gagal memeriksa status admin bot")
+            console.error(f"Error checking userbot admin status: {e}")
+            await message.reply_text("❌ Gagal memeriksa status admin assistant")
             return
         
         # Check if voice chat already exists
@@ -331,13 +335,13 @@ async def start_voice_chat_command(client, message):
             # This is a limitation - admin must start manually
             await message.reply_text(
                 "🎵 **Voice Chat Setup**\n\n"
-                "❌ **Bot tidak dapat start voice chat secara otomatis.**\n\n"
+                "❌ **Assistant tidak dapat start voice chat secara otomatis.**\n\n"
                 "**Cara manual:**\n"
                 "1. Admin grup harus klik tombol 'Start Voice Chat'\n"
                 "2. Atau gunakan fitur voice chat di Telegram\n"
-                "3. Setelah voice chat aktif, bot bisa join dan play musik\n\n"
+                "3. Setelah voice chat aktif, assistant bisa join dan play musik\n\n"
                 "💡 **Tips:**\n"
-                "• Pastikan bot adalah admin dengan izin mengelola voice chat\n"
+                "• Pastikan assistant adalah admin dengan izin mengelola voice chat\n"
                 "• Voice chat harus di-start oleh admin grup\n"
                 "• Setelah voice chat aktif, coba play musik lagi"
             )
@@ -346,24 +350,24 @@ async def start_voice_chat_command(client, message):
             await message.reply_text(f"❌ Gagal start voice chat: {str(e)}")
             
     except Exception as e:
-        console.error(f"Error in start_voice_chat_command: {str(e)}")
+        console.error(f"Error in userbot_start_voice_chat_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat start voice chat")
 
-@bot.on_message(filters.command("testvc") & filters.user(OWNER_ID))
-async def test_voice_chat_command(client, message):
-    """Test voice chat functionality"""
+@userbot.on_message(filters.command("testvc") & filters.user(OWNER_ID))
+async def userbot_test_voice_chat_command(client, message):
+    """Test voice chat functionality via userbot assistant"""
     try:
         chat_id = message.chat.id
         
-        # Check if bot is admin
+        # Check if userbot is admin
         try:
-            bot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
-            if bot_member.status not in ["administrator", "creator"]:
-                await message.reply_text("❌ Bot harus menjadi admin untuk test voice chat!")
+            userbot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
+            if userbot_member.status not in ["administrator", "creator"]:
+                await message.reply_text("❌ Assistant harus menjadi admin untuk test voice chat!")
                 return
         except Exception as e:
-            console.error(f"Error checking bot admin status: {e}")
-            await message.reply_text("❌ Gagal memeriksa status admin bot")
+            console.error(f"Error checking userbot admin status: {e}")
+            await message.reply_text("❌ Gagal memeriksa status admin assistant")
             return
         
         # Test PyTgCalls
@@ -385,15 +389,17 @@ async def test_voice_chat_command(client, message):
                     f"✅ **Voice Chat Test**\n\n"
                     f"**Status:** Voice chat aktif\n"
                     f"**Participants:** {len(group_call.participants) if hasattr(group_call, 'participants') else 'Unknown'}\n"
-                    f"**PyTgCalls:** ✅ Ready\n\n"
-                    f"Bot siap untuk join dan play musik!"
+                    f"**PyTgCalls:** ✅ Ready\n"
+                    f"**Assistant:** ✅ Ready\n\n"
+                    f"Assistant siap untuk join dan play musik!"
                 )
             except Exception as e:
                 await message.reply_text(
                     f"⚠️ **Voice Chat Test**\n\n"
                     f"**Status:** Tidak ada voice chat aktif\n"
                     f"**Error:** {str(e)}\n"
-                    f"**PyTgCalls:** ✅ Ready\n\n"
+                    f"**PyTgCalls:** ✅ Ready\n"
+                    f"**Assistant:** ✅ Ready\n\n"
                     f"Admin perlu start voice chat terlebih dahulu."
                 )
                 
@@ -411,11 +417,11 @@ async def test_voice_chat_command(client, message):
                 f"**Kemungkinan penyebab:**\n"
                 f"• PyTgCalls tidak terinstall dengan benar\n"
                 f"• Koneksi PyTgCalls bermasalah\n"
-                f"• Bot tidak memiliki izin yang cukup"
+                f"• Assistant tidak memiliki izin yang cukup"
             )
             
     except Exception as e:
-        console.error(f"Error in test_voice_chat_command: {str(e)}")
+        console.error(f"Error in userbot_test_voice_chat_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat test voice chat")
 
 # Userbot message handler for group interactions

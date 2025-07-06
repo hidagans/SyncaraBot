@@ -392,8 +392,11 @@ class MusicPlayer:
                 "Connecting to voice chat..."
             )
             
-            # Join voice chat and play
-            success = await self.join_and_play(client, chat_id, audio_file, video_id)
+            # Import userbot for voice call
+            from syncara.modules.ai_handler import userbot
+            
+            # Join voice chat and play using userbot
+            success = await self.join_and_play(userbot, chat_id, audio_file, video_id)
             
             if success:
                 # Update message to show now playing
@@ -435,12 +438,12 @@ class MusicPlayer:
                     "❌ **Tidak ada voice chat yang aktif.**\n\n"
                     "**Cara menggunakan:**\n"
                     "1. Admin grup harus start voice chat terlebih dahulu\n"
-                    "2. Pastikan bot adalah admin dengan izin mengelola voice chat\n"
+                    "2. Pastikan assistant adalah admin dengan izin mengelola voice chat\n"
                     "3. Setelah voice chat aktif, coba play musik lagi\n\n"
                     "💡 **Tips:**\n"
                     "• Admin bisa start voice chat dengan klik tombol 'Start Voice Chat'\n"
                     "• Atau gunakan command `/startvc` (owner only)\n"
-                    "• Bot akan otomatis join voice chat yang sudah aktif"
+                    "• Assistant akan otomatis join voice chat yang sudah aktif"
                 )
                 
         except Exception as e:
@@ -451,14 +454,14 @@ class MusicPlayer:
                 "❌ **Terjadi kesalahan saat memutar musik.**\n\n"
                 "🎵 **Music Player Setup**\n\n"
                 "**Pastikan:**\n"
-                "1. Bot adalah admin grup\n"
-                "2. Bot memiliki izin mengelola voice chat\n"
+                "1. Assistant adalah admin grup\n"
+                "2. Assistant memiliki izin mengelola voice chat\n"
                 "3. Voice chat sudah aktif (admin harus start manual)\n"
                 "4. Voice chat tidak sedang digunakan bot lain\n\n"
                 "💡 **Tips:**\n"
                 "• Gunakan command `/startvc` untuk info voice chat\n"
                 "• Admin harus start voice chat terlebih dahulu\n"
-                "• Bot akan otomatis join voice chat yang aktif"
+                "• Assistant akan otomatis join voice chat yang aktif"
             )
     
     async def join_and_play(self, client: Client, chat_id: int, audio_file: str, video_id: str) -> bool:
@@ -499,7 +502,7 @@ class MusicPlayer:
                          "❌ **Tidak ada voice chat yang aktif.**\n\n"
                          "**Cara menggunakan:**\n"
                          "1. Admin grup harus start voice chat terlebih dahulu\n"
-                         "2. Pastikan bot adalah admin dengan izin mengelola voice chat\n"
+                         "2. Pastikan assistant adalah admin dengan izin mengelola voice chat\n"
                          "3. Setelah voice chat aktif, coba play musik lagi\n\n"
                          "💡 **Tips:** Admin bisa start voice chat dengan:\n"
                          "• Klik tombol 'Start Voice Chat' di grup\n"
@@ -512,8 +515,8 @@ class MusicPlayer:
                     chat_id=chat_id,
                     text=f"❌ **Gagal join voice chat:** {str(e)}\n\n"
                          "**Kemungkinan penyebab:**\n"
-                         "• Bot bukan admin grup\n"
-                         "• Bot tidak memiliki izin mengelola voice chat\n"
+                         "• Assistant bukan admin grup\n"
+                         "• Assistant tidak memiliki izin mengelola voice chat\n"
                          "• Voice chat sedang digunakan bot lain\n"
                          "• Koneksi PyTgCalls bermasalah"
                 )
