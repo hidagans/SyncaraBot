@@ -361,19 +361,8 @@ class MusicPlayer:
             # Update message to show preparing state
             await callback_query.edit_message_text(
                 f"⏳ Preparing to play: **{current_music['title']}**\n\n"
-                "Checking voice chat status..."
+                "Starting download..."
             )
-            
-            # Check and start voice chat if needed
-            if not await self.ensure_voice_chat(client, chat_id):
-                await callback_query.edit_message_text(
-                    "❌ Gagal memulai voice chat.\n\n"
-                    "Pastikan:\n"
-                    "1. Bot adalah admin grup\n"
-                    "2. Bot memiliki izin mengelola voice chat\n"
-                    "3. Voice chat tidak sedang digunakan bot lain"
-                )
-                return
             
             # Update to downloading state
             await callback_query.edit_message_text(
@@ -484,25 +473,30 @@ class MusicPlayer:
                 return False
 
             if not hasattr(client, 'pytgcalls'):
+                console.info("Initializing PyTgCalls...")
                 client.pytgcalls = PyTgCalls(client)
                 await client.pytgcalls.start()
+                console.info("PyTgCalls started successfully")
 
+            # Try to join voice chat directly without checking first
             try:
-                # Try to join existing voice chat
+                console.info(f"Attempting to join voice chat in chat: {chat_id}")
+                console.info(f"Using audio file: {audio_file}")
+                
                 await client.pytgcalls.join_group_call(
                     chat_id,
                     AudioPiped(audio_file)
                 )
-                console.info(f"Successfully joined existing voice chat and playing: {video_id}")
+                console.info(f"Successfully joined voice chat and playing: {video_id}")
                 return True
                 
             except NoActiveGroupCall:
-                console.info("No active voice chat found")
+                console.info("No active voice chat found - user needs to start voice chat manually")
                 # Send message to user to start voice chat manually
                 await client.send_message(
                     chat_id=chat_id,
                     text="🎵 **Music Player**\n\n"
-                         "❌ Tidak ada voice chat yang aktif.\n\n"
+                         "❌ **Tidak ada voice chat yang aktif.**\n\n"
                          "**Cara menggunakan:**\n"
                          "1. Admin grup harus start voice chat terlebih dahulu\n"
                          "2. Pastikan bot adalah admin dengan izin mengelola voice chat\n"
@@ -512,29 +506,25 @@ class MusicPlayer:
                          "• Atau gunakan command `/startvc` (jika tersedia)"
                 )
                 return False
+            except Exception as e:
+                console.error(f"Error joining voice chat: {e}")
+                await client.send_message(
+                    chat_id=chat_id,
+                    text=f"❌ **Gagal join voice chat:** {str(e)}\n\n"
+                         "**Kemungkinan penyebab:**\n"
+                         "• Bot bukan admin grup\n"
+                         "• Bot tidak memiliki izin mengelola voice chat\n"
+                         "• Voice chat sedang digunakan bot lain\n"
+                         "• Koneksi PyTgCalls bermasalah"
+                )
+                return False
 
         except Exception as e:
-            console.error(f"Error joining voice chat: {e}")
+            console.error(f"Error in join_and_play: {e}")
             import traceback
             console.error(f"Traceback: {traceback.format_exc()}")
             return False
         
-    async def ensure_voice_chat(self, client: Client, chat_id: int) -> bool:
-        """Ensure voice chat is active in the group"""
-        try:
-            # Check if voice chat exists
-            try:
-                await client.get_group_call(chat_id)
-                console.info(f"Voice chat already active in chat: {chat_id}")
-                return True
-            except Exception as e:
-                console.info(f"No active voice chat in chat: {chat_id}")
-                return False
-                
-        except Exception as e:
-            console.error(f"Error checking voice chat: {e}")
-            return False
-    
     async def handle_close(self, client: Client, callback_query):
         """Handle close button"""
         try:

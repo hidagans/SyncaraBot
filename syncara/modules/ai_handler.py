@@ -154,7 +154,8 @@ async def start_command(client, message):
             "• `/test` - Test command\n"
             "• `/prompt` - Ganti AI personality (owner only)\n"
             "• `/debug` - Debug info (owner only)\n"
-            "• `/startvc` - Start voice chat\n\n"
+            "• `/startvc` - Start voice chat\n"
+            "• `/testvc` - Test voice chat (owner only)\n\n"
             "💡 **Cara menggunakan:**\n"
             "• Kirim pesan private ke @Aeris_sync\n"
             "• Mention @Aeris_sync di group\n"
@@ -347,6 +348,75 @@ async def start_voice_chat_command(client, message):
     except Exception as e:
         console.error(f"Error in start_voice_chat_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat start voice chat")
+
+@bot.on_message(filters.command("testvc") & filters.user(OWNER_ID))
+async def test_voice_chat_command(client, message):
+    """Test voice chat functionality"""
+    try:
+        chat_id = message.chat.id
+        
+        # Check if bot is admin
+        try:
+            bot_member = await client.get_chat_member(chat_id, (await client.get_me()).id)
+            if bot_member.status not in ["administrator", "creator"]:
+                await message.reply_text("❌ Bot harus menjadi admin untuk test voice chat!")
+                return
+        except Exception as e:
+            console.error(f"Error checking bot admin status: {e}")
+            await message.reply_text("❌ Gagal memeriksa status admin bot")
+            return
+        
+        # Test PyTgCalls
+        try:
+            from pytgcalls import PyTgCalls
+            from pytgcalls.types import AudioPiped
+            from pytgcalls.exceptions import NoActiveGroupCall
+            
+            if not hasattr(client, 'pytgcalls'):
+                console.info("Initializing PyTgCalls for test...")
+                client.pytgcalls = PyTgCalls(client)
+                await client.pytgcalls.start()
+                console.info("PyTgCalls started successfully")
+            
+            # Try to get group call info
+            try:
+                group_call = await client.get_group_call(chat_id)
+                await message.reply_text(
+                    f"✅ **Voice Chat Test**\n\n"
+                    f"**Status:** Voice chat aktif\n"
+                    f"**Participants:** {len(group_call.participants) if hasattr(group_call, 'participants') else 'Unknown'}\n"
+                    f"**PyTgCalls:** ✅ Ready\n\n"
+                    f"Bot siap untuk join dan play musik!"
+                )
+            except Exception as e:
+                await message.reply_text(
+                    f"⚠️ **Voice Chat Test**\n\n"
+                    f"**Status:** Tidak ada voice chat aktif\n"
+                    f"**Error:** {str(e)}\n"
+                    f"**PyTgCalls:** ✅ Ready\n\n"
+                    f"Admin perlu start voice chat terlebih dahulu."
+                )
+                
+        except ImportError:
+            await message.reply_text(
+                "❌ **PyTgCalls Test**\n\n"
+                "PyTgCalls tidak terinstall!\n\n"
+                "**Install dengan:**\n"
+                "```bash\npip install py-tgcalls\n```"
+            )
+        except Exception as e:
+            await message.reply_text(
+                f"❌ **PyTgCalls Test**\n\n"
+                f"**Error:** {str(e)}\n\n"
+                f"**Kemungkinan penyebab:**\n"
+                f"• PyTgCalls tidak terinstall dengan benar\n"
+                f"• Koneksi PyTgCalls bermasalah\n"
+                f"• Bot tidak memiliki izin yang cukup"
+            )
+            
+    except Exception as e:
+        console.error(f"Error in test_voice_chat_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat test voice chat")
 
 # Userbot message handler for group interactions
 @userbot.on_message(custom_userbot_filter & (filters.text | filters.photo))
