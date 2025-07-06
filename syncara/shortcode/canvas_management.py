@@ -1,4 +1,5 @@
 from syncara.modules.canvas_manager import canvas_manager
+from io import BytesIO
 
 class CanvasManagementShortcode:
     def __init__(self):
@@ -28,7 +29,14 @@ class CanvasManagementShortcode:
             filetype = parts[1].strip() if len(parts) > 1 else 'txt'
             content = parts[2].strip() if len(parts) > 2 else ''
             file = canvas_manager.create_file(filename, filetype, content)
-            await message.reply(f'✅ File `{filename}` berhasil dibuat!\n\n{file.get_content() or "(kosong)"}')
+            file_bytes = BytesIO(file.get_content().encode('utf-8'))
+            file_bytes.name = filename
+            await client.send_document(
+                chat_id=message.chat.id,
+                document=file_bytes,
+                caption=f'✅ File `{filename}` berhasil dibuat!',
+                reply_to_message_id=message.id
+            )
             return True
         except Exception as e:
             await message.reply(f'❌ Gagal membuat file: {e}')
@@ -38,7 +46,14 @@ class CanvasManagementShortcode:
         filename = params.strip()
         file = canvas_manager.get_file(filename)
         if file:
-            await message.reply(f'📄 Isi file `{filename}`:\n\n{file.get_content()}')
+            file_bytes = BytesIO(file.get_content().encode('utf-8'))
+            file_bytes.name = filename
+            await client.send_document(
+                chat_id=message.chat.id,
+                document=file_bytes,
+                caption=f'📄 Isi file `{filename}`',
+                reply_to_message_id=message.id
+            )
             return True
         else:
             await message.reply('File tidak ditemukan.')
@@ -56,7 +71,14 @@ class CanvasManagementShortcode:
             file = canvas_manager.get_file(filename)
             if file:
                 file.update_content(new_content)
-                await message.reply(f'✏️ File `{filename}` berhasil diupdate!\n\n{file.get_content()}')
+                file_bytes = BytesIO(file.get_content().encode('utf-8'))
+                file_bytes.name = filename
+                await client.send_document(
+                    chat_id=message.chat.id,
+                    document=file_bytes,
+                    caption=f'✏️ File `{filename}` berhasil diupdate!',
+                    reply_to_message_id=message.id
+                )
                 return True
             else:
                 await message.reply('File tidak ditemukan.')
@@ -77,7 +99,14 @@ class CanvasManagementShortcode:
         filename = params.strip()
         file = canvas_manager.get_file(filename)
         if file:
-            await message.reply(f'📤 Export file `{filename}`:\n\n{file.export()}')
+            file_bytes = BytesIO(file.export().encode('utf-8'))
+            file_bytes.name = filename
+            await client.send_document(
+                chat_id=message.chat.id,
+                document=file_bytes,
+                caption=f'📤 Export file `{filename}`',
+                reply_to_message_id=message.id
+            )
             return True
         else:
             await message.reply('File tidak ditemukan.')
