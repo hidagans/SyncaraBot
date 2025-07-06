@@ -141,17 +141,28 @@ custom_userbot_filter = filters.create(userbot_filter)
 async def start_command(client, message):
     """Handle start command for the manager bot"""
     try:
+        from syncara.modules.system_prompt import system_prompt
+        
+        current_prompt = system_prompt.current_prompt_name
+        
         await message.reply_text(
             "🤖 **Halo! Saya adalah SyncaraBot Manager**\n\n"
             "🎯 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
+            f"🧠 **Current AI Personality:** {current_prompt}\n\n"
             "📋 **Perintah yang tersedia:**\n"
             "• `/start` atau `/help` - Tampilkan pesan ini\n"
-            "• `/status` - Cek status bot dan userbot\n"
-            "• `/prompts` - Lihat daftar system prompt\n"
-            "• `/userbot` - Info userbot assistant\n"
+            "• `/test` - Test command\n"
+            "• `/prompt` - Ganti AI personality (owner only)\n"
             "• `/debug` - Debug info (owner only)\n\n"
             "💡 **Cara menggunakan:**\n"
-            "Mention atau reply ke userbot assistant untuk berinteraksi dengan AI!"
+            "• Kirim pesan private ke @Aeris_sync\n"
+            "• Mention @Aeris_sync di group\n"
+            "• Reply ke pesan @Aeris_sync\n\n"
+            "🚀 **AI Features:**\n"
+            "• Chat AI dengan konteks\n"
+            "• Analisis gambar\n"
+            "• Multiple personality\n"
+            "• Music player integration"
         )
     except Exception as e:
         console.error(f"Error in start_command: {str(e)}")
@@ -201,6 +212,38 @@ async def test_command(client, message):
         await message.reply_text("✅ Test command berhasil! Bot berfungsi dengan baik.")
     except Exception as e:
         console.error(f"Error in test_command: {str(e)}")
+
+@bot.on_message(filters.command("prompt") & filters.user(OWNER_ID))
+async def change_prompt_command(client, message):
+    """Change system prompt"""
+    try:
+        from syncara.modules.system_prompt import system_prompt
+        
+        # Parse command: /prompt <prompt_name>
+        args = message.text.split()
+        if len(args) < 2:
+            available_prompts = system_prompt.get_available_prompts()
+            current_prompt = system_prompt.current_prompt_name
+            
+            response = f"🤖 **System Prompt Manager**\n\n"
+            response += f"**Current:** {current_prompt}\n\n"
+            response += f"**Available Prompts:**\n"
+            for prompt in available_prompts:
+                response += f"• {prompt}\n"
+            response += f"\n**Usage:** `/prompt <prompt_name>`"
+            
+            await message.reply_text(response)
+            return
+        
+        prompt_name = args[1].upper()
+        if system_prompt.set_prompt(prompt_name):
+            await message.reply_text(f"✅ System prompt changed to: **{prompt_name}**")
+        else:
+            await message.reply_text(f"❌ Prompt '{prompt_name}' not found!")
+            
+    except Exception as e:
+        console.error(f"Error in change_prompt_command: {str(e)}")
+        await message.reply_text("❌ Error changing prompt")
 
 @bot.on_message(filters.command("test_userbot") & filters.user(OWNER_ID))
 async def test_userbot_command(client, message):
@@ -267,14 +310,17 @@ async def userbot_message_handler(client, message):
 async def simple_private_handler(client, message):
     """Handler for private messages to userbot"""
     try:
-        await client.send_message(
-            chat_id=message.chat.id,
-            text=f"🤖 **Halo! Saya adalah AERIS Assistant**\n\nSaya menerima pesan Anda: {message.text[:100]}...\n\nSilakan ajukan pertanyaan atau request yang Anda butuhkan!",
-            reply_to_message_id=message.id
-        )
+        # Process with AI response
+        await process_ai_response(client, message, message.text)
         
     except Exception as e:
         console.error(f"Error in private handler: {str(e)}")
+        # Fallback response
+        await client.send_message(
+            chat_id=message.chat.id,
+            text="❌ Maaf, terjadi kesalahan saat memproses pesan Anda.",
+            reply_to_message_id=message.id
+        )
 
 # Rest of the functions remain the same...
 async def get_chat_history(client, chat_id, limit=None):
@@ -288,19 +334,55 @@ def format_chat_history(messages):
     return ""
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
-    """Process AI response with detailed context including current message info"""
+    """Process AI response using Replicate API with system prompt"""
     try:
-        # For now, send a simple response
-        response_text = f"🤖 **AERIS Assistant**\n\nSaya menerima permintaan Anda: {prompt[:200]}...\n\n_AI processing akan diimplementasikan di sini_\n\n💡 **Fitur yang tersedia:**\n• Chat AI dengan konteks\n• Analisis gambar\n• Musik player\n• Dan banyak lagi!"
+        # Send typing action
+        await client.send_chat_action(
+            chat_id=message.chat.id,
+            action=enums.ChatAction.TYPING
+        )
         
+        # Get system prompt
+        from syncara.modules.system_prompt import system_prompt
+        
+        # Prepare context for system prompt
+        context = {
+            'bot_name': 'AERIS',
+            'bot_username': 'Aeris_sync',
+            'user_id': message.from_user.id if message.from_user else 0
+        }
+        
+        system_prompt_text = system_prompt.get_chat_prompt(context)
+        
+        # Generate AI response using Replicate
+        console.info(f"Generating AI response for: {prompt[:50]}...")
+        
+        ai_response = await replicate_api.generate_response(
+            prompt=prompt,
+            system_prompt=system_prompt_text,
+            temperature=0.7,
+            max_tokens=2048,
+            image_file_id=photo_file_id,
+            client=client
+        )
+        
+        # Send the AI response
         await client.send_message(
             chat_id=message.chat.id,
-            text=response_text,
+            text=f"🤖 **AERIS Assistant**\n\n{ai_response}",
             reply_to_message_id=message.id
         )
         
+        console.info("✅ AI response sent successfully")
+        
     except Exception as e:
         console.error(f"Error in process_ai_response: {str(e)}")
+        # Fallback response
+        await client.send_message(
+            chat_id=message.chat.id,
+            text=f"❌ Maaf, terjadi kesalahan saat memproses permintaan Anda.\n\nError: {str(e)[:100]}...",
+            reply_to_message_id=message.id
+        )
 
 async def initialize_ai_handler():
     """Initialize AI handler components"""
