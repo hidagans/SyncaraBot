@@ -1,7 +1,10 @@
 # syncara/__init__.py
 import logging
 import os
-from pyrogram import Client
+import pyrogram
+from pyrogram import Client, filters
+from pyrogram.enums import ParseMode
+from pyrogram.handlers import MessageHandler
 from config.config import *
 
 # Logging configuration
@@ -26,6 +29,14 @@ class Bot(Client):
         super().__init__(**kwargs)
         self.me = None
 
+    def on_message(self, filters=None):
+        def decorator(func):
+            for ub in self._bot:
+                ub.add_handler(MessageHandler(func, filters))
+            return func
+
+        return decorator
+
     async def start(self):
         await super().start()
         self.me = await self.get_me()
@@ -36,6 +47,14 @@ class Ubot(Client):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.me = None
+
+    def on_message(self, filters=None):
+        def decorator(func):
+            for ub in self._bot:
+                ub.add_handler(MessageHandler(func, filters))
+            return func
+
+        return decorator
 
     async def start(self):
         await super().start()
