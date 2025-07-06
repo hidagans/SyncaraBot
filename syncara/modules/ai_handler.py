@@ -139,25 +139,25 @@ async def test_all_messages(client, message):
         debug_log(f"Error in test handler: {str(e)}")
         console.error(f"Error in test handler: {str(e)}")
 
-# Debug handler for all bot messages
-@bot.on_message(filters.all)
-async def debug_all_bot_messages(client, message):
-    """Debug handler to see all messages received by bot manager"""
-    try:
-        console.info(f"BOT MSG: {message.from_user.first_name if message.from_user else 'Unknown'} -> {message.text[:50] if message.text else 'No text'}")
-        debug_log(f"🔔 BOT RECEIVED MESSAGE:")
-        debug_log(f"   From: {message.from_user.first_name if message.from_user else 'Unknown'}")
-        debug_log(f"   Chat: {message.chat.title if message.chat.title else 'Private'}")
-        debug_log(f"   Text: {message.text[:50] if message.text else 'No text'}...")
-        debug_log(f"   Message ID: {message.id}")
-        
-        # Check if it's a command
-        if message.text and message.text.startswith('/'):
-            debug_log(f"🎯 COMMAND DETECTED: {message.text}")
-            console.info(f"COMMAND: {message.text}")
-    except Exception as e:
-        debug_log(f"Error in bot debug handler: {str(e)}")
-        console.error(f"Error in bot debug handler: {str(e)}")
+# Debug handler for all bot messages - REMOVED to avoid conflicts
+# @bot.on_message(filters.all)
+# async def debug_all_bot_messages(client, message):
+#     """Debug handler to see all messages received by bot manager"""
+#     try:
+#         console.info(f"BOT MSG: {message.from_user.first_name if message.from_user else 'Unknown'} -> {message.text[:50] if message.text else 'No text'}")
+#         debug_log(f"🔔 BOT RECEIVED MESSAGE:")
+#         debug_log(f"   From: {message.from_user.first_name if message.from_user else 'Unknown'}")
+#         debug_log(f"   Chat: {message.chat.title if message.chat.title else 'Private'}")
+#         debug_log(f"   Text: {message.text[:50] if message.text else 'No text'}...")
+#         debug_log(f"   Message ID: {message.id}")
+#         
+#         # Check if it's a command
+#         if message.text and message.text.startswith('/'):
+#             debug_log(f"🎯 COMMAND DETECTED: {message.text}")
+#             console.info(f"COMMAND: {message.text}")
+#     except Exception as e:
+#         debug_log(f"Error in bot debug handler: {str(e)}")
+#         console.error(f"Error in bot debug handler: {str(e)}")
 
 # Bot manager commands
 @bot.on_message(filters.command("start") | filters.command("help"))
@@ -230,6 +230,17 @@ async def test_command(client, message):
         await message.reply_text("✅ Test command berhasil! Bot berfungsi dengan baik.")
     except Exception as e:
         console.error(f"❌ Error in test_command: {str(e)}")
+
+# Alternative test with text filter
+@bot.on_message(filters.text & filters.regex(r"^test$"))
+async def test_text_command(client, message):
+    """Test command using text filter"""
+    try:
+        debug_log(f"🧪 TEST TEXT HANDLER TRIGGERED!")
+        console.info(f"🧪 TEST TEXT: from user {message.from_user.id}")
+        await message.reply_text("✅ Test text command berhasil! Bot berfungsi dengan baik.")
+    except Exception as e:
+        console.error(f"❌ Error in test_text_command: {str(e)}")
 
 @bot.on_message(filters.command("test_userbot") & filters.user(OWNER_ID))
 async def test_userbot_command(client, message):
@@ -374,6 +385,9 @@ async def initialize_ai_handler():
             console.info(f"Bot handlers registered: {len(bot.dispatcher.groups)}")
             for group_id, handlers in bot.dispatcher.groups.items():
                 console.info(f"  Group {group_id}: {len(handlers)} handlers")
+                # List all handlers in this group
+                for i, handler in enumerate(handlers):
+                    console.info(f"    Handler {i}: {type(handler).__name__}")
         else:
             console.warning("Bot dispatcher not available")
             
@@ -382,8 +396,20 @@ async def initialize_ai_handler():
             console.info(f"Userbot handlers registered: {len(userbot.dispatcher.groups)}")
             for group_id, handlers in userbot.dispatcher.groups.items():
                 console.info(f"  Group {group_id}: {len(handlers)} handlers")
+                # List all handlers in this group
+                for i, handler in enumerate(handlers):
+                    console.info(f"    Handler {i}: {type(handler).__name__}")
         else:
             console.warning("Userbot dispatcher not available")
+        
+        # Add manual test handler
+        async def manual_test_handler(client, message):
+            if message.text == "/test":
+                console.info(f"🧪 MANUAL TEST HANDLER TRIGGERED!")
+                await message.reply_text("✅ Manual test handler berhasil!")
+        
+        bot.add_handler(MessageHandler(manual_test_handler, filters.text))
+        console.info("✅ Manual test handler added")
         
     except Exception as e:
         console.error(f"Error initializing AI handler: {str(e)}")
