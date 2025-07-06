@@ -33,4 +33,8 @@ async def kenalan_dan_update(client, user):
         await client.send_message(
             user.id,
             f"Halo lagi, {user.first_name or user.username}! Aku masih ingat kamu kok 😁"
-        ) 
+        )
+
+async def get_user_memory(user_id):
+    """Ambil data user (ingatan) dari database berdasarkan user_id"""
+    return await users.find_one({"user_id": user_id}) 

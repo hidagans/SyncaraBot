@@ -5,7 +5,7 @@ from syncara import bot, userbot, console
 from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
-from syncara.modules.assistant_memory import kenalan_dan_update
+from syncara.modules.assistant_memory import kenalan_dan_update, get_user_memory
 
 # Inisialisasi komponen
 replicate_api = ReplicateAPI()
@@ -495,7 +495,7 @@ def format_chat_history(messages):
         return ""
 
 async def process_ai_response(client, message, prompt, photo_file_id=None):
-    """Process AI response using Replicate API with system prompt and chat history"""
+    """Process AI response using Replicate API with system prompt, chat history, and user memory"""
     try:
         # Send typing action
         await client.send_chat_action(
@@ -513,6 +513,15 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             'user_id': message.from_user.id if message.from_user else 0
         }
         
+        # Ambil ingatan user dari database
+        user_memory = None
+        if message.from_user:
+            user_memory = await get_user_memory(message.from_user.id)
+        
+        # Tambahkan info user memory ke context jika ada
+        if user_memory:
+            context['user_memory'] = user_memory
+
         system_prompt_text = system_prompt.get_chat_prompt(context)
         
         # Get chat history for context
@@ -522,9 +531,17 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         # Prepare full prompt with context
         full_prompt = prompt
         
-        # Add chat history if available
-        if formatted_history:
-            full_prompt = f"📝 **Chat History:**\n{formatted_history}\n\n💬 **Current Message:**\n{prompt}"
+        # Add chat history and user memory if available
+        if formatted_history or user_memory:
+            full_prompt = ""
+            if formatted_history:
+                full_prompt += f"📝 **Chat History:**\n{formatted_history}\n"
+            if user_memory:
+                full_prompt += f"\n🧠 **Tentang User:**\n"
+                full_prompt += f"Nama: {user_memory.get('first_name', '')} {user_memory.get('last_name', '')} | Username: @{user_memory.get('username', '')}\n"
+                if user_memory.get('notes'):
+                    full_prompt += f"Catatan: {user_memory['notes']}\n"
+            full_prompt += f"\n💬 **Current Message:**\n{prompt}"
         
         # Generate AI response using Replicate
         console.info(f"Generating AI response for: {prompt[:50]}...")
