@@ -6,6 +6,7 @@ from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
 from syncara.modules.assistant_memory import kenalan_dan_update, get_user_memory
+from syncara.modules.canvas_manager import canvas_manager
 
 # Inisialisasi komponen
 replicate_api = ReplicateAPI()
@@ -494,6 +495,64 @@ def format_chat_history(messages):
         console.error(f"Error formatting chat history: {str(e)}")
         return ""
 
+async def process_canvas_command(prompt):
+    prompt_lower = prompt.lower()
+    if prompt_lower.startswith("buat file"):
+        # Contoh: "Buat file test.md isinya Hello World"
+        parts = prompt.split(" ", 3)
+        if len(parts) >= 4:
+            filename = parts[2]
+            content = parts[3].replace("isinya", "").strip()
+            file = canvas_manager.create_file(filename, filetype=filename.split(".")[-1], content=content)
+            return f"✅ File `{filename}` berhasil dibuat!\n\n{file.get_content()}"
+        else:
+            return "Format perintah kurang lengkap."
+    elif prompt_lower.startswith("tampilkan file"):
+        # Contoh: "Tampilkan file test.md"
+        parts = prompt.split(" ", 2)
+        if len(parts) >= 3:
+            filename = parts[2]
+            file = canvas_manager.get_file(filename)
+            if file:
+                return f"📄 Isi file `{filename}`:\n\n{file.get_content()}"
+            else:
+                return "File tidak ditemukan."
+        else:
+            return "Format perintah kurang lengkap."
+    elif prompt_lower.startswith("edit file"):
+        # Contoh: "Edit file test.md jadi ..."
+        parts = prompt.split(" ", 3)
+        if len(parts) >= 4:
+            filename = parts[2]
+            new_content = parts[3].replace("jadi", "").strip()
+            file = canvas_manager.get_file(filename)
+            if file:
+                file.update_content(new_content)
+                return f"✏️ File `{filename}` berhasil diupdate!\n\n{file.get_content()}"
+            else:
+                return "File tidak ditemukan."
+        else:
+            return "Format perintah kurang lengkap."
+    elif prompt_lower.startswith("list file"):
+        files = canvas_manager.list_files()
+        if files:
+            return "📂 Daftar file virtual:\n" + "\n".join(f"- {f}" for f in files)
+        else:
+            return "Belum ada file virtual yang dibuat."
+    elif prompt_lower.startswith("export file"):
+        # Contoh: "Export file test.md"
+        parts = prompt.split(" ", 2)
+        if len(parts) >= 3:
+            filename = parts[2]
+            file = canvas_manager.get_file(filename)
+            if file:
+                return f"📤 Export file `{filename}`:\n\n{file.export()}"
+            else:
+                return "File tidak ditemukan."
+        else:
+            return "Format perintah kurang lengkap."
+    return None
+
 async def process_ai_response(client, message, prompt, photo_file_id=None):
     """Process AI response using Replicate API with system prompt, chat history, and user memory"""
     try:
@@ -542,6 +601,12 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
                 if user_memory.get('notes'):
                     full_prompt += f"Catatan: {user_memory['notes']}\n"
             full_prompt += f"\n💬 **Current Message:**\n{prompt}"
+        
+        # Cek perintah canvas sebelum proses AI
+        canvas_result = await process_canvas_command(prompt)
+        if canvas_result:
+            await client.send_message(chat_id=message.chat.id, text=canvas_result, reply_to_message_id=message.id)
+            return
         
         # Generate AI response using Replicate
         console.info(f"Generating AI response for: {prompt[:50]}...")
