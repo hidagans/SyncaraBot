@@ -26,7 +26,7 @@ CHAT_HISTORY_CONFIG = {
 }
 
 # Debug logging untuk troubleshooting
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 def debug_log(message):
     """Debug logging helper"""
@@ -58,65 +58,42 @@ async def cache_userbot_info():
 async def userbot_filter(_, __, message):
     """Custom filter to detect userbot interactions"""
     try:
-        debug_log(f"=== FILTER CHECK START ===")
-        debug_log(f"Message from: {message.from_user.first_name if message.from_user else 'Unknown'} (ID: {message.from_user.id if message.from_user else 'None'})")
-        debug_log(f"Chat type: {message.chat.type}")
-        debug_log(f"Message text: {message.text[:100] if message.text else 'No text'}")
-        
         # Skip messages from bots
         if message.from_user and message.from_user.is_bot:
-            debug_log("❌ Skipping bot message")
             return False
         
         # Get userbot info from cache
         userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
         if not userbot_info:
-            debug_log("⚠️ Userbot info not in cache, trying to cache...")
             userbot_info = await cache_userbot_info()
             if not userbot_info:
-                debug_log("❌ Failed to get userbot info")
                 return False
-        
-        debug_log(f"✅ Userbot info: @{userbot_info['username']} (ID: {userbot_info['id']})")
         
         # Check if in private chat
         if message.chat.type == enums.ChatType.PRIVATE:
-            debug_log("✅ Private chat detected - WILL RESPOND")
             return True
         
         # Check if message is a reply to userbot's message
         if message.reply_to_message:
-            debug_log(f"📝 Reply detected to message from ID: {message.reply_to_message.from_user.id if message.reply_to_message.from_user else 'None'}")
             if message.reply_to_message.from_user and message.reply_to_message.from_user.id == userbot_info['id']:
-                debug_log("✅ Reply to userbot detected - WILL RESPOND")
                 return True
         
         # Check if userbot is mentioned in the message
         if message.entities:
-            debug_log(f"🔍 Checking {len(message.entities)} entities...")
-            for i, entity in enumerate(message.entities):
-                debug_log(f"Entity {i}: type={entity.type}, offset={entity.offset}, length={entity.length}")
+            for entity in message.entities:
                 if entity.type == enums.MessageEntityType.MENTION:
                     # Extract mentioned username
                     mentioned_username = message.text[entity.offset:entity.offset + entity.length]
-                    debug_log(f"🏷️ Found mention: {mentioned_username}")
                     if mentioned_username == f"@{userbot_info['username']}":
-                        debug_log("✅ Userbot mentioned - WILL RESPOND")
                         return True
                 elif entity.type == enums.MessageEntityType.TEXT_MENTION:
                     # Check if mentioned user is this userbot
                     if entity.user and entity.user.id == userbot_info['id']:
-                        debug_log("✅ Userbot text mention detected - WILL RESPOND")
                         return True
-        else:
-            debug_log("ℹ️ No entities found in message")
         
-        debug_log("❌ No trigger conditions met - WILL NOT RESPOND")
-        debug_log("=== FILTER CHECK END ===")
         return False
     except Exception as e:
         console.error(f"Error in userbot filter: {str(e)}")
-        debug_log(f"❌ Filter error: {str(e)}")
         return False
 
 # Create the filter
@@ -164,9 +141,6 @@ custom_userbot_filter = filters.create(userbot_filter)
 async def start_command(client, message):
     """Handle start command for the manager bot"""
     try:
-        debug_log(f"🚀 START COMMAND HANDLER TRIGGERED!")
-        debug_log(f"Start command from user {message.from_user.id}")
-        console.info(f"🚀 START COMMAND: from user {message.from_user.id}")
         await message.reply_text(
             "🤖 **Halo! Saya adalah SyncaraBot Manager**\n\n"
             "🎯 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
@@ -179,9 +153,8 @@ async def start_command(client, message):
             "💡 **Cara menggunakan:**\n"
             "Mention atau reply ke userbot assistant untuk berinteraksi dengan AI!"
         )
-        console.info(f"✅ Start command executed by user {message.from_user.id}")
     except Exception as e:
-        console.error(f"❌ Error in start_command: {str(e)}")
+        console.error(f"Error in start_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat memproses perintah.")
 
 @bot.on_message(filters.command("debug") & filters.user(OWNER_ID))
@@ -225,22 +198,9 @@ async def debug_command(client, message):
 async def test_command(client, message):
     """Simple test command"""
     try:
-        debug_log(f"🧪 TEST COMMAND HANDLER TRIGGERED!")
-        console.info(f"🧪 TEST COMMAND: from user {message.from_user.id}")
         await message.reply_text("✅ Test command berhasil! Bot berfungsi dengan baik.")
     except Exception as e:
-        console.error(f"❌ Error in test_command: {str(e)}")
-
-# Alternative test with text filter
-@bot.on_message(filters.text & filters.regex(r"^test$"))
-async def test_text_command(client, message):
-    """Test command using text filter"""
-    try:
-        debug_log(f"🧪 TEST TEXT HANDLER TRIGGERED!")
-        console.info(f"🧪 TEST TEXT: from user {message.from_user.id}")
-        await message.reply_text("✅ Test text command berhasil! Bot berfungsi dengan baik.")
-    except Exception as e:
-        console.error(f"❌ Error in test_text_command: {str(e)}")
+        console.error(f"Error in test_command: {str(e)}")
 
 @bot.on_message(filters.command("test_userbot") & filters.user(OWNER_ID))
 async def test_userbot_command(client, message):
@@ -266,23 +226,16 @@ async def test_userbot_command(client, message):
         console.error(f"Error in test_userbot_command: {str(e)}")
         await message.reply_text(f"❌ Test error: {str(e)}")
 
-# Userbot message handler - dengan debug yang lebih detail
+# Userbot message handler for group interactions
 @userbot.on_message(custom_userbot_filter & (filters.text | filters.photo))
 async def userbot_message_handler(client, message):
     """Handle messages for userbot assistant when mentioned or replied"""
     try:
-        debug_log(f"🚀 GROUP HANDLER TRIGGERED!")
-        debug_log(f"Handler triggered for message: {message.text[:50] if message.text else 'No text'}...")
-        console.info(f"🚀 USERBOT GROUP: {message.text[:50]}...")
-        
         # Get text from either message text or caption
         text = message.text or message.caption
         
         if not text:
-            debug_log("❌ No text found in message")
             return
-        
-        debug_log(f"📝 Processing text: {text[:100]}...")
         
         # Get userbot info from cache
         userbot_info = USERBOT_INFO_CACHE.get(client.name)
@@ -291,39 +244,29 @@ async def userbot_message_handler(client, message):
         
         if userbot_info and f"@{userbot_info['username']}" in text:
             text = text.replace(f"@{userbot_info['username']}", "").strip()
-            debug_log("✂️ Removed username mention from text")
         
         # Get photo if exists
         photo_file_id = None
         if message.photo:
             photo_file_id = message.photo.file_id
-            debug_log("📸 Photo detected in message")
         
         # Send typing action
-        debug_log("⌨️ Sending typing action...")
         await client.send_chat_action(
             chat_id=message.chat.id,
             action=enums.ChatAction.TYPING
         )
         
         # Process AI response
-        debug_log("🤖 Processing AI response...")
         await process_ai_response(client, message, text, photo_file_id)
-        debug_log("✅ AI response processing completed")
         
     except Exception as e:
         console.error(f"Error in userbot message handler: {str(e)}")
-        debug_log(f"❌ Handler error: {str(e)}")
 
-# Simplified version for testing - respond to ALL text messages to userbot
+# Private message handler for userbot
 @userbot.on_message(filters.text & filters.private)
 async def simple_private_handler(client, message):
-    """Simple handler for private messages to userbot"""
+    """Handler for private messages to userbot"""
     try:
-        debug_log(f"🔥 SIMPLE PRIVATE HANDLER TRIGGERED!")
-        debug_log(f"Private message: {message.text[:50]}...")
-        console.info(f"🔥 USERBOT PRIVATE: {message.text[:50]}...")
-        
         await client.send_message(
             chat_id=message.chat.id,
             text=f"🤖 **Halo! Saya adalah AERIS Assistant**\n\nSaya menerima pesan Anda: {message.text[:100]}...\n\nSilakan ajukan pertanyaan atau request yang Anda butuhkan!",
@@ -331,7 +274,7 @@ async def simple_private_handler(client, message):
         )
         
     except Exception as e:
-        console.error(f"Error in simple private handler: {str(e)}")
+        console.error(f"Error in private handler: {str(e)}")
 
 # Rest of the functions remain the same...
 async def get_chat_history(client, chat_id, limit=None):
@@ -347,9 +290,6 @@ def format_chat_history(messages):
 async def process_ai_response(client, message, prompt, photo_file_id=None):
     """Process AI response with detailed context including current message info"""
     try:
-        debug_log(f"🎯 Starting AI response processing...")
-        debug_log(f"Prompt: {prompt[:100]}...")
-        
         # For now, send a simple response
         response_text = f"🤖 **AERIS Assistant**\n\nSaya menerima permintaan Anda: {prompt[:200]}...\n\n_AI processing akan diimplementasikan di sini_\n\n💡 **Fitur yang tersedia:**\n• Chat AI dengan konteks\n• Analisis gambar\n• Musik player\n• Dan banyak lagi!"
         
@@ -359,11 +299,8 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             reply_to_message_id=message.id
         )
         
-        debug_log("✅ AI response sent")
-        
     except Exception as e:
         console.error(f"Error in process_ai_response: {str(e)}")
-        debug_log(f"❌ AI response error: {str(e)}")
 
 async def initialize_ai_handler():
     """Initialize AI handler components"""
@@ -381,48 +318,17 @@ async def initialize_ai_handler():
         else:
             console.warning("⚠️ AI handler initialized without userbot (no SESSION_STRING)")
         
-        # Test handler registration
-        debug_log(f"Userbot handlers registered: {len(userbot.dispatcher.groups) if hasattr(userbot, 'dispatcher') else 'Unknown'}")
-        
-        # Check bot handlers
+        # Check handlers
         if hasattr(bot, 'dispatcher'):
             console.info(f"Bot handlers registered: {len(bot.dispatcher.groups)}")
-            for group_id, handlers in bot.dispatcher.groups.items():
-                console.info(f"  Group {group_id}: {len(handlers)} handlers")
-                # List all handlers in this group
-                for i, handler in enumerate(handlers):
-                    console.info(f"    Handler {i}: {type(handler).__name__}")
-        else:
-            console.warning("Bot dispatcher not available")
-            
-        # Check userbot handlers
         if hasattr(userbot, 'dispatcher'):
             console.info(f"Userbot handlers registered: {len(userbot.dispatcher.groups)}")
-            for group_id, handlers in userbot.dispatcher.groups.items():
-                console.info(f"  Group {group_id}: {len(handlers)} handlers")
-                # List all handlers in this group
-                for i, handler in enumerate(handlers):
-                    console.info(f"    Handler {i}: {type(handler).__name__}")
-        else:
-            console.warning("Userbot dispatcher not available")
-        
-        # Add manual test handler for bot
-        from pyrogram.handlers import MessageHandler
-        
-        async def manual_test_handler(client, message):
-            if message.text == "/test":
-                console.info(f"🧪 MANUAL TEST HANDLER TRIGGERED!")
-                await message.reply_text("✅ Manual test handler berhasil!")
-        
-        bot.add_handler(MessageHandler(manual_test_handler, filters.text))
-        console.info("✅ Manual test handler added")
         
         # Add manual handler for userbot private messages
+        from pyrogram.handlers import MessageHandler
+        
         async def manual_userbot_handler(client, message):
             if message.chat.type == enums.ChatType.PRIVATE and message.text:
-                console.info(f"🔥 MANUAL USERBOT HANDLER TRIGGERED!")
-                console.info(f"Private message: {message.text[:50]}...")
-                
                 await client.send_message(
                     chat_id=message.chat.id,
                     text=f"🤖 **Halo! Saya adalah AERIS Assistant**\n\nSaya menerima pesan Anda: {message.text[:100]}...\n\nSilakan ajukan pertanyaan atau request yang Anda butuhkan!",
@@ -430,7 +336,7 @@ async def initialize_ai_handler():
                 )
         
         userbot.add_handler(MessageHandler(manual_userbot_handler, filters.text))
-        console.info("✅ Manual userbot handler added")
+        console.info("✅ Userbot private handler added")
         
     except Exception as e:
         console.error(f"Error initializing AI handler: {str(e)}")
