@@ -122,22 +122,22 @@ async def userbot_filter(_, __, message):
 # Create the filter
 custom_userbot_filter = filters.create(userbot_filter)
 
-# Test handler untuk memastikan userbot menerima pesan
-@userbot.on_message(filters.all)
-async def test_all_messages(client, message):
-    """Test handler to see all messages received by userbot"""
-    try:
-        debug_log(f"🔔 USERBOT RECEIVED MESSAGE:")
-        debug_log(f"   From: {message.from_user.first_name if message.from_user else 'Unknown'}")
-        debug_log(f"   Chat: {message.chat.title if message.chat.title else 'Private'}")
-        debug_log(f"   Text: {message.text[:50] if message.text else 'No text'}...")
-        debug_log(f"   Message ID: {message.id}")
-        
-        # Also log to console for visibility
-        console.info(f"USERBOT MSG: {message.from_user.first_name if message.from_user else 'Unknown'} -> {message.text[:50] if message.text else 'No text'}")
-    except Exception as e:
-        debug_log(f"Error in test handler: {str(e)}")
-        console.error(f"Error in test handler: {str(e)}")
+# Test handler untuk memastikan userbot menerima pesan - REMOVED to avoid conflicts
+# @userbot.on_message(filters.all)
+# async def test_all_messages(client, message):
+#     """Test handler to see all messages received by userbot"""
+#     try:
+#         debug_log(f"🔔 USERBOT RECEIVED MESSAGE:")
+#         debug_log(f"   From: {message.from_user.first_name if message.from_user else 'Unknown'}")
+#         debug_log(f"   Chat: {message.chat.title if message.chat.title else 'Private'}")
+#         debug_log(f"   Text: {message.text[:50] if message.text else 'No text'}...")
+#         debug_log(f"   Message ID: {message.id}")
+#         
+#         # Also log to console for visibility
+#         console.info(f"USERBOT MSG: {message.from_user.first_name if message.from_user else 'Unknown'} -> {message.text[:50] if message.text else 'No text'}")
+#     except Exception as e:
+#         debug_log(f"Error in test handler: {str(e)}")
+#         console.error(f"Error in test handler: {str(e)}")
 
 # Debug handler for all bot messages - REMOVED to avoid conflicts
 # @bot.on_message(filters.all)
@@ -406,7 +406,7 @@ async def initialize_ai_handler():
         else:
             console.warning("Userbot dispatcher not available")
         
-        # Add manual test handler
+        # Add manual test handler for bot
         from pyrogram.handlers import MessageHandler
         
         async def manual_test_handler(client, message):
@@ -416,6 +416,21 @@ async def initialize_ai_handler():
         
         bot.add_handler(MessageHandler(manual_test_handler, filters.text))
         console.info("✅ Manual test handler added")
+        
+        # Add manual handler for userbot private messages
+        async def manual_userbot_handler(client, message):
+            if message.chat.type == enums.ChatType.PRIVATE and message.text:
+                console.info(f"🔥 MANUAL USERBOT HANDLER TRIGGERED!")
+                console.info(f"Private message: {message.text[:50]}...")
+                
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text=f"🤖 **Halo! Saya adalah AERIS Assistant**\n\nSaya menerima pesan Anda: {message.text[:100]}...\n\nSilakan ajukan pertanyaan atau request yang Anda butuhkan!",
+                    reply_to_message_id=message.id
+                )
+        
+        userbot.add_handler(MessageHandler(manual_userbot_handler, filters.text))
+        console.info("✅ Manual userbot handler added")
         
     except Exception as e:
         console.error(f"Error initializing AI handler: {str(e)}")
