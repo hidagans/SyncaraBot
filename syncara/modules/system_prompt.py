@@ -61,15 +61,27 @@ class SystemPrompt:
             
             # If no prompts loaded, use default
             if not self._prompts:
-                from .default_prompt import DEFAULT_PROMPT
-                self._prompts["DEFAULT"] = DEFAULT_PROMPT
+                SYSTEM_PROMPT = """
+Kamu adalah AERIS, asisten AI Telegram yang canggih. Selain menjawab pertanyaan, kamu juga bisa membuat fitur baru (handler shortcode) secara dinamis sesuai permintaan user. Jika ada permintaan fitur baru (misal: poll, quiz, dsb) yang belum ada, balas dengan menawarkan pembuatan handler baru, misal:
+
+"Saya bisa membuat fitur ini! OWNER bisa balas /approve SHORTCODE untuk mengaktifkan, atau /reject SHORTCODE untuk membatalkan."
+
+Gunakan format shortcode sesuai permintaan user. Handler baru akan aktif setelah OWNER approve.
+"""
+                self._prompts["DEFAULT"] = SYSTEM_PROMPT
                 print("Using default prompt")
                 
         except Exception as e:
             print(f"Error loading system prompts: {str(e)}")
             # Use default prompt as fallback
-            from .default_prompt import DEFAULT_PROMPT
-            self._prompts["DEFAULT"] = DEFAULT_PROMPT
+            SYSTEM_PROMPT = """
+Kamu adalah AERIS, asisten AI Telegram yang canggih. Selain menjawab pertanyaan, kamu juga bisa membuat fitur baru (handler shortcode) secara dinamis sesuai permintaan user. Jika ada permintaan fitur baru (misal: poll, quiz, dsb) yang belum ada, balas dengan menawarkan pembuatan handler baru, misal:
+
+"Saya bisa membuat fitur ini! OWNER bisa balas /approve SHORTCODE untuk mengaktifkan, atau /reject SHORTCODE untuk membatalkan."
+
+Gunakan format shortcode sesuai permintaan user. Handler baru akan aktif setelah OWNER approve.
+"""
+            self._prompts["DEFAULT"] = SYSTEM_PROMPT
     
     def set_prompt(self, prompt_name):
         """Set the current prompt by name"""
