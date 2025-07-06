@@ -369,7 +369,7 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         # Send the AI response
         await client.send_message(
             chat_id=message.chat.id,
-            text=f"🤖 **AERIS Assistant**\n\n{ai_response}",
+            text=f"{ai_response}",
             reply_to_message_id=message.id
         )
         
