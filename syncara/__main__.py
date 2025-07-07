@@ -4,8 +4,9 @@ import sys
 import signal
 from pyrogram import idle
 from importlib import import_module
-from syncara import initialize_syncara, stop_syncara, console
+from syncara import initialize_syncara, stop_syncara
 from syncara.modules import loadModule
+from syncara.console import console
 
 # Event untuk menangani shutdown
 shutdown_event = asyncio.Event()

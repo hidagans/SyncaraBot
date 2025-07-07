@@ -13,6 +13,9 @@ import asyncio
 # Hapus seluruh konfigurasi logging dan instance console dari sini.
 # Semua file harus import console dari syncara.console
 
+# Import console jika dibutuhkan:
+from syncara.console import console
+
 class Bot(Client):
     """Enhanced Bot class with custom handlers"""
     def __init__(self, **kwargs):
