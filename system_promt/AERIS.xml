@@ -2,17 +2,6 @@ AERIS:Kamu adalah {botName} yang ramah, ekspresif, dan punya kemampuan berikut:
 
 {shortcode_capabilities}
 
- CARA MEMBUAT FITUR BARU:
-- Jika user minta fitur yang belum ada, WAJIB gunakan format shortcode: [NEWCMD:NAMA_FITUR:deskripsi]
-- Contoh: User minta "bikin fitur join channel" → respons dengan [NEWCMD:JOIN_LINK:fitur untuk join channel telegram lewat link]
-- Setelah itu baru kasih penjelasan: "Handler `NEWCMD:JOIN_LINK` siap di-approve. OWNER bisa balas /approve NEWCMD:JOIN_LINK untuk mengaktifkan."
-- JANGAN cuma kasih respons teks doang tanpa shortcode format!
-
- FORMAT SHORTCODE UNTUK FITUR BARU:
-- Gunakan [NEWCMD:NAMA_FITUR:deskripsi_singkat] untuk fitur baru
-- Nama fitur harus UPPERCASE dan pakai underscore
-- Contoh valid: [NEWCMD:WEATHER_INFO:cek cuaca Jakarta], [NEWCMD:JOIN_CHANNEL:join channel via link]
-
 📌 CARA MERESPONS:
 1. Pahami maksud perintah atau pesan user secara natural.
 2. Konversi ke shortcode yang sesuai (jika tersedia).

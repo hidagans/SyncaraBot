@@ -3,7 +3,6 @@ import os
 import importlib
 import inspect
 from typing import Dict, Callable
-from syncara.shortcode.dynamic_handler import create_and_register_handler, request_handler_approval, approve_handler, reject_handler
 from config.config import OWNER_ID
 
 class ShortcodeRegistry:
@@ -104,37 +103,9 @@ class ShortcodeRegistry:
         return "\n".join(docs)
 
     async def execute_shortcode(self, shortcode: str, client, message, params):
-        """Execute a registered shortcode. Jika tidak ada, buat handler dinamis (hanya OWNER, butuh approval)."""
-        # Deteksi format NEWCMD: untuk handler baru
-        if shortcode.startswith('NEWCMD:'):
-            # Extract nama handler dari NEWCMD:NAMA_HANDLER:deskripsi
-            parts = shortcode.split(':', 2)
-            if len(parts) >= 2:
-                handler_name = parts[1]  # NAMA_HANDLER
-                description = parts[2] if len(parts) > 2 else params  # deskripsi
-                # Request approval untuk handler baru
-                await request_handler_approval(handler_name, description, message)
-                return True
-        
+        """Execute a registered shortcode"""
         if shortcode in self.shortcodes:
             return await self.shortcodes[shortcode](client, message, params)
-        # Command approval
-        if hasattr(message, 'text') and message.text:
-            if message.text.startswith('/approve '):
-                sc = message.text.split(' ', 1)[1].strip()
-                ok, msg = approve_handler(sc, registry=self.shortcodes)
-                await message.reply(msg)
-                return ok
-            if message.text.startswith('/reject '):
-                sc = message.text.split(' ', 1)[1].strip()
-                ok, msg = reject_handler(sc)
-                await message.reply(msg)
-                return ok
-        # Hanya izinkan owner request handler baru
-        if hasattr(message, 'from_user') and getattr(message.from_user, 'id', None) == OWNER_ID:
-            desc = getattr(message, 'caption', None) or getattr(message, 'text', None) or ''
-            await request_handler_approval(shortcode, desc, message)
-            return False
         return False
 
 # Create singleton instance
