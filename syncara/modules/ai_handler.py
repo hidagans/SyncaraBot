@@ -1,6 +1,6 @@
 # syncara/modules/ai_handler.py
 from pyrogram import filters, enums
-from pyrogram.types import MessageHandler
+from pyrogram.handlers import MessageHandler
 from syncara.services import ReplicateAPI
 from syncara import bot, assistant_manager, console
 from config.config import OWNER_ID
