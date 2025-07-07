@@ -31,14 +31,16 @@ class ReplicateAPI:
             print(f"Error downloading image: {str(e)}")
             return None
 
-    async def generate_response(self, prompt, system_prompt=None, temperature=1, top_p=1, max_tokens=4096, image_file_id=None, client=None):
+    async def generate_response(self, prompt, system_prompt=None, temperature=1, top_p=1, max_tokens=4096, image_file_id=None, client=None, presence_penalty=0, frequency_penalty=0):
         try:
             # Prepare input parameters
             input_params = {
                 "prompt": prompt,
                 "temperature": temperature,
                 "top_p": top_p,
-                "max_completion_tokens": max_tokens
+                "max_completion_tokens": max_tokens,
+                "presence_penalty": presence_penalty,
+                "frequency_penalty": frequency_penalty
             }
             
             # If image is provided, download and add to input
@@ -67,14 +69,16 @@ class ReplicateAPI:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    async def generate_response_stream(self, prompt, system_prompt=None, temperature=1, top_p=1, max_tokens=4096, image_file_id=None, client=None):
+    async def generate_response_stream(self, prompt, system_prompt=None, temperature=1, top_p=1, max_tokens=4096, image_file_id=None, client=None, presence_penalty=0, frequency_penalty=0):
         try:
             # Prepare input parameters
             input_params = {
                 "prompt": prompt,
                 "temperature": temperature,
                 "top_p": top_p,
-                "max_completion_tokens": max_tokens
+                "max_completion_tokens": max_tokens,
+                "presence_penalty": presence_penalty,
+                "frequency_penalty": frequency_penalty
             }
             
             # If image is provided, download and add to input

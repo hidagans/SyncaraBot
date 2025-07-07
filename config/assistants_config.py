@@ -21,7 +21,10 @@ ASSISTANT_CONFIG = {
         "session_string": ASSISTANT_SESSIONS["AERIS"],
         "enabled": bool(ASSISTANT_SESSIONS["AERIS"]),
         "emoji": "🤖",
-        "color": "blue"
+        "color": "blue",
+        "temperature": 0.7,
+        "presence_penalty": 0,
+        "frequency_penalty": 0
     },
     "KAIROS": {
         "name": "KAIROS", 
@@ -31,7 +34,10 @@ ASSISTANT_CONFIG = {
         "session_string": ASSISTANT_SESSIONS["KAIROS"],
         "enabled": bool(ASSISTANT_SESSIONS["KAIROS"]),
         "emoji": "⏰",
-        "color": "green"
+        "color": "green",
+        "temperature": 0.8,
+        "presence_penalty": 0.5,
+        "frequency_penalty": 0.2
     },
     "ZEKE": {
         "name": "ZEKE",
@@ -41,7 +47,10 @@ ASSISTANT_CONFIG = {
         "session_string": ASSISTANT_SESSIONS["ZEKE"],
         "enabled": bool(ASSISTANT_SESSIONS["ZEKE"]),
         "emoji": "🧠",
-        "color": "purple"
+        "color": "purple",
+        "temperature": 0.6,
+        "presence_penalty": 0.3,
+        "frequency_penalty": 0.1
     },
     "NOVA": {
         "name": "NOVA",
@@ -51,7 +60,10 @@ ASSISTANT_CONFIG = {
         "session_string": ASSISTANT_SESSIONS["NOVA"],
         "enabled": bool(ASSISTANT_SESSIONS["NOVA"]),
         "emoji": "✨",
-        "color": "pink"
+        "color": "pink",
+        "temperature": 1.0,
+        "presence_penalty": 0.7,
+        "frequency_penalty": 0.5
     },
     "LYRA": {
         "name": "LYRA",
@@ -61,7 +73,10 @@ ASSISTANT_CONFIG = {
         "session_string": ASSISTANT_SESSIONS["LYRA"],
         "enabled": bool(ASSISTANT_SESSIONS["LYRA"]),
         "emoji": "🎵",
-        "color": "orange"
+        "color": "orange",
+        "temperature": 0.9,
+        "presence_penalty": 0.2,
+        "frequency_penalty": 0.4
     }
 }
 

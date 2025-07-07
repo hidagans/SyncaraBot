@@ -1,6 +1,7 @@
 # syncara/modules/ai_handler.py
 from pyrogram import filters, enums
 from pyrogram.handlers import MessageHandler
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from syncara.services import ReplicateAPI
 from syncara import bot, assistant_manager, console
 from config.config import OWNER_ID
@@ -17,6 +18,7 @@ from syncara.modules.assistant_memory import (
 )
 from syncara.modules.ai_learning import ai_learning
 from syncara.modules.canvas_manager import canvas_manager
+from config.assistants_config import get_assistant_by_username, get_assistant_config
 
 # Inisialisasi komponen
 replicate_api = ReplicateAPI()
@@ -151,35 +153,105 @@ custom_userbot_filter = filters.create(userbot_filter)
 # Bot manager commands
 @bot.on_message(filters.command("start") | filters.command("help"))
 async def start_command(client, message):
-    """Handle start command for the manager bot"""
+    """Handle start command for the manager bot dengan inline keyboard"""
     try:
         from syncara.modules.system_prompt import system_prompt
-        
         current_prompt = system_prompt.current_prompt_name
-        
-        await message.reply_text(
-            "🤖 **Halo! Saya adalah SyncaraBot Manager**\n\n"
+
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🧪 Test Bot", callback_data="menu_test"),
+                InlineKeyboardButton("🧠 Prompt", callback_data="menu_prompt")
+            ],
+            [
+                InlineKeyboardButton("🔧 Shortcodes", callback_data="menu_shortcodes"),
+                InlineKeyboardButton("🛠️ Debug", callback_data="menu_debug")
+            ],
+            [
+                InlineKeyboardButton("👤 Assistants", callback_data="menu_assistants")
+            ]
+        ])
+
+        await message.reply(
+            "🤖 <b>Halo! Saya adalah SyncaraBot Manager</b>\n\n"
             "🎯 Bot ini mengelola userbot assistant yang melayani permintaan AI.\n\n"
-            f"🧠 **Current AI Personality:** {current_prompt}\n\n"
-            "📋 **Perintah yang tersedia:**\n"
-            "• `/start` atau `/help` - Tampilkan pesan ini\n"
-            "• `/test` - Test command\n"
-            "• `/prompt` - Ganti AI personality (owner only)\n"
-            "• `/debug` - Debug info (owner only)\n"
-            "• `/shortcodes` - Lihat shortcode yang tersedia (owner only)\n"
-            "• `/test_userbot` - Test userbot assistant (owner only)\n\n"
-            "💡 **Shortcode AI & Image Gen:**\n"
-            "• `[IMAGE:GEN:kucing lucu di luar angkasa]` - Generate gambar dari prompt\n"
-            "• `[IMAGE:GEN:{\"prompt\":\"kucing\",\"style_type\":\"cartoon\"}]` - Advanced (JSON)\n\n"
-            "🚀 **AI Features:**\n"
-            "• Chat AI dengan konteks\n"
-            "• Analisis gambar\n"
-            "• Multiple personality\n"
-            "• Image generation (Replicate)\n"
+            f"🧠 <b>Current AI Personality:</b> {current_prompt}\n\n"
+            "Silakan pilih menu di bawah ini:",
+            reply_markup=keyboard
         )
     except Exception as e:
         console.error(f"Error in start_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat memproses perintah.")
+
+@bot.on_callback_query()
+async def menu_callback_handler(client, callback_query: CallbackQuery):
+    """Handler untuk callback query menu utama"""
+    data = callback_query.data
+    try:
+        if data == "menu_test":
+            await callback_query.answer("Test command!")
+            await callback_query.edit_message_text("✅ Test command berhasil! Bot berfungsi dengan baik.")
+        elif data == "menu_prompt":
+            from syncara.modules.system_prompt import system_prompt
+            available_prompts = system_prompt.get_available_prompts()
+            current_prompt = system_prompt.current_prompt_name
+            response = f"🤖 <b>System Prompt Manager</b>\n\n"
+            response += f"<b>Current:</b> {current_prompt}\n\n"
+            response += f"<b>Available Prompts:</b>\n"
+            for prompt in available_prompts:
+                response += f"• {prompt}\n"
+            response += f"\nGunakan perintah: <code>/prompt &lt;prompt_name&gt;</code> untuk mengganti."
+            await callback_query.answer("Prompt info!")
+            await callback_query.edit_message_text(response)
+        elif data == "menu_shortcodes":
+            from syncara.shortcode import registry
+            response = f"🔧 <b>Shortcode Registry Status</b>\n\n"
+            response += f"<b>Handlers:</b> {len(registry.shortcodes)}\n"
+            response += f"<b>Descriptions:</b> {len(registry.descriptions)}\n\n"
+            if registry.descriptions:
+                response += "<b>Available Shortcodes:</b>\n"
+                for shortcode, desc in registry.descriptions.items():
+                    response += f"• <code>{shortcode}</code> - {desc}\n"
+            else:
+                response += "❌ No shortcodes available"
+            await callback_query.answer("Shortcodes info!")
+            await callback_query.edit_message_text(response)
+        elif data == "menu_debug":
+            debug_info = f"🔍 <b>Debug Info</b>\n\n"
+            if USERBOT_INFO_CACHE:
+                for name, info in USERBOT_INFO_CACHE.items():
+                    debug_info += f"<b>Userbot {name}:</b>\n"
+                    debug_info += f"• ID: <code>{info['id']}</code>\n"
+                    debug_info += f"• Username: @{info['username']}\n"
+                    debug_info += f"• Name: {info['first_name']}\n\n"
+            else:
+                debug_info += "❌ No userbot info cached\n\n"
+            debug_info += f"<b>Prompt Mapping:</b>\n"
+            for name, prompt in USERBOT_PROMPT_MAPPING.items():
+                debug_info += f"• {name} → {prompt}\n"
+            debug_info += f"\n<b>Config:</b>\n"
+            debug_info += f"• SESSION_STRING: {'✅ Set' if SESSION_STRING else '❌ Not set'}\n"
+            debug_info += f"• Chat History: {'✅ Enabled' if CHAT_HISTORY_CONFIG['enabled'] else '❌ Disabled'}\n"
+            debug_info += f"• Debug Mode: {'✅ On' if DEBUG_MODE else '❌ Off'}\n"
+            debug_info += f"\n<b>Handlers:</b>\n"
+            debug_info += f"• Userbot handlers: {len(userbot.dispatcher.groups) if hasattr(userbot, 'dispatcher') else 'Unknown'}\n"
+            debug_info += f"• Bot handlers: {len(callback_query._client.dispatcher.groups) if hasattr(callback_query._client, 'dispatcher') else 'Unknown'}\n"
+            await callback_query.answer("Debug info!")
+            await callback_query.edit_message_text(debug_info)
+        elif data == "menu_assistants":
+            from config.assistants_config import get_assistant_status
+            status = get_assistant_status()
+            response = "👤 <b>Status Semua Assistant</b>\n\n"
+            for assistant_id, config in status.items():
+                response += f"{config['emoji']} <b>{config['name']}</b> (@{config['username']}) - {'✅ Aktif' if config['enabled'] else '❌ Nonaktif'}\n"
+                response += f"{config['description']}\n\n"
+            await callback_query.answer("Assistants info!")
+            await callback_query.edit_message_text(response)
+        else:
+            await callback_query.answer("Menu tidak dikenal!", show_alert=True)
+    except Exception as e:
+        await callback_query.answer("Terjadi error!", show_alert=True)
+        await callback_query.edit_message_text(f"❌ Terjadi error: {str(e)}")
 
 @bot.on_message(filters.command("debug") & filters.user(OWNER_ID))
 async def debug_command(client, message):
@@ -401,8 +473,6 @@ async def learning_insights_command(client, message):
 async def assistants_command(client, message):
     """Show status semua assistant"""
     try:
-        from config.assistants_config import get_assistant_status
-        
         status = get_assistant_status()
         active_assistants = assistant_manager.get_active_assistants()
         
@@ -874,7 +944,16 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         
         # Get system prompt
         from syncara.modules.system_prompt import system_prompt
+
+        # Dapatkan assistant config berdasarkan username client (jika ada)
+        assistant_id = get_assistant_by_username(getattr(client, 'name', 'AERIS')) or 'AERIS'
+        assistant_config = get_assistant_config(assistant_id) or {}
         
+        # Ambil parameter model dari config, fallback ke default
+        temperature = assistant_config.get('temperature', 1)
+        presence_penalty = assistant_config.get('presence_penalty', 0)
+        frequency_penalty = assistant_config.get('frequency_penalty', 0)
+
         # Prepare context for system prompt
         context = {
             'bot_name': 'AERIS',
@@ -948,10 +1027,12 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         ai_response = await replicate_api.generate_response(
             prompt=full_prompt,
             system_prompt=system_prompt_text,
-            temperature=0.7,
+            temperature=temperature,
             max_tokens=2048,
             image_file_id=photo_file_id,
-            client=client
+            client=client,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty
         )
         
         # Process shortcodes in AI response
