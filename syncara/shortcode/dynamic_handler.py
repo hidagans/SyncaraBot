@@ -23,6 +23,46 @@ def generate_handler_code(shortcode_name, description=None):
     func_name = shortcode_name.lower().replace(':', '_')
     sc_lower = shortcode_name.lower()
     desc = (description or '').lower()
+    
+    # Handler JOIN CHANNEL/LINK
+    if 'join' in sc_lower and ('link' in sc_lower or 'channel' in sc_lower):
+        body = (
+            "if not params:\n"
+            "    await message.reply('Kasih link channel/grup dong!')\n"
+            "    return\n"
+            "try:\n"
+            "    result = await client.join_chat(params)\n"
+            "    await message.reply(f'Berhasil join: {result.title}')\n"
+            "except Exception as e:\n"
+            "    await message.reply(f'Gagal join: {str(e)}')"
+        )
+        return AI_HANDLER_TEMPLATE.format(
+            func_name=func_name, 
+            description=description or 'Join Telegram channel/group via link', 
+            body=body
+        )
+    
+    # Handler WEATHER
+    if 'weather' in sc_lower or 'cuaca' in desc:
+        body = (
+            "import requests\n"
+            "city = params or 'Jakarta'\n"
+            "try:\n"
+            "    # Contoh API cuaca (ganti dengan API key asli)\n"
+            "    url = f'http://api.openweathermap.org/data/2.5/weather?q={city}&appid=YOUR_API_KEY&units=metric'\n"
+            "    # resp = requests.get(url).json()\n"
+            "    # temp = resp['main']['temp']\n"
+            "    # desc = resp['weather'][0]['description']\n"
+            "    await message.reply(f'Cuaca di {city}: Cerah, 28°C (demo)')\n"
+            "except:\n"
+            "    await message.reply('Gagal ambil data cuaca')"
+        )
+        return AI_HANDLER_TEMPLATE.format(
+            func_name=func_name,
+            description=description or 'Get weather information',
+            body=body
+        )
+    
     # Handler TAGALL
     if 'tagall' in sc_lower or 'tagall' in desc:
         body = (
