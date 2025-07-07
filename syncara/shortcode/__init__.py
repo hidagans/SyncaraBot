@@ -105,6 +105,17 @@ class ShortcodeRegistry:
 
     async def execute_shortcode(self, shortcode: str, client, message, params):
         """Execute a registered shortcode. Jika tidak ada, buat handler dinamis (hanya OWNER, butuh approval)."""
+        # Deteksi format NEWCMD: untuk handler baru
+        if shortcode.startswith('NEWCMD:'):
+            # Extract nama handler dari NEWCMD:NAMA_HANDLER:deskripsi
+            parts = shortcode.split(':', 2)
+            if len(parts) >= 2:
+                handler_name = parts[1]  # NAMA_HANDLER
+                description = parts[2] if len(parts) > 2 else params  # deskripsi
+                # Request approval untuk handler baru
+                await request_handler_approval(handler_name, description, message)
+                return True
+        
         if shortcode in self.shortcodes:
             return await self.shortcodes[shortcode](client, message, params)
         # Command approval
