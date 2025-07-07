@@ -19,6 +19,7 @@ from syncara.modules.assistant_memory import (
 from syncara.modules.ai_learning import ai_learning
 from syncara.modules.canvas_manager import canvas_manager
 from config.assistants_config import get_assistant_by_username, get_assistant_config
+from syncara import autonomous_ai
 
 # Inisialisasi komponen
 replicate_api = ReplicateAPI()
@@ -1158,3 +1159,63 @@ __all__ = [
 # Hapus semua command terkait music player dan voice chat
 def remove_music_commands():
     pass  # Placeholder agar tidak error import
+
+@bot.on_message(filters.command("autonomous") & filters.user(OWNER_ID))
+async def autonomous_control(client, message):
+    """Control autonomous AI mode"""
+    try:
+        args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+        
+        if not args:
+            status = "🟢 Active" if autonomous_ai.is_running else "🔴 Inactive"
+            await message.reply(f"""
+🤖 **Autonomous AI Control**
+
+**Status:** {status}
+**Monitored Chats:** {len(autonomous_ai.monitoring_chats)}
+**Active Tasks:** {len(autonomous_ai.active_tasks)}
+
+**Commands:**
+• `/autonomous start` - Start autonomous mode
+• `/autonomous stop` - Stop autonomous mode  
+• `/autonomous status` - Show detailed status
+• `/autonomous add_chat [chat_id]` - Add chat to monitoring
+• `/autonomous schedule [type] [time] [params]` - Schedule task
+            """)
+            return
+        
+        command = args[0].lower()
+        
+        if command == "start":
+            if not autonomous_ai.is_running:
+                import asyncio
+                asyncio.create_task(autonomous_ai.start_autonomous_mode())
+                await message.reply("✅ Autonomous AI Mode started!")
+            else:
+                await message.reply("⚠️ Autonomous AI already running!")
+        
+        elif command == "stop":
+            autonomous_ai.is_running = False
+            await message.reply("🛑 Autonomous AI Mode stopped!")
+        
+        elif command == "add_chat":
+            if len(args) > 1:
+                chat_id = int(args[1])
+                autonomous_ai.monitoring_chats.add(chat_id)
+                await message.reply(f"✅ Added chat {chat_id} to monitoring!")
+        
+        elif command == "schedule":
+            # Schedule autonomous task
+            if len(args) >= 3:
+                task_type = args[1]
+                schedule_time = args[2]  # Format: "2024-01-01 10:00"
+                # Parse and schedule task
+                await autonomous_ai.scheduled_actions.append({
+                    'type': task_type,
+                    'execute_at': datetime.strptime(schedule_time, "%Y-%m-%d %H:%M"),
+                    'params': ' '.join(args[3:]) if len(args) > 3 else {}
+                })
+                await message.reply(f"⏰ Scheduled {task_type} task for {schedule_time}")
+    
+    except Exception as e:
+        await message.reply(f"❌ Error: {str(e)}")

@@ -7,6 +7,8 @@ from pyrogram.enums import ParseMode
 from pyrogram.handlers import MessageHandler
 from config.config import *
 from config.assistants_config import ASSISTANT_CONFIG
+from syncara.modules.autonomous_ai import AutonomousAI
+import asyncio
 
 # Logging configuration
 logging.basicConfig(
@@ -65,6 +67,7 @@ class Ubot(Client):
 # Global instances
 bot = None
 assistants = {}  # Dictionary untuk menyimpan semua assistant
+autonomous_ai = AutonomousAI()
 
 class AssistantManager:
     """Manager untuk mengelola multiple assistants"""
@@ -195,6 +198,13 @@ async def stop_syncara():
     await bot.stop()
     
     console.info("✅ SyncaraBot stopped completely")
+
+async def start_autonomous_mode():
+    """Start autonomous AI mode"""
+    console.info("🚀 Starting Autonomous AI Mode...")
+    # Start autonomous AI in background
+    asyncio.create_task(autonomous_ai.start_autonomous_mode())
+    console.info("✅ Autonomous AI Mode started!")
 
 # Helper functions untuk backward compatibility
 def get_userbot():

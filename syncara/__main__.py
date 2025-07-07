@@ -55,6 +55,10 @@ async def main():
         # Setup AI handler - PENTING: Ini yang hilang sebelumnya!
         await setup_ai_handler()
         
+        # Start autonomous AI mode
+        from syncara import start_autonomous_mode
+        await start_autonomous_mode()
+        
         console.info("🚀 SyncaraBot is ready and running!")
         console.info("💡 Try:")
         console.info("   - Send /start to the bot manager")
