@@ -15,9 +15,8 @@ class AutonomousAI:
         self.is_running = False
     
     async def start_autonomous_mode(self):
-        self.is_running = True
         console.info("🤖 Starting Autonomous AI Mode...")
-        
+        self.is_running = True
         # Start multiple background tasks
         tasks = [
             asyncio.create_task(self.monitor_user_activity()),
@@ -26,79 +25,55 @@ class AutonomousAI:
             asyncio.create_task(self.chat_health_monitor()),
             asyncio.create_task(self.learning_optimizer()),
         ]
-        
         await asyncio.gather(*tasks)
     
     async def monitor_user_activity(self):
         while self.is_running:
             try:
-                # Analisis pola user dari database
                 active_users = await self.get_active_users()
-                
                 for user_id in active_users:
                     pattern = await self.analyze_user_pattern(user_id)
-                    
-                    # Prediksi kebutuhan user
                     if pattern['prediction_confidence'] > 0.8:
                         await self.execute_proactive_action(user_id, pattern)
-                
-                await asyncio.sleep(300)  # Check every 5 minutes
-                
+                await asyncio.sleep(300)
             except Exception as e:
                 console.error(f"Error in monitor_user_activity: {e}")
                 await asyncio.sleep(60)
     
     async def proactive_assistance(self):
+        from syncara import assistant_manager
         while self.is_running:
             try:
-                # Get all active assistants
                 assistants = assistant_manager.get_all_assistants()
-                
                 for assistant_id, assistant_data in assistants.items():
                     client = assistant_data["client"]
-                    
-                    # Check for proactive opportunities
                     opportunities = await self.find_proactive_opportunities(assistant_id)
-                    
                     for opportunity in opportunities:
                         await self.execute_proactive_help(client, opportunity)
-                
-                await asyncio.sleep(600)  # Check every 10 minutes
-                
+                await asyncio.sleep(600)
             except Exception as e:
                 console.error(f"Error in proactive_assistance: {e}")
                 await asyncio.sleep(120)
     
     async def execute_proactive_action(self, user_id, pattern):
+        from syncara import assistant_manager
         try:
             action_type = pattern['suggested_action']
-            
-            # Get appropriate assistant
             assistant_id = self.select_best_assistant(action_type)
             client = assistant_manager.get_assistant(assistant_id)
-            
             if not client:
                 return
-            
-            # Create proactive message
             proactive_message = await self.generate_proactive_message(user_id, pattern)
-            
-            # Send proactive help
             await client.send_message(
                 chat_id=user_id,
                 text=f"👋 **Proactive Assistant**\n\n{proactive_message}"
             )
-            
-            # Log proactive action
             await self.log_proactive_action(user_id, action_type, proactive_message)
-            
         except Exception as e:
             console.error(f"Error executing proactive action: {e}")
     
     async def generate_proactive_message(self, user_id, pattern):
         user_context = await self.get_user_context(user_id)
-        
-        # AI generates personalized proactive message
         prompt = f"""
         User pattern analysis:
         - Last activity: {pattern['last_activity']}
@@ -109,16 +84,12 @@ class AutonomousAI:
         Generate a helpful proactive message offering assistance.
         Include relevant shortcodes if applicable.
         """
-        
-        # Use AI to generate contextual message
         replicate_api = ReplicateAPI()
-        
         response = await replicate_api.generate_response(
             prompt=prompt,
             system_prompt="You are a proactive AI assistant. Be helpful but not intrusive.",
             temperature=0.7
         )
-        
         return response
     
     # Placeholder methods for demo (implementasi detail bisa disesuaikan kebutuhan)
@@ -150,13 +121,10 @@ class SmartShortcodeExecutor:
     
     async def auto_execute_shortcodes(self, context):
         try:
-            # Analyze context to determine relevant shortcodes
             relevant_shortcodes = await self.analyze_context_for_shortcodes(context)
-            
             for shortcode_data in relevant_shortcodes:
                 if shortcode_data['confidence'] > 0.7:
                     await self.execute_smart_shortcode(shortcode_data)
-            
         except Exception as e:
             console.error(f"Error in auto_execute_shortcodes: {e}")
     
@@ -166,30 +134,22 @@ class SmartShortcodeExecutor:
             params = shortcode_data['inferred_params']
             client = shortcode_data['client']
             context = shortcode_data['context']
-            
-            # Create mock message for shortcode execution
             mock_message = self.create_mock_message(context)
-            
-            # Execute shortcode through registry
             result = await registry.execute_shortcode(
                 shortcode=shortcode,
                 client=client,
                 message=mock_message,
                 params=params
             )
-            
             if result:
                 console.info(f"✅ Auto-executed shortcode: {shortcode}")
                 await self.log_shortcode_success(shortcode, params, result)
             else:
                 console.warning(f"❌ Failed to execute shortcode: {shortcode}")
-            
             return result
-            
         except Exception as e:
             console.error(f"Error executing smart shortcode: {e}")
             return False
-    
     async def analyze_context_for_shortcodes(self, context):
         relevant_shortcodes = []
         available_shortcodes = registry.shortcodes.keys()
@@ -234,6 +194,7 @@ class ProactiveChatMonitor:
                 console.error(f"Error in chat monitoring: {e}")
                 await asyncio.sleep(60)
     async def check_chat_health(self):
+        from syncara import assistant_manager
         for chat_id, chat_data in self.monitored_chats.items():
             try:
                 if await self.is_chat_inactive(chat_id):
@@ -245,6 +206,7 @@ class ProactiveChatMonitor:
             except Exception as e:
                 console.error(f"Error checking chat {chat_id}: {e}")
     async def send_engagement_message(self, chat_id):
+        from syncara import assistant_manager
         try:
             assistant_id = await self.select_chat_assistant(chat_id)
             client = assistant_manager.get_assistant(assistant_id)
@@ -302,6 +264,7 @@ class ScheduledAITasks:
         self.scheduled_tasks.append(task)
         console.info(f"Scheduled task added: {task['type']} at {task['execute_at']}")
     async def run_scheduler(self):
+        from syncara import assistant_manager
         while True:
             try:
                 current_time = datetime.now()
@@ -318,6 +281,7 @@ class ScheduledAITasks:
                 console.error(f"Error in scheduler: {e}")
                 await asyncio.sleep(60)
     async def execute_scheduled_task(self, task):
+        from syncara import assistant_manager
         try:
             task['status'] = 'executing'
             client = assistant_manager.get_assistant(task['assistant_id'])
