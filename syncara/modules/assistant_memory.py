@@ -80,15 +80,17 @@ async def add_conversation_entry(user_id, message, response, context=None):
             "context": context or {}
         }
         
+        # Push entry baru dan batasi ke 50 entry terakhir dalam satu operasi
         await users.update_one(
             {"user_id": user_id},
-            {"$push": {"conversation_history": entry}}
-        )
-        
-        # Batasi riwayat ke 50 entry terakhir
-        await users.update_one(
-            {"user_id": user_id},
-            {"$slice": ["conversation_history", -50]}
+            {
+                "$push": {
+                    "conversation_history": {
+                        "$each": [entry],
+                        "$slice": -50
+                    }
+                }
+            }
         )
         
         return True
