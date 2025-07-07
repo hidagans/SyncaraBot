@@ -31,6 +31,14 @@ class GroupManagementShortcode:
         }
     
     async def delete_message(self, client, message, params):
+        # Validasi tipe chat
+        if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="❌ Perintah ini hanya bisa dijalankan di grup atau supergroup.",
+                reply_to_message_id=message.id
+            )
+            return False
         if not await is_admin_or_owner(client, message):
             await client.send_message(
                 chat_id=message.chat.id,
