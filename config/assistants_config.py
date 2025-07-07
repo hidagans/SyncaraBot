@@ -35,7 +35,7 @@ ASSISTANT_CONFIG = {
     },
     "ZEKE": {
         "name": "ZEKE",
-        "username": "Zeke_sync", 
+        "username": "zeke_sync", 
         "personality": "ZEKE",
         "description": "Technical assistant dengan reasoning tingkat tinggi",
         "session_string": ASSISTANT_SESSIONS["ZEKE"],
