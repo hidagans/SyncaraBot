@@ -5,7 +5,16 @@ from syncara import bot, userbot, console
 from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
-from syncara.modules.assistant_memory import kenalan_dan_update, get_user_memory
+import json
+from syncara.modules.assistant_memory import (
+    kenalan_dan_update, 
+    get_user_memory, 
+    get_user_context, 
+    learn_from_interaction,
+    update_user_preferences,
+    get_recent_conversations
+)
+from syncara.modules.ai_learning import ai_learning
 from syncara.modules.canvas_manager import canvas_manager
 
 # Inisialisasi komponen
@@ -295,6 +304,98 @@ async def test_userbot_command(client, message):
         console.error(f"Error in test_userbot_command: {str(e)}")
         await message.reply_text(f"❌ Test error: {str(e)}")
 
+@bot.on_message(filters.command("analytics") & filters.user(OWNER_ID))
+async def analytics_command(client, message):
+    """Show AI learning analytics"""
+    try:
+        # Get analytics for all users or specific user
+        args = message.text.split()
+        if len(args) > 1:
+            # Specific user analytics
+            try:
+                user_id = int(args[1])
+                insights = await ai_learning.get_learning_insights(user_id)
+                if insights:
+                    await message.reply_text(
+                        f"📊 **Analytics untuk User {user_id}**\n\n"
+                        f"Total Interaksi: {insights['total_interactions']}\n"
+                        f"Percakapan: {insights['conversation_count']}\n"
+                        f"Patterns: {json.dumps(insights['patterns'], indent=2, default=str)}"
+                    )
+                else:
+                    await message.reply_text(f"❌ Tidak ada data untuk user {user_id}")
+            except ValueError:
+                await message.reply_text("❌ Format: /analytics [user_id]")
+        else:
+            # General analytics
+            await message.reply_text(
+                "📊 **AI Learning Analytics**\n\n"
+                "Gunakan:\n"
+                "• `/analytics [user_id]` - Lihat analytics user tertentu\n"
+                "• `/learning_insights [user_id]` - Lihat insight pembelajaran\n"
+                "• `/user_patterns [user_id]` - Lihat pola penggunaan user"
+            )
+    except Exception as e:
+        console.error(f"Error in analytics_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil analytics.")
+
+@bot.on_message(filters.command("learning_insights") & filters.user(OWNER_ID))
+async def learning_insights_command(client, message):
+    """Show detailed learning insights"""
+    try:
+        args = message.text.split()
+        if len(args) < 2:
+            await message.reply_text("❌ Format: /learning_insights [user_id]")
+            return
+        
+        user_id = int(args[1])
+        insights = await ai_learning.get_learning_insights(user_id)
+        
+        if not insights:
+            await message.reply_text(f"❌ Tidak ada data learning untuk user {user_id}")
+            return
+        
+        patterns = insights.get('patterns', {})
+        
+        # Format insights
+        insight_text = f"🧠 **Learning Insights untuk User {user_id}**\n\n"
+        
+        # Question patterns
+        if patterns.get('question_types'):
+            insight_text += "❓ **Tipe Pertanyaan Favorit:**\n"
+            for qtype, count in patterns['question_types'][:3]:
+                insight_text += f"• {qtype}: {count}x\n"
+            insight_text += "\n"
+        
+        # Topic patterns
+        if patterns.get('topics'):
+            insight_text += "📚 **Topik yang Disukai:**\n"
+            for topic, count in patterns['topics'][:3]:
+                insight_text += f"• {topic}: {count}x\n"
+            insight_text += "\n"
+        
+        # Response preferences
+        if patterns.get('response_preferences'):
+            prefs = patterns['response_preferences']
+            insight_text += "💬 **Preferensi Respons:**\n"
+            insight_text += f"• Panjang: {prefs.get('preferred_length', 'medium')}\n"
+            insight_text += f"• Emoji: {'Ya' if prefs.get('likes_emoji') else 'Tidak'}\n"
+            insight_text += "\n"
+        
+        # Time patterns
+        if patterns.get('time_patterns'):
+            time_pats = patterns['time_patterns']
+            if time_pats.get('peak_hours'):
+                insight_text += "⏰ **Jam Puncak Aktivitas:**\n"
+                for hour, count in time_pats['peak_hours']:
+                    insight_text += f"• Jam {hour}:00 ({count}x)\n"
+        
+        await message.reply_text(insight_text)
+        
+    except Exception as e:
+        console.error(f"Error in learning_insights_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil learning insights.")
+
 # Userbot message handler for group interactions
 @userbot.on_message(custom_userbot_filter & (filters.text | filters.photo))
 async def userbot_message_handler(client, message):
@@ -572,16 +673,23 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             'user_id': message.from_user.id if message.from_user else 0
         }
         
-        # Ambil ingatan user dari database
-        user_memory = None
+        # Ambil ingatan user dari database dengan context yang lebih lengkap
+        user_context = None
         if message.from_user:
-            user_memory = await get_user_memory(message.from_user.id)
+            user_context = await get_user_context(message.from_user.id)
         
-        # Tambahkan info user memory ke context jika ada
-        if user_memory:
-            context['user_memory'] = user_memory
+        # Tambahkan info user context ke context jika ada
+        if user_context:
+            context['user_context'] = user_context
 
         system_prompt_text = system_prompt.get_chat_prompt(context)
+        
+        # Personalisasi prompt berdasarkan learning patterns
+        if message.from_user:
+            system_prompt_text = await ai_learning.get_personalized_prompt(
+                message.from_user.id, 
+                system_prompt_text
+            )
         
         # Get chat history for context
         chat_history = await get_chat_history(client, message.chat.id)
@@ -590,16 +698,33 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
         # Prepare full prompt with context
         full_prompt = prompt
         
-        # Add chat history and user memory if available
-        if formatted_history or user_memory:
+        # Add chat history and user context if available
+        if formatted_history or user_context:
             full_prompt = ""
             if formatted_history:
                 full_prompt += f"📝 **Chat History:**\n{formatted_history}\n"
-            if user_memory:
-                full_prompt += f"\n🧠 **Tentang User:**\n"
-                full_prompt += f"Nama: {user_memory.get('first_name', '')} {user_memory.get('last_name', '')} | Username: @{user_memory.get('username', '')}\n"
-                if user_memory.get('notes'):
-                    full_prompt += f"Catatan: {user_memory['notes']}\n"
+            if user_context:
+                user_info = user_context.get('user_info', {})
+                preferences = user_context.get('preferences', {})
+                
+                full_prompt += f"\n🧠 **User Context:**\n"
+                full_prompt += f"Nama: {user_info.get('name', '')} | Username: @{user_info.get('username', '')}\n"
+                full_prompt += f"Interaksi ke: {user_info.get('interaction_count', 0)}\n"
+                full_prompt += f"Gaya Komunikasi: {preferences.get('communication_style', 'default')}\n"
+                full_prompt += f"Panjang Respons: {preferences.get('response_length', 'medium')}\n"
+                full_prompt += f"Gunakan Emoji: {preferences.get('emoji_usage', True)}\n"
+                
+                if user_context.get('personality_notes'):
+                    full_prompt += f"Catatan Kepribadian: {user_context['personality_notes']}\n"
+                
+                # Add recent conversation context
+                recent_convos = user_context.get('recent_conversations', [])
+                if recent_convos:
+                    full_prompt += f"\n📚 **Recent Conversations:**\n"
+                    for conv in recent_convos[-2:]:  # Last 2 conversations
+                        full_prompt += f"- User: {conv.get('message', '')[:80]}...\n"
+                        full_prompt += f"- AI: {conv.get('response', '')[:80]}...\n"
+            
             full_prompt += f"\n💬 **Current Message:**\n{prompt}"
         
         # Cek perintah canvas sebelum proses AI
@@ -638,6 +763,14 @@ async def process_ai_response(client, message, prompt, photo_file_id=None):
             text=f"{processed_response}",
             reply_to_message_id=message.id
         )
+        
+        # Learn from this interaction for future improvements
+        if message.from_user:
+            await learn_from_interaction(
+                message.from_user.id,
+                prompt,
+                processed_response
+            )
         
         console.info("✅ AI response sent successfully")
         

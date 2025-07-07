@@ -10,6 +10,10 @@ Bot Telegram dengan AI Assistant menggunakan Replicate API
 - **Image Analysis** - Analisis gambar dengan AI
 - **Music Player** - Fitur musik player
 - **Shortcode System** - Sistem perintah khusus
+- **🧠 AI Learning System** - Sistem pembelajaran AI yang canggih
+- **📊 Analytics & Insights** - Analisis pola penggunaan user
+- **🎯 Personalized Responses** - Respons yang dipersonalisasi berdasarkan preferensi user
+- **💾 Advanced Memory** - Sistem memori yang menyimpan riwayat dan preferensi
 
 ## 📋 Setup
 
@@ -54,6 +58,8 @@ python -m syncara
 - `/start` - Menu utama
 - `/test` - Test command
 - `/debug` - Debug info (owner only)
+- `/analytics [user_id]` - Lihat analytics user (owner only)
+- `/learning_insights [user_id]` - Lihat insight pembelajaran (owner only)
 
 ### AI Assistant (@Aeris_sync)
 - **Private Chat** - Kirim pesan langsung
@@ -62,11 +68,30 @@ python -m syncara
 ## 🔧 System Prompts
 
 Bot mendukung multiple personality:
-- **AERIS** - Default assistant
+- **AERIS** - Default assistant dengan AI learning yang canggih
 - **KAIROS** - Time-based responses
-- **ZEKE** - Technical assistant
+- **ZEKE** - Technical assistant dengan reasoning tingkat tinggi
 - **NOVA** - Creative assistant
 - **LYRA** - Music-focused assistant
+
+## 🧠 AI Learning Features
+
+### Advanced Memory System
+- **User Preferences**: Menyimpan preferensi komunikasi user
+- **Conversation History**: Riwayat percakapan untuk konteks
+- **Learning Patterns**: Analisis pola penggunaan untuk personalisasi
+- **Response Quality Tracking**: Tracking kualitas respons untuk pembelajaran
+
+### Analytics & Insights
+- **Question Pattern Analysis**: Analisis tipe pertanyaan yang sering diajukan
+- **Topic Interest Tracking**: Tracking topik yang disukai user
+- **Time Pattern Analysis**: Analisis pola waktu interaksi
+- **Response Preference Learning**: Belajar preferensi respons user
+
+### Personalized Responses
+- **Adaptive Communication**: Menyesuaikan gaya komunikasi berdasarkan preferensi
+- **Context-Aware Responses**: Respons yang mempertimbangkan riwayat percakapan
+- **Smart Prompting**: Prompt yang dipersonalisasi untuk setiap user
 
 ## 📝 License
 
