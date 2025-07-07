@@ -615,6 +615,16 @@ async def setup_assistant_handlers():
                         if message.from_user and message.from_user.is_bot:
                             return False
                         
+                        # Skip messages from other assistants
+                        if message.from_user and message.from_user.username:
+                            # Get all assistant usernames
+                            all_assistants = assistant_manager.get_all_assistants()
+                            assistant_usernames = [config["username"] for config in all_assistants.values()]
+                            
+                            # If message is from another assistant, skip
+                            if message.from_user.username in assistant_usernames:
+                                return False
+                        
                         # Check if in private chat
                         if message.chat.type == enums.ChatType.PRIVATE:
                             return True
