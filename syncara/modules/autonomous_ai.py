@@ -4,6 +4,7 @@ import random
 from syncara.shortcode import registry
 from syncara.services import ReplicateAPI
 from syncara.database import db
+from syncara.console import console
 
 class AutonomousAI:
     def __init__(self):
@@ -14,7 +15,6 @@ class AutonomousAI:
         self.is_running = False
     
     async def start_autonomous_mode(self):
-        from syncara import console
         self.is_running = True
         console.info("🤖 Starting Autonomous AI Mode...")
         
@@ -30,7 +30,6 @@ class AutonomousAI:
         await asyncio.gather(*tasks)
     
     async def monitor_user_activity(self):
-        from syncara import console
         while self.is_running:
             try:
                 # Analisis pola user dari database
@@ -50,7 +49,6 @@ class AutonomousAI:
                 await asyncio.sleep(60)
     
     async def proactive_assistance(self):
-        from syncara import assistant_manager, console
         while self.is_running:
             try:
                 # Get all active assistants
@@ -72,7 +70,6 @@ class AutonomousAI:
                 await asyncio.sleep(120)
     
     async def execute_proactive_action(self, user_id, pattern):
-        from syncara import assistant_manager, console
         try:
             action_type = pattern['suggested_action']
             
@@ -152,7 +149,6 @@ class SmartShortcodeExecutor:
         self.success_patterns = {}
     
     async def auto_execute_shortcodes(self, context):
-        from syncara import console
         try:
             # Analyze context to determine relevant shortcodes
             relevant_shortcodes = await self.analyze_context_for_shortcodes(context)
@@ -165,7 +161,6 @@ class SmartShortcodeExecutor:
             console.error(f"Error in auto_execute_shortcodes: {e}")
     
     async def execute_smart_shortcode(self, shortcode_data):
-        from syncara import console
         try:
             shortcode = shortcode_data['shortcode']
             params = shortcode_data['inferred_params']
@@ -229,7 +224,6 @@ class ProactiveChatMonitor:
             'conflict_keywords': ['toxic', 'spam', 'scam']
         }
     async def start_monitoring(self):
-        from syncara import console
         while True:
             try:
                 await self.check_chat_health()
@@ -240,7 +234,6 @@ class ProactiveChatMonitor:
                 console.error(f"Error in chat monitoring: {e}")
                 await asyncio.sleep(60)
     async def check_chat_health(self):
-        from syncara import assistant_manager, console
         for chat_id, chat_data in self.monitored_chats.items():
             try:
                 if await self.is_chat_inactive(chat_id):
@@ -252,7 +245,6 @@ class ProactiveChatMonitor:
             except Exception as e:
                 console.error(f"Error checking chat {chat_id}: {e}")
     async def send_engagement_message(self, chat_id):
-        from syncara import assistant_manager, console
         try:
             assistant_id = await self.select_chat_assistant(chat_id)
             client = assistant_manager.get_assistant(assistant_id)
@@ -267,7 +259,6 @@ class ProactiveChatMonitor:
         except Exception as e:
             console.error(f"Error sending engagement message: {e}")
     async def auto_moderate_chat(self, chat_id):
-        from syncara import console
         try:
             moderation_actions = [
                 "GROUP:WARN:spam_detected",
@@ -295,11 +286,9 @@ class ProactiveChatMonitor:
 
 class ScheduledAITasks:
     def __init__(self):
-        from syncara import console
         self.scheduled_tasks = []
         self.recurring_tasks = {}
     async def add_scheduled_task(self, task_data):
-        from syncara import console
         task = {
             'id': len(self.scheduled_tasks) + 1,
             'type': task_data['type'],
@@ -313,7 +302,6 @@ class ScheduledAITasks:
         self.scheduled_tasks.append(task)
         console.info(f"Scheduled task added: {task['type']} at {task['execute_at']}")
     async def run_scheduler(self):
-        from syncara import assistant_manager, console
         while True:
             try:
                 current_time = datetime.now()
@@ -330,7 +318,6 @@ class ScheduledAITasks:
                 console.error(f"Error in scheduler: {e}")
                 await asyncio.sleep(60)
     async def execute_scheduled_task(self, task):
-        from syncara import assistant_manager, console
         try:
             task['status'] = 'executing'
             client = assistant_manager.get_assistant(task['assistant_id'])

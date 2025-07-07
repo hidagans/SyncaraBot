@@ -10,21 +10,8 @@ from config.assistants_config import ASSISTANT_CONFIG
 from syncara.modules.autonomous_ai import AutonomousAI
 import asyncio
 
-# Logging configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format="[ %(levelname)s ] - %(name)s - %(message)s",
-    datefmt="%d-%b-%y %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(),
-    ],
-)
-
-logging.getLogger("asyncio").setLevel(logging.ERROR)
-logging.getLogger("pyrogram").setLevel(logging.ERROR)
-logging.getLogger("pyrogram.session.session").setLevel(logging.WARNING)
-
-console = logging.getLogger(__name__)
+# Hapus seluruh konfigurasi logging dan instance console dari sini.
+# Semua file harus import console dari syncara.console
 
 class Bot(Client):
     """Enhanced Bot class with custom handlers"""

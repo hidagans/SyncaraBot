@@ -1,5 +1,5 @@
 # syncara/shortcode/group_management.py
-from syncara import console
+from syncara.console import console
 from pyrogram.types import ChatPermissions
 
 async def is_admin_or_owner(client, message):

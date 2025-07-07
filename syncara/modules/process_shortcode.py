@@ -5,7 +5,7 @@ async def process_shortcode(client, message, text):
     try:
         # Import registry di dalam fungsi untuk menghindari circular import
         from syncara.shortcode import registry
-        from syncara import console
+        from syncara.console import console
         
         # Pattern untuk mendeteksi shortcode [CATEGORY:ACTION:PARAMS]
         pattern = r'\[(.*?):(.*?):(.*?)\]'
@@ -52,7 +52,7 @@ async def process_shortcode(client, message, text):
     except Exception as e:
         # Import console di sini juga untuk error handling
         try:
-            from syncara import console
+            from syncara.console import console
             console.error(f"Error in process_shortcode: {str(e)}")
         except:
             print(f"Error in process_shortcode: {str(e)}")

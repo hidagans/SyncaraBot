@@ -6,7 +6,7 @@ import requests
 from io import BytesIO
 import httpx
 import os
-from syncara import console
+from syncara.console import console
 
 def get_replicate_client():
     return replicate

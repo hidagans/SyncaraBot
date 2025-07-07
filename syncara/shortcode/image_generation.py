@@ -1,5 +1,5 @@
 from syncara.services.replicate import generate_image
-from syncara import console
+from syncara.console import console
 
 class ImageGenerationShortcode:
     def __init__(self):
