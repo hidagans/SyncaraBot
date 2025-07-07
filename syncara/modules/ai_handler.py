@@ -1,5 +1,5 @@
 # syncara/modules/ai_handler.py
-from pyrogram import filters, enums
+from pyrogram import filters, enums, MessageHandler
 from syncara.services import ReplicateAPI
 from syncara import bot, assistant_manager, console
 from config.config import OWNER_ID
@@ -535,96 +535,104 @@ async def setup_assistant_handlers():
                 continue
             
             # Create custom filter untuk assistant ini
-            async def assistant_filter(_, __, message, assistant_config=config):
-                """Custom filter untuk assistant tertentu"""
-                try:
-                    # Skip messages from bots
-                    if message.from_user and message.from_user.is_bot:
-                        return False
-                    
-                    # Check if in private chat
-                    if message.chat.type == enums.ChatType.PRIVATE:
-                        return True
-                    
-                    # Check if assistant is mentioned
-                    if message.entities:
-                        for entity in message.entities:
-                            if entity.type == enums.MessageEntityType.MENTION:
-                                mentioned_username = message.text[entity.offset:entity.offset + entity.length]
-                                if mentioned_username == f"@{assistant_config['username']}":
-                                    return True
-                            elif entity.type == enums.MessageEntityType.TEXT_MENTION:
-                                # Check if mentioned user is this assistant
-                                if entity.user and entity.user.username == assistant_config['username']:
-                                    return True
-                    
-                    # Check if message is a reply to assistant's message
-                    if message.reply_to_message:
-                        if message.reply_to_message.from_user and message.reply_to_message.from_user.username == assistant_config['username']:
+            def create_assistant_filter(assistant_config):
+                async def assistant_filter(_, __, message):
+                    """Custom filter untuk assistant tertentu"""
+                    try:
+                        # Skip messages from bots
+                        if message.from_user and message.from_user.is_bot:
+                            return False
+                        
+                        # Check if in private chat
+                        if message.chat.type == enums.ChatType.PRIVATE:
                             return True
-                    
-                    return False
-                except Exception as e:
-                    console.error(f"Error in assistant filter: {str(e)}")
-                    return False
+                        
+                        # Check if assistant is mentioned
+                        if message.entities:
+                            for entity in message.entities:
+                                if entity.type == enums.MessageEntityType.MENTION:
+                                    mentioned_username = message.text[entity.offset:entity.offset + entity.length]
+                                    if mentioned_username == f"@{assistant_config['username']}":
+                                        return True
+                                elif entity.type == enums.MessageEntityType.TEXT_MENTION:
+                                    # Check if mentioned user is this assistant
+                                    if entity.user and entity.user.username == assistant_config['username']:
+                                        return True
+                        
+                        # Check if message is a reply to assistant's message
+                        if message.reply_to_message:
+                            if message.reply_to_message.from_user and message.reply_to_message.from_user.username == assistant_config['username']:
+                                return True
+                        
+                        return False
+                    except Exception as e:
+                        console.error(f"Error in assistant filter: {str(e)}")
+                        return False
+                return assistant_filter
             
             # Create filter instance
-            custom_filter = filters.create(assistant_filter)
+            custom_filter = filters.create(create_assistant_filter(config))
             
             # Group message handler
-            @assistant.on_message(custom_filter & (filters.text | filters.photo))
-            async def assistant_message_handler(client, message, assistant_config=config):
-                """Handle messages for specific assistant"""
-                try:
-                    # Get text from either message text or caption
-                    text = message.text or message.caption
-                    
-                    if not text:
-                        return
-                    
-                    # Remove assistant mention from text
-                    if f"@{assistant_config['username']}" in text:
-                        text = text.replace(f"@{assistant_config['username']}", "").strip()
-                    
-                    # Get photo if exists
-                    photo_file_id = None
-                    if message.photo:
-                        photo_file_id = message.photo.file_id
-                    
-                    # Send typing action
-                    await client.send_chat_action(
-                        chat_id=message.chat.id,
-                        action=enums.ChatAction.TYPING
-                    )
-                    
-                    # Process AI response with specific personality
-                    await process_ai_response_with_personality(client, message, text, photo_file_id, assistant_config['personality'])
-                    
-                except Exception as e:
-                    console.error(f"Error in {assistant_config['name']} message handler: {str(e)}")
+            def create_message_handler(assistant_config):
+                async def assistant_message_handler(client, message):
+                    """Handle messages for specific assistant"""
+                    try:
+                        # Get text from either message text or caption
+                        text = message.text or message.caption
+                        
+                        if not text:
+                            return
+                        
+                        # Remove assistant mention from text
+                        if f"@{assistant_config['username']}" in text:
+                            text = text.replace(f"@{assistant_config['username']}", "").strip()
+                        
+                        # Get photo if exists
+                        photo_file_id = None
+                        if message.photo:
+                            photo_file_id = message.photo.file_id
+                        
+                        # Send typing action
+                        await client.send_chat_action(
+                            chat_id=message.chat.id,
+                            action=enums.ChatAction.TYPING
+                        )
+                        
+                        # Process AI response with specific personality
+                        await process_ai_response_with_personality(client, message, text, photo_file_id, assistant_config['personality'])
+                        
+                    except Exception as e:
+                        console.error(f"Error in {assistant_config['name']} message handler: {str(e)}")
+                return assistant_message_handler
             
             # Private message handler
-            @assistant.on_message(filters.text & filters.private)
-            async def assistant_private_handler(client, message, assistant_config=config):
-                """Handler for private messages to specific assistant"""
-                try:
-                    # Tambahkan auto-kenalan & ingatan
-                    if message.from_user:
-                        await kenalan_dan_update(client, message.from_user)
-                    
-                    # Process AI response with specific personality
-                    await process_ai_response_with_personality(client, message, message.text, None, assistant_config['personality'])
-                    
-                except Exception as e:
-                    console.error(f"Error in {assistant_config['name']} private handler: {str(e)}")
-                    # Fallback response
-                    await client.send_message(
-                        chat_id=message.chat.id,
-                        text=f"❌ Maaf, terjadi kesalahan saat memproses pesan Anda. - {assistant_config['name']}",
-                        reply_to_message_id=message.id
-                    )
+            def create_private_handler(assistant_config):
+                async def assistant_private_handler(client, message):
+                    """Handler for private messages to specific assistant"""
+                    try:
+                        # Tambahkan auto-kenalan & ingatan
+                        if message.from_user:
+                            await kenalan_dan_update(client, message.from_user)
+                        
+                        # Process AI response with specific personality
+                        await process_ai_response_with_personality(client, message, message.text, None, assistant_config['personality'])
+                        
+                    except Exception as e:
+                        console.error(f"Error in {assistant_config['name']} private handler: {str(e)}")
+                        # Fallback response
+                        await client.send_message(
+                            chat_id=message.chat.id,
+                            text=f"❌ Maaf, terjadi kesalahan saat memproses pesan Anda. - {assistant_config['name']}",
+                            reply_to_message_id=message.id
+                        )
+                return assistant_private_handler
             
-            console.info(f"✅ Handlers setup untuk {assistant_config['name']} (@{assistant_config['username']})")
+            # Register handlers
+            assistant.add_handler(MessageHandler(create_message_handler(config), custom_filter & (filters.text | filters.photo)))
+            assistant.add_handler(MessageHandler(create_private_handler(config), filters.text & filters.private))
+            
+            console.info(f"✅ Handlers setup untuk {config['name']} (@{config['username']})")
         
     except Exception as e:
         console.error(f"Error setting up assistant handlers: {str(e)}")
