@@ -617,13 +617,20 @@ async def setup_assistant_handlers():
                         
                         # Skip messages from other assistants
                         if message.from_user and message.from_user.username:
-                            # Get all assistant usernames
-                            all_assistants = assistant_manager.get_all_assistants()
-                            assistant_usernames = [config["username"] for config in all_assistants.values()]
-                            
-                            # If message is from another assistant, skip
-                            if message.from_user.username in assistant_usernames:
-                                return False
+                            try:
+                                # Get all assistant usernames
+                                all_assistants = assistant_manager.get_all_assistants()
+                                assistant_usernames = []
+                                for config in all_assistants.values():
+                                    username = config.get("username") if isinstance(config, dict) else getattr(config, "username", None)
+                                    if username:
+                                        assistant_usernames.append(username)
+                                
+                                # If message is from another assistant, skip
+                                if message.from_user.username in assistant_usernames:
+                                    return False
+                            except Exception as e:
+                                console.error(f"Error checking assistant usernames: {e}")
                         
                         # Check if in private chat
                         if message.chat.type == enums.ChatType.PRIVATE:
@@ -634,16 +641,16 @@ async def setup_assistant_handlers():
                             for entity in message.entities:
                                 if entity.type == enums.MessageEntityType.MENTION:
                                     mentioned_username = message.text[entity.offset:entity.offset + entity.length]
-                                    if mentioned_username == f"@{assistant_config['username']}":
+                                    if mentioned_username == f"@{assistant_config.get('username', '')}":
                                         return True
                                 elif entity.type == enums.MessageEntityType.TEXT_MENTION:
                                     # Check if mentioned user is this assistant
-                                    if entity.user and entity.user.username == assistant_config['username']:
+                                    if entity.user and entity.user.username == assistant_config.get('username', ''):
                                         return True
                         
                         # Check if message is a reply to assistant's message
                         if message.reply_to_message:
-                            if message.reply_to_message.from_user and message.reply_to_message.from_user.username == assistant_config['username']:
+                            if message.reply_to_message.from_user and message.reply_to_message.from_user.username == assistant_config.get('username', ''):
                                 return True
                         
                         return False
