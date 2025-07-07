@@ -72,6 +72,11 @@ python -m syncara
 - `/assistants` - Lihat status semua assistant (owner only)
 - `/assistant_info [ASSISTANT]` - Info detail assistant (owner only)
 - `/test_assistant [ASSISTANT]` - Test assistant tertentu (owner only)
+- `/userbot_info` - Info semua assistant (owner only)
+- `/send [ASSISTANT] [chat_id] [pesan]` - Kirim pesan sebagai assistant (owner only)
+- `/join [ASSISTANT] [username/invite_link]` - Join chat dengan assistant (owner only)
+- `/leave [ASSISTANT] [chat_id]` - Leave chat dengan assistant (owner only)
+- `/history [ASSISTANT] [chat_id]` - Lihat riwayat chat (owner only)
 - `/analytics [user_id]` - Lihat analytics user (owner only)
 - `/learning_insights [user_id]` - Lihat insight pembelajaran (owner only)
 

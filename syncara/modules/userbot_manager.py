@@ -1,8 +1,8 @@
 # syncara/modules/userbot_manager.py
 from pyrogram import filters, Client
 from pyrogram.types import CallbackQuery
-from syncara import bot, userbot, console
-from config.config import OWNER_ID, SESSION_STRING
+from syncara import bot, assistant_manager, console
+from config.config import OWNER_ID
 from datetime import datetime
 import pytz
 
@@ -245,59 +245,70 @@ def format_chat_history(messages):
     
     return formatted_history
 
-# Simplified userbot commands since we only have one userbot now
+# Assistant management commands
 @bot.on_message(filters.command("userbot_info") & filters.user(OWNER_ID))
 async def userbot_info_command(client, message):
-    """Get userbot information"""
+    """Get assistant information"""
     try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
-            return
-            
-        # Import di dalam fungsi untuk menghindari circular import
-        from syncara.modules.ai_handler import USERBOT_INFO_CACHE, USERBOT_PROMPT_MAPPING, cache_userbot_info
+        active_assistants = assistant_manager.get_active_assistants()
         
-        # Get userbot info from cache
-        userbot_info = USERBOT_INFO_CACHE.get(userbot.name)
-        if not userbot_info:
-            userbot_info = await cache_userbot_info()
-            
-        if not userbot_info:
-            await message.reply_text("❌ Gagal mendapatkan informasi userbot.")
+        if not active_assistants:
+            await message.reply_text("⚠️ Tidak ada assistant yang aktif.")
             return
-            
-        # Get prompt name for this userbot
-        prompt_name = USERBOT_PROMPT_MAPPING.get(userbot.name, "DEFAULT")
         
-        text = f"🎭 **Informasi Userbot:**\n\n"
-        text += f"• **Nama:** {userbot_info['first_name']}\n"
-        text += f"• **Username:** @{userbot_info['username']}\n"
-        text += f"• **ID:** `{userbot_info['id']}`\n"
-        text += f"• **System Prompt:** {prompt_name}\n"
-        text += f"• **Status:** 🟢 Online\n"
+        text = f"🎭 **Informasi Assistant:**\n\n"
+        
+        for assistant_id in active_assistants:
+            assistant = assistant_manager.get_assistant(assistant_id)
+            config = assistant_manager.get_assistant_config(assistant_id)
+            
+            if assistant and config:
+                try:
+                    me = await assistant.get_me()
+                    status = "🟢 Online" if assistant.is_connected else "🔴 Offline"
+                    
+                    text += f"{config['emoji']} **{config['name']}**\n"
+                    text += f"• **Username:** @{config['username']}\n"
+                    text += f"• **ID:** `{me.id}`\n"
+                    text += f"• **Personality:** {config['personality']}\n"
+                    text += f"• **Status:** {status}\n\n"
+                    
+                except Exception as e:
+                    text += f"{config['emoji']} **{config['name']}**\n"
+                    text += f"• **Username:** @{config['username']}\n"
+                    text += f"• **Status:** ❌ Error\n\n"
         
         await message.reply_text(text)
         
     except Exception as e:
         console.error(f"Error in userbot_info_command: {str(e)}")
-        await message.reply_text("❌ Terjadi kesalahan saat mengambil informasi userbot.")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil informasi assistant.")
 
 @bot.on_message(filters.command("send") & filters.user(OWNER_ID))
 async def send_as_userbot(client, message):
-    """Send a message as userbot to a specific chat"""
+    """Send a message as assistant to a specific chat"""
     try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+        active_assistants = assistant_manager.get_active_assistants()
+        
+        if not active_assistants:
+            await message.reply_text("⚠️ Tidak ada assistant yang aktif.")
             return
             
         # Check command format
-        if len(message.command) < 3:
-            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/send [chat_id] [pesan]`")
+        if len(message.command) < 4:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/send [ASSISTANT] [chat_id] [pesan]`\n\n**Assistant yang tersedia:** " + ", ".join(active_assistants))
             return
             
-        # Get chat_id and message text
-        chat_id = message.command[1]
-        text = message.text.split(None, 2)[2]
+        # Get assistant, chat_id and message text
+        assistant_id = message.command[1].upper()
+        chat_id = message.command[2]
+        text = message.text.split(None, 3)[3]
+        
+        # Get assistant
+        assistant = assistant_manager.get_assistant(assistant_id)
+        if not assistant:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak ditemukan atau tidak aktif.")
+            return
         
         # Send message
         try:
@@ -306,8 +317,8 @@ async def send_as_userbot(client, message):
             # If not numeric, use as username/chat link
             pass
             
-        await userbot.send_message(chat_id, text)
-        await message.reply_text(f"✅ Pesan berhasil dikirim ke {chat_id}")
+        await assistant.send_message(chat_id, text)
+        await message.reply_text(f"✅ Pesan berhasil dikirim ke {chat_id} menggunakan {assistant_id}")
         
     except Exception as e:
         console.error(f"Error in send_as_userbot: {str(e)}")
@@ -315,23 +326,32 @@ async def send_as_userbot(client, message):
 
 @bot.on_message(filters.command("join") & filters.user(OWNER_ID))
 async def join_chat(client, message):
-    """Join a chat using userbot"""
+    """Join a chat using assistant"""
     try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+        active_assistants = assistant_manager.get_active_assistants()
+        
+        if not active_assistants:
+            await message.reply_text("⚠️ Tidak ada assistant yang aktif.")
             return
             
         # Check command format
-        if len(message.command) < 2:
-            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/join [username/invite_link]`")
+        if len(message.command) < 3:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/join [ASSISTANT] [username/invite_link]`\n\n**Assistant yang tersedia:** " + ", ".join(active_assistants))
             return
             
-        # Get chat link/username
-        chat = message.command[1]
+        # Get assistant and chat link/username
+        assistant_id = message.command[1].upper()
+        chat = message.command[2]
+        
+        # Get assistant
+        assistant = assistant_manager.get_assistant(assistant_id)
+        if not assistant:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak ditemukan atau tidak aktif.")
+            return
         
         # Join chat
-        chat_info = await userbot.join_chat(chat)
-        await message.reply_text(f"✅ Userbot berhasil bergabung ke **{chat_info.title}**")
+        chat_info = await assistant.join_chat(chat)
+        await message.reply_text(f"✅ {assistant_id} berhasil bergabung ke **{chat_info.title}**")
         
     except Exception as e:
         console.error(f"Error in join_chat: {str(e)}")
@@ -339,19 +359,28 @@ async def join_chat(client, message):
 
 @bot.on_message(filters.command("leave") & filters.user(OWNER_ID))
 async def leave_chat(client, message):
-    """Leave a chat using userbot"""
+    """Leave a chat using assistant"""
     try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+        active_assistants = assistant_manager.get_active_assistants()
+        
+        if not active_assistants:
+            await message.reply_text("⚠️ Tidak ada assistant yang aktif.")
             return
             
         # Check command format
-        if len(message.command) < 2:
-            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/leave [chat_id]`")
+        if len(message.command) < 3:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/leave [ASSISTANT] [chat_id]`\n\n**Assistant yang tersedia:** " + ", ".join(active_assistants))
             return
             
-        # Get chat_id
-        chat_id = message.command[1]
+        # Get assistant and chat_id
+        assistant_id = message.command[1].upper()
+        chat_id = message.command[2]
+        
+        # Get assistant
+        assistant = assistant_manager.get_assistant(assistant_id)
+        if not assistant:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak ditemukan atau tidak aktif.")
+            return
         
         # Leave chat
         try:
@@ -360,8 +389,8 @@ async def leave_chat(client, message):
             # If not numeric, use as username
             pass
             
-        await userbot.leave_chat(chat_id)
-        await message.reply_text(f"✅ Userbot berhasil keluar dari chat {chat_id}")
+        await assistant.leave_chat(chat_id)
+        await message.reply_text(f"✅ {assistant_id} berhasil keluar dari chat {chat_id}")
         
     except Exception as e:
         console.error(f"Error in leave_chat: {str(e)}")
@@ -371,17 +400,26 @@ async def leave_chat(client, message):
 async def test_history(client, message):
     """Test chat history feature"""
     try:
-        if not SESSION_STRING:
-            await message.reply_text("⚠️ Userbot tidak dikonfigurasi.")
+        active_assistants = assistant_manager.get_active_assistants()
+        
+        if not active_assistants:
+            await message.reply_text("⚠️ Tidak ada assistant yang aktif.")
             return
             
         # Check command format
-        if len(message.command) < 2:
-            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/history [chat_id]`")
+        if len(message.command) < 3:
+            await message.reply_text("❌ **Format salah!**\n\n**Gunakan:** `/history [ASSISTANT] [chat_id]`\n\n**Assistant yang tersedia:** " + ", ".join(active_assistants))
             return
             
-        # Get chat_id
-        chat_id = message.command[1]
+        # Get assistant and chat_id
+        assistant_id = message.command[1].upper()
+        chat_id = message.command[2]
+        
+        # Get assistant
+        assistant = assistant_manager.get_assistant(assistant_id)
+        if not assistant:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak ditemukan atau tidak aktif.")
+            return
         
         # Convert chat_id to int if possible
         try:
@@ -391,7 +429,7 @@ async def test_history(client, message):
             pass
             
         # Get chat history
-        history = await get_chat_history(userbot, chat_id, limit=20)
+        history = await get_chat_history(assistant, chat_id, limit=20)
         
         if not history:
             await message.reply_text("❌ Tidak ada riwayat chat yang ditemukan.")
@@ -405,9 +443,9 @@ async def test_history(client, message):
             # Send in chunks
             chunks = [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]
             for i, chunk in enumerate(chunks):
-                await message.reply_text(f"**Riwayat Chat (Bagian {i+1}/{len(chunks)}):**\n\n{chunk}")
+                await message.reply_text(f"**Riwayat Chat {assistant_id} (Bagian {i+1}/{len(chunks)}):**\n\n{chunk}")
         else:
-            await message.reply_text(f"**Riwayat Chat:**\n\n{formatted}")
+            await message.reply_text(f"**Riwayat Chat {assistant_id}:**\n\n{formatted}")
         
     except Exception as e:
         console.error(f"Error in test_history: {str(e)}")

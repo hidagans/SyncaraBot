@@ -2,7 +2,7 @@
 from pyrogram import filters, enums
 from syncara.services import ReplicateAPI
 from syncara import bot, assistant_manager, console
-from config.config import OWNER_ID, SESSION_STRING
+from config.config import OWNER_ID
 from datetime import datetime
 import pytz
 import json
