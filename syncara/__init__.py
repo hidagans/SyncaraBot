@@ -6,6 +6,7 @@ from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
 from pyrogram.handlers import MessageHandler
 from config.config import *
+from config.assistants_config import ASSISTANT_CONFIG
 
 # Logging configuration
 logging.basicConfig(
@@ -59,18 +60,114 @@ class Ubot(Client):
         self.me = await self.get_me()
         console.info(f"Userbot started as @{self.me.username} ({self.me.id})")
 
-# Global instances - akan diinisialisasi nanti
+# Assistant Configuration sudah diimport dari config.assistants_config
+
+# Global instances
 bot = None
-userbot = None
+assistants = {}  # Dictionary untuk menyimpan semua assistant
+
+class AssistantManager:
+    """Manager untuk mengelola multiple assistants"""
+    
+    def __init__(self):
+        self.assistants = {}
+        self.active_assistants = []
+    
+    async def initialize_assistant(self, assistant_id, config):
+        """Initialize assistant berdasarkan config"""
+        try:
+            if not config.get("session_string"):
+                console.warning(f"Assistant {assistant_id} tidak memiliki session string")
+                return None
+            
+            assistant = Ubot(
+                name=f"Syncara{assistant_id}",
+                api_id=API_ID,
+                api_hash=API_HASH,
+                session_string=config["session_string"],
+            )
+            
+            await assistant.start()
+            
+            self.assistants[assistant_id] = {
+                "client": assistant,
+                "config": config,
+                "status": "active"
+            }
+            
+            self.active_assistants.append(assistant_id)
+            
+            console.info(f"✅ Assistant {assistant_id} (@{config['username']}) initialized successfully")
+            return assistant
+            
+        except Exception as e:
+            console.error(f"❌ Error initializing assistant {assistant_id}: {str(e)}")
+            return None
+    
+    async def initialize_all_assistants(self):
+        """Initialize semua assistant yang enabled"""
+        console.info("🚀 Initializing all assistants...")
+        
+        for assistant_id, config in ASSISTANT_CONFIG.items():
+            if config.get("enabled") and config.get("session_string"):
+                await self.initialize_assistant(assistant_id, config)
+            elif config.get("enabled") and not config.get("session_string"):
+                console.warning(f"⚠️ Assistant {assistant_id} enabled tapi tidak ada session string")
+        
+        console.info(f"✅ Total {len(self.active_assistants)} assistants active: {', '.join(self.active_assistants)}")
+    
+    def get_assistant(self, assistant_id):
+        """Get assistant client berdasarkan ID"""
+        if assistant_id in self.assistants:
+            return self.assistants[assistant_id]["client"]
+        return None
+    
+    def get_assistant_config(self, assistant_id):
+        """Get assistant config berdasarkan ID"""
+        if assistant_id in self.assistants:
+            return self.assistants[assistant_id]["config"]
+        return None
+    
+    def get_all_assistants(self):
+        """Get semua assistant yang active"""
+        return self.assistants
+    
+    def get_active_assistants(self):
+        """Get list assistant yang active"""
+        return self.active_assistants
+    
+    async def stop_assistant(self, assistant_id):
+        """Stop assistant tertentu"""
+        if assistant_id in self.assistants:
+            try:
+                await self.assistants[assistant_id]["client"].stop()
+                self.assistants[assistant_id]["status"] = "stopped"
+                if assistant_id in self.active_assistants:
+                    self.active_assistants.remove(assistant_id)
+                console.info(f"✅ Assistant {assistant_id} stopped")
+            except Exception as e:
+                console.error(f"❌ Error stopping assistant {assistant_id}: {str(e)}")
+    
+    async def stop_all_assistants(self):
+        """Stop semua assistant"""
+        console.info("🛑 Stopping all assistants...")
+        
+        for assistant_id in list(self.assistants.keys()):
+            await self.stop_assistant(assistant_id)
+        
+        console.info("✅ All assistants stopped")
+
+# Create assistant manager instance
+assistant_manager = AssistantManager()
 
 # Initialize both instances
 async def initialize_syncara():
-    """Initialize both bot and userbot"""
-    global bot, userbot
+    """Initialize bot manager dan semua assistants"""
+    global bot
     
-    console.info("Initializing SyncaraBot...")
+    console.info("🚀 Initializing SyncaraBot with Multiple Assistants...")
     
-    # Create bot instance
+    # Create bot manager instance
     bot = Bot(
         name="SyncaraBot",
         api_id=API_ID,
@@ -78,32 +175,38 @@ async def initialize_syncara():
         bot_token=BOT_TOKEN,
     )
     
-    # Create userbot instance
-    userbot = Ubot(
-        name="SyncaraUbot",
-        api_id=API_ID,
-        api_hash=API_HASH,
-        session_string=SESSION_STRING,
-    )
-    
-    # Start bot
+    # Start bot manager
     await bot.start()
     
-    # Start userbot if session string is available
-    if SESSION_STRING:
-        await userbot.start()
-        console.info("SyncaraBot initialized with userbot")
-    else:
-        console.warning("SyncaraBot initialized without userbot")
+    # Initialize all assistants
+    await assistant_manager.initialize_all_assistants()
     
-    return bot, userbot
+    console.info("🎉 SyncaraBot initialized successfully!")
+    return bot, assistant_manager
 
 async def stop_syncara():
-    """Stop both bot and userbot"""
-    console.info("Stopping SyncaraBot...")
+    """Stop bot manager dan semua assistants"""
+    console.info("🛑 Stopping SyncaraBot...")
     
-    if userbot.is_connected:
-        await userbot.stop()
+    # Stop all assistants
+    await assistant_manager.stop_all_assistants()
     
+    # Stop bot manager
     await bot.stop()
-    console.info("SyncaraBot stopped")
+    
+    console.info("✅ SyncaraBot stopped completely")
+
+# Helper functions untuk backward compatibility
+def get_userbot():
+    """Get default userbot (AERIS) untuk backward compatibility"""
+    return assistant_manager.get_assistant("AERIS")
+
+def get_assistant_by_username(username):
+    """Get assistant berdasarkan username"""
+    for assistant_id, assistant_data in assistant_manager.assistants.items():
+        if assistant_data["config"]["username"] == username:
+            return assistant_data["client"]
+    return None
+
+# Export untuk backward compatibility
+userbot = get_userbot()  # Default ke AERIS

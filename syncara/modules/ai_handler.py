@@ -1,7 +1,7 @@
 # syncara/modules/ai_handler.py
 from pyrogram import filters, enums
 from syncara.services import ReplicateAPI
-from syncara import bot, userbot, console
+from syncara import bot, assistant_manager, console
 from config.config import OWNER_ID, SESSION_STRING
 from datetime import datetime
 import pytz
@@ -396,58 +396,258 @@ async def learning_insights_command(client, message):
         console.error(f"Error in learning_insights_command: {str(e)}")
         await message.reply_text("❌ Terjadi kesalahan saat mengambil learning insights.")
 
-# Userbot message handler for group interactions
-@userbot.on_message(custom_userbot_filter & (filters.text | filters.photo))
-async def userbot_message_handler(client, message):
-    """Handle messages for userbot assistant when mentioned or replied"""
+@bot.on_message(filters.command("assistants") & filters.user(OWNER_ID))
+async def assistants_command(client, message):
+    """Show status semua assistant"""
     try:
-        # Get text from either message text or caption
-        text = message.text or message.caption
+        from config.assistants_config import get_assistant_status
         
-        if not text:
+        status = get_assistant_status()
+        active_assistants = assistant_manager.get_active_assistants()
+        
+        response = "🤖 **SYNCARABOT ASSISTANTS STATUS**\n\n"
+        
+        for assistant_id, info in status.items():
+            emoji = info["emoji"]
+            name = info["name"]
+            username = info["username"]
+            enabled = "✅" if info["enabled"] else "❌"
+            has_session = "✅" if info["has_session"] else "❌"
+            active = "🟢" if assistant_id in active_assistants else "🔴"
+            description = info["description"]
+            
+            response += f"{emoji} **{name}** (@{username})\n"
+            response += f"   Status: {enabled} Enabled | {has_session} Session | {active} Active\n"
+            response += f"   Description: {description}\n\n"
+        
+        response += f"📊 **Total Active:** {len(active_assistants)}/{len(status)}\n"
+        response += f"📋 **Commands:**\n"
+        response += f"• `/assistants` - Lihat status assistant\n"
+        response += f"• `/assistant_info [ASSISTANT]` - Info detail assistant\n"
+        response += f"• `/test_assistant [ASSISTANT]` - Test assistant tertentu"
+        
+        await message.reply_text(response)
+        
+    except Exception as e:
+        console.error(f"Error in assistants_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil status assistant.")
+
+@bot.on_message(filters.command("assistant_info") & filters.user(OWNER_ID))
+async def assistant_info_command(client, message):
+    """Show info detail assistant tertentu"""
+    try:
+        args = message.text.split()
+        if len(args) < 2:
+            await message.reply_text("❌ Format: /assistant_info [ASSISTANT]")
             return
         
-        # Get userbot info from cache
-        userbot_info = USERBOT_INFO_CACHE.get(client.name)
-        if not userbot_info:
-            userbot_info = await cache_userbot_info()
+        assistant_id = args[1].upper()
+        assistant = assistant_manager.get_assistant(assistant_id)
+        config = assistant_manager.get_assistant_config(assistant_id)
         
-        if userbot_info and f"@{userbot_info['username']}" in text:
-            text = text.replace(f"@{userbot_info['username']}", "").strip()
+        if not config:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak ditemukan!")
+            return
         
-        # Get photo if exists
-        photo_file_id = None
-        if message.photo:
-            photo_file_id = message.photo.file_id
+        response = f"{config['emoji']} **{config['name']} ASSISTANT INFO**\n\n"
+        response += f"**Username:** @{config['username']}\n"
+        response += f"**Personality:** {config['personality']}\n"
+        response += f"**Description:** {config['description']}\n"
+        response += f"**Enabled:** {'✅' if config['enabled'] else '❌'}\n"
+        response += f"**Has Session:** {'✅' if config['session_string'] else '❌'}\n"
+        response += f"**Active:** {'🟢' if assistant else '🔴'}\n\n"
         
-        # Send typing action
-        await client.send_chat_action(
-            chat_id=message.chat.id,
-            action=enums.ChatAction.TYPING
-        )
+        if assistant:
+            try:
+                me = await assistant.get_me()
+                response += f"**Connection Info:**\n"
+                response += f"• ID: {me.id}\n"
+                response += f"• Name: {me.first_name}\n"
+                response += f"• Username: @{me.username}\n"
+                response += f"• Status: Online 🟢\n"
+            except Exception as e:
+                response += f"**Connection Info:**\n"
+                response += f"• Status: Error ❌\n"
+                response += f"• Error: {str(e)[:50]}...\n"
         
-        # Process AI response
-        await process_ai_response(client, message, text, photo_file_id)
+        await message.reply_text(response)
         
     except Exception as e:
-        console.error(f"Error in userbot message handler: {str(e)}")
+        console.error(f"Error in assistant_info_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat mengambil info assistant.")
 
-# Private message handler for userbot
-@userbot.on_message(filters.text & filters.private)
-async def simple_private_handler(client, message):
-    """Handler for private messages to userbot"""
+@bot.on_message(filters.command("test_assistant") & filters.user(OWNER_ID))
+async def test_assistant_command(client, message):
+    """Test assistant tertentu"""
     try:
-        # Tambahkan auto-kenalan & ingatan
-        if message.from_user:
-            await kenalan_dan_update(client, message.from_user)
-        # Lanjutkan proses AI response seperti biasa
-        await process_ai_response(client, message, message.text)
+        args = message.text.split()
+        if len(args) < 2:
+            await message.reply_text("❌ Format: /test_assistant [ASSISTANT]")
+            return
+        
+        assistant_id = args[1].upper()
+        assistant = assistant_manager.get_assistant(assistant_id)
+        config = assistant_manager.get_assistant_config(assistant_id)
+        
+        if not config:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak ditemukan!")
+            return
+        
+        if not config["enabled"]:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak enabled!")
+            return
+        
+        if not assistant:
+            await message.reply_text(f"❌ Assistant {assistant_id} tidak active!")
+            return
+        
+        # Test sending message
+        try:
+            test_msg = await assistant.send_message(
+                chat_id=message.chat.id,
+                text=f"🧪 **Test Message dari {config['name']}**\n\nAssistant ini berfungsi dengan baik! {config['emoji']}"
+            )
+            
+            await message.reply_text(
+                f"✅ **Test berhasil!**\n\n"
+                f"Assistant {config['name']} berhasil mengirim pesan dengan ID: `{test_msg.id}`\n\n"
+                f"Sekarang coba mention @{config['username']} untuk test AI handler."
+            )
+            
+        except Exception as e:
+            await message.reply_text(f"❌ Test error: {str(e)}")
+        
     except Exception as e:
-        console.error(f"Error in private handler: {str(e)}")
-        # Fallback response
+        console.error(f"Error in test_assistant_command: {str(e)}")
+        await message.reply_text("❌ Terjadi kesalahan saat test assistant.")
+
+# Multi-assistant message handler
+async def setup_assistant_handlers():
+    """Setup handlers untuk semua assistant"""
+    try:
+        active_assistants = assistant_manager.get_active_assistants()
+        
+        for assistant_id in active_assistants:
+            assistant = assistant_manager.get_assistant(assistant_id)
+            config = assistant_manager.get_assistant_config(assistant_id)
+            
+            if not assistant or not config:
+                continue
+            
+            # Create custom filter untuk assistant ini
+            async def assistant_filter(_, __, message, assistant_config=config):
+                """Custom filter untuk assistant tertentu"""
+                try:
+                    # Skip messages from bots
+                    if message.from_user and message.from_user.is_bot:
+                        return False
+                    
+                    # Check if in private chat
+                    if message.chat.type == enums.ChatType.PRIVATE:
+                        return True
+                    
+                    # Check if assistant is mentioned
+                    if message.entities:
+                        for entity in message.entities:
+                            if entity.type == enums.MessageEntityType.MENTION:
+                                mentioned_username = message.text[entity.offset:entity.offset + entity.length]
+                                if mentioned_username == f"@{assistant_config['username']}":
+                                    return True
+                            elif entity.type == enums.MessageEntityType.TEXT_MENTION:
+                                # Check if mentioned user is this assistant
+                                if entity.user and entity.user.username == assistant_config['username']:
+                                    return True
+                    
+                    # Check if message is a reply to assistant's message
+                    if message.reply_to_message:
+                        if message.reply_to_message.from_user and message.reply_to_message.from_user.username == assistant_config['username']:
+                            return True
+                    
+                    return False
+                except Exception as e:
+                    console.error(f"Error in assistant filter: {str(e)}")
+                    return False
+            
+            # Create filter instance
+            custom_filter = filters.create(assistant_filter)
+            
+            # Group message handler
+            @assistant.on_message(custom_filter & (filters.text | filters.photo))
+            async def assistant_message_handler(client, message, assistant_config=config):
+                """Handle messages for specific assistant"""
+                try:
+                    # Get text from either message text or caption
+                    text = message.text or message.caption
+                    
+                    if not text:
+                        return
+                    
+                    # Remove assistant mention from text
+                    if f"@{assistant_config['username']}" in text:
+                        text = text.replace(f"@{assistant_config['username']}", "").strip()
+                    
+                    # Get photo if exists
+                    photo_file_id = None
+                    if message.photo:
+                        photo_file_id = message.photo.file_id
+                    
+                    # Send typing action
+                    await client.send_chat_action(
+                        chat_id=message.chat.id,
+                        action=enums.ChatAction.TYPING
+                    )
+                    
+                    # Process AI response with specific personality
+                    await process_ai_response_with_personality(client, message, text, photo_file_id, assistant_config['personality'])
+                    
+                except Exception as e:
+                    console.error(f"Error in {assistant_config['name']} message handler: {str(e)}")
+            
+            # Private message handler
+            @assistant.on_message(filters.text & filters.private)
+            async def assistant_private_handler(client, message, assistant_config=config):
+                """Handler for private messages to specific assistant"""
+                try:
+                    # Tambahkan auto-kenalan & ingatan
+                    if message.from_user:
+                        await kenalan_dan_update(client, message.from_user)
+                    
+                    # Process AI response with specific personality
+                    await process_ai_response_with_personality(client, message, message.text, None, assistant_config['personality'])
+                    
+                except Exception as e:
+                    console.error(f"Error in {assistant_config['name']} private handler: {str(e)}")
+                    # Fallback response
+                    await client.send_message(
+                        chat_id=message.chat.id,
+                        text=f"❌ Maaf, terjadi kesalahan saat memproses pesan Anda. - {assistant_config['name']}",
+                        reply_to_message_id=message.id
+                    )
+            
+            console.info(f"✅ Handlers setup untuk {assistant_config['name']} (@{assistant_config['username']})")
+        
+    except Exception as e:
+        console.error(f"Error setting up assistant handlers: {str(e)}")
+
+async def process_ai_response_with_personality(client, message, prompt, photo_file_id=None, personality="AERIS"):
+    """Process AI response dengan personality tertentu"""
+    try:
+        # Set personality untuk response ini
+        from syncara.modules.system_prompt import system_prompt
+        original_prompt = system_prompt.current_prompt_name
+        system_prompt.set_prompt(personality)
+        
+        # Process AI response seperti biasa
+        await process_ai_response(client, message, prompt, photo_file_id)
+        
+        # Restore original personality
+        system_prompt.set_prompt(original_prompt)
+        
+    except Exception as e:
+        console.error(f"Error in process_ai_response_with_personality: {str(e)}")
         await client.send_message(
             chat_id=message.chat.id,
-            text="❌ Maaf, terjadi kesalahan saat memproses pesan Anda.",
+            text="❌ Maaf, terjadi kesalahan saat memproses permintaan Anda.",
             reply_to_message_id=message.id
         )
 
@@ -831,38 +1031,24 @@ async def process_shortcodes_in_response(response_text, client, message):
 async def initialize_ai_handler():
     """Initialize AI handler components"""
     try:
-        console.info("Initializing AI handler...")
+        console.info("🚀 Initializing AI handler with multiple assistants...")
         
-        # Cache userbot info if available
-        if SESSION_STRING:
-            userbot_info = await cache_userbot_info()
-            if userbot_info:
-                console.info(f"✅ AI handler initialized with userbot: @{userbot_info['username']} (ID: {userbot_info['id']})")
-                debug_log(f"Userbot cached: {userbot_info}")
-            else:
-                console.error("❌ Failed to cache userbot info")
-        else:
-            console.warning("⚠️ AI handler initialized without userbot (no SESSION_STRING)")
+        # Setup handlers untuk semua assistant
+        await setup_assistant_handlers()
         
-        # Check handlers
+        # Check bot manager handlers
         if hasattr(bot, 'dispatcher'):
-            console.info(f"Bot handlers registered: {len(bot.dispatcher.groups)}")
-        if hasattr(userbot, 'dispatcher'):
-            console.info(f"Userbot handlers registered: {len(userbot.dispatcher.groups)}")
+            console.info(f"Bot manager handlers registered: {len(bot.dispatcher.groups)}")
         
-        # Add manual handler for userbot private messages
-        from pyrogram.handlers import MessageHandler
+        # Get active assistants info
+        active_assistants = assistant_manager.get_active_assistants()
+        console.info(f"✅ AI handler initialized with {len(active_assistants)} assistants: {', '.join(active_assistants)}")
         
-        async def manual_userbot_handler(client, message):
-            if message.chat.type == enums.ChatType.PRIVATE and message.text:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"🤖 **Halo! Saya adalah AERIS Assistant**\n\nSaya menerima pesan Anda: {message.text[:100]}...\n\nSilakan ajukan pertanyaan atau request yang Anda butuhkan!",
-                    reply_to_message_id=message.id
-                )
-        
-        userbot.add_handler(MessageHandler(manual_userbot_handler, filters.text))
-        console.info("✅ Userbot private handler added")
+        # Show assistant status
+        for assistant_id in active_assistants:
+            config = assistant_manager.get_assistant_config(assistant_id)
+            if config:
+                console.info(f"   {config['emoji']} {config['name']} (@{config['username']}) - {config['personality']}")
         
     except Exception as e:
         console.error(f"Error initializing AI handler: {str(e)}")
