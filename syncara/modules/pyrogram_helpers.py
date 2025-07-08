@@ -339,9 +339,22 @@ class PyrogramHelpers:
         self.performance_monitor = PerformanceMonitor()
         self.file_cache = FileCache()
         self.message_queue = MessageQueue()
+        self._cleanup_task_started = False
         
-        # Start cache cleanup task
-        asyncio.create_task(self._cleanup_task())
+        # Cleanup task akan dimulai saat dibutuhkan
+        self._cleanup_task_ref = None
+    
+    def _start_cleanup_task(self):
+        """Start cleanup task jika belum dimulai dan ada event loop"""
+        if not self._cleanup_task_started:
+            try:
+                # Check if there's a running event loop
+                asyncio.get_running_loop()
+                self._cleanup_task_ref = asyncio.create_task(self._cleanup_task())
+                self._cleanup_task_started = True
+            except RuntimeError:
+                # No running event loop, cleanup task akan dimulai nanti
+                pass
     
     async def _cleanup_task(self):
         """Background task untuk cleanup cache"""
@@ -353,6 +366,9 @@ class PyrogramHelpers:
                     console.info(f"Cleaned up {expired_count} expired cache entries")
             except Exception as e:
                 console.error(f"Error in cleanup task: {e}")
+            except asyncio.CancelledError:
+                console.info("Cleanup task cancelled")
+                break
     
     def cache_method(self, ttl: int = 3600, use_file_cache: bool = False):
         """
@@ -361,6 +377,9 @@ class PyrogramHelpers:
         def decorator(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
+                # Start cleanup task if needed
+                self._start_cleanup_task()
+                
                 # Create cache key
                 cache_key = f"{func.__name__}:{hashlib.md5(str(args + tuple(kwargs.items())).encode()).hexdigest()}"
                 
@@ -441,6 +460,9 @@ class PyrogramHelpers:
         """
         Execute operations in batches untuk menghindari rate limiting.
         """
+        # Start cleanup task if needed
+        self._start_cleanup_task()
+        
         results = []
         
         for i in range(0, len(operations), batch_size):
@@ -612,6 +634,9 @@ class PyrogramHelpers:
     
     async def cleanup_cache(self) -> Dict[str, int]:
         """Cleanup all caches"""
+        # Start cleanup task if needed
+        self._start_cleanup_task()
+        
         memory_cleaned = self.cache.cleanup_expired()
         file_cleaned = await self.file_cache.clear()
         
@@ -619,6 +644,27 @@ class PyrogramHelpers:
             'memory_cache_cleaned': memory_cleaned,
             'file_cache_cleaned': file_cleaned
         }
+    
+    async def shutdown(self):
+        """
+        Shutdown helper dan cleanup resources.
+        """
+        if self._cleanup_task_ref and not self._cleanup_task_ref.done():
+            self._cleanup_task_ref.cancel()
+            try:
+                await self._cleanup_task_ref
+            except asyncio.CancelledError:
+                pass
+        
+        # Cleanup caches
+        try:
+            await self.cleanup_cache()
+        except:
+            # Ignore errors during shutdown cleanup
+            pass
+        
+        from syncara.console import console
+        console.info("PyrogramHelpers shutdown completed")
 
 # Global instance
 pyrogram_helpers = PyrogramHelpers() 

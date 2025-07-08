@@ -27,19 +27,37 @@ def test_import():
         print("\n📋 Compatibility Information:")
         print_compatibility_info()
         
-        # Test import main modules
+        # Test import main modules (tanpa helpers yang membutuhkan event loop)
         print("\n🔧 Testing main module imports...")
-        from syncara.modules.pyrogram_integration import CompletePyrogramMethods
-        print("  ✓ pyrogram_integration imported")
         
+        print("  ✓ Testing pyrogram_methods...")
         from syncara.modules.pyrogram_methods import PyrogramMethods
         print("  ✓ pyrogram_methods imported")
         
+        print("  ✓ Testing pyrogram_chat_methods...")
         from syncara.modules.pyrogram_chat_methods import ChatMethods
         print("  ✓ pyrogram_chat_methods imported")
         
+        print("  ✓ Testing pyrogram_callback_methods...")
         from syncara.modules.pyrogram_callback_methods import CallbackMethods
         print("  ✓ pyrogram_callback_methods imported")
+        
+        print("  ✓ Testing pyrogram_inline_methods...")
+        from syncara.modules.pyrogram_inline_methods import InlineMethods
+        print("  ✓ pyrogram_inline_methods imported")
+        
+        print("  ✓ Testing pyrogram_utilities...")
+        from syncara.modules.pyrogram_utilities import UtilitiesMethods
+        print("  ✓ pyrogram_utilities imported")
+        
+        print("  ✓ Testing pyrogram_advanced_methods...")
+        from syncara.modules.pyrogram_advanced_methods import AdvancedMethods
+        print("  ✓ pyrogram_advanced_methods imported")
+        
+        # Test import integration terakhir (yang include helpers)
+        print("  ✓ Testing pyrogram_integration...")
+        from syncara.modules.pyrogram_integration import CompletePyrogramMethods
+        print("  ✓ pyrogram_integration imported")
         
         print("\n✅ All imports successful!")
         
