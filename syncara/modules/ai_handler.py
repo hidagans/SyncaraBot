@@ -1100,6 +1100,17 @@ async def process_shortcodes_in_response(response_text, client, message):
         # Pattern to match shortcodes like [CATEGORY:ACTION:params]
         shortcode_pattern = r'\[([A-Z]+:[A-Z_]+):([^\]]*)\]'
         
+        # Find all shortcodes first for validation
+        all_matches = list(re.finditer(shortcode_pattern, response_text))
+        shortcode_names = [match.group(1).strip() for match in all_matches]
+        
+        # Validate shortcode execution order
+        validation = registry.validate_shortcode_order(shortcode_names)
+        if not validation['valid']:
+            console.warning("Shortcode execution order issues detected:")
+            for issue in validation['issues']:
+                console.warning(f"  - {issue}")
+        
         async def replace_shortcode(match):
             full_shortcode = match.group(0)  # Full match like [USER:PROMOTE:7691971162]
             shortcode_name = match.group(1).strip()  # USER:PROMOTE
@@ -1144,9 +1155,19 @@ async def initialize_ai_handler():
         # Setup handlers untuk semua assistant
         await setup_assistant_handlers()
         
-        # Check bot manager handlers
-        if hasattr(bot, 'dispatcher'):
-            console.info(f"Bot manager handlers registered: {len(bot.dispatcher.groups)}")
+        # Check bot manager handlers dengan error handling
+        try:
+            if hasattr(bot, 'dispatcher') and hasattr(bot.dispatcher, 'groups'):
+                handler_count = len(bot.dispatcher.groups)
+                console.info(f"Bot manager handlers registered: {handler_count}")
+            else:
+                console.warning("Bot manager dispatcher not fully initialized yet")
+                # Count handlers manually from bot instance
+                handler_count = len(bot.handlers) if hasattr(bot, 'handlers') else 0
+                console.info(f"Bot manager handlers registered: {handler_count}")
+        except Exception as e:
+            console.error(f"Error checking bot manager handlers: {str(e)}")
+            console.info("Bot manager handlers registered: Unable to determine")
         
         # Get active assistants info
         active_assistants = assistant_manager.get_active_assistants()
@@ -1236,3 +1257,98 @@ async def autonomous_control(client, message):
     
     except Exception as e:
         await message.reply(f"❌ Error: {str(e)}")
+
+@bot.on_message(filters.command("canvas") & filters.user(OWNER_ID))
+async def canvas_debug_command(client, message):
+    """Debug canvas files and shortcode system"""
+    try:
+        from syncara.modules.canvas_manager import canvas_manager
+        from syncara.shortcode import registry
+        
+        args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+        
+        if not args:
+            # Show canvas status
+            files = canvas_manager.list_files()
+            response = f"🎨 **Canvas Debug Info**\n\n"
+            response += f"**Files in Canvas:** {len(files)}\n"
+            if files:
+                response += f"**Available Files:**\n"
+                for file in files:
+                    response += f"• {file}\n"
+            else:
+                response += "• No files available\n"
+            
+            response += f"\n**Shortcode Status:**\n"
+            response += f"• Total handlers: {len(registry.shortcodes)}\n"
+            response += f"• Canvas handlers: {len([s for s in registry.shortcodes if s.startswith('CANVAS:')])}\n"
+            
+            await message.reply(response)
+            return
+        
+        command = args[0].lower()
+        
+        if command == "list":
+            files = canvas_manager.list_files()
+            if files:
+                response = "📂 **Canvas Files:**\n"
+                for file_name in files:
+                    file_obj = canvas_manager.get_file(file_name)
+                    if file_obj:
+                        content_preview = file_obj.get_content()[:100] + "..." if len(file_obj.get_content()) > 100 else file_obj.get_content()
+                        response += f"• **{file_name}** ({file_obj.filetype})\n"
+                        response += f"  Preview: {content_preview}\n\n"
+                await message.reply(response)
+            else:
+                await message.reply("📂 No files in canvas")
+        
+        elif command == "clear":
+            canvas_manager.files.clear()
+            await message.reply("✅ Canvas cleared")
+        
+        elif command == "test":
+            # Test shortcode execution order
+            test_shortcodes = ["CANVAS:EXPORT:test.txt", "CANVAS:CREATE:test.txt"]
+            validation = registry.validate_shortcode_order(test_shortcodes)
+            
+            response = f"🧪 **Shortcode Order Test:**\n\n"
+            response += f"**Test Shortcodes:** {test_shortcodes}\n"
+            response += f"**Valid:** {'✅' if validation['valid'] else '❌'}\n"
+            
+            if validation['issues']:
+                response += f"**Issues:**\n"
+                for issue in validation['issues']:
+                    response += f"• {issue}\n"
+            
+            await message.reply(response)
+        
+    except Exception as e:
+        await message.reply(f"❌ Error: {str(e)}")
+
+@bot.on_message(filters.command("shortcode_test") & filters.user(OWNER_ID))
+async def shortcode_test_command(client, message):
+    """Test shortcode execution manually"""
+    try:
+        args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+        
+        if len(args) < 2:
+            await message.reply("Usage: `/shortcode_test SHORTCODE:ACTION params`")
+            return
+        
+        shortcode_name = args[0]
+        params = ' '.join(args[1:])
+        
+        from syncara.shortcode import registry
+        
+        console.info(f"Manual shortcode test: {shortcode_name} with params: {params}")
+        
+        result = await registry.execute_shortcode(shortcode_name, client, message, params)
+        
+        if result:
+            await message.reply(f"✅ Shortcode {shortcode_name} executed successfully")
+        else:
+            await message.reply(f"❌ Shortcode {shortcode_name} failed")
+            
+    except Exception as e:
+        await message.reply(f"❌ Error testing shortcode: {str(e)}")
+        console.error(f"Error in shortcode test: {str(e)}")

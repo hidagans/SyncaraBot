@@ -145,6 +145,14 @@ Gunakan format shortcode sesuai permintaan user. Handler baru akan aktif setelah
                 print(f"Error getting shortcode capabilities: {e}")
                 shortcode_capabilities = "Shortcode system not available"
             
+            # Add shortcode execution order guidelines
+            shortcode_capabilities += "\n\n📋 SHORTCODE EXECUTION GUIDELINES:\n"
+            shortcode_capabilities += "- ALWAYS create files before trying to export/show/edit them\n"
+            shortcode_capabilities += "- Use CANVAS:CREATE before CANVAS:EXPORT\n"
+            shortcode_capabilities += "- Use CANVAS:LIST to check available files first\n"
+            shortcode_capabilities += "- Check admin privileges before using USER/GROUP commands\n"
+            shortcode_capabilities += "- Test shortcodes in correct order to avoid failures\n"
+            
             # Default values
             bot_name = context.get('bot_name', 'Syncara')
             bot_username = context.get('bot_username', 'SyncaraBot')

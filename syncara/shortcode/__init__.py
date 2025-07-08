@@ -100,7 +100,38 @@ class ShortcodeRegistry:
             for shortcode, desc in shortcodes:
                 docs.append(f"- [{shortcode}] - {desc}")
         
+        # Add execution order notes
+        docs.append("\n⚠️ Important Notes:")
+        docs.append("- CANVAS:CREATE must be executed before CANVAS:EXPORT")
+        docs.append("- CANVAS:SHOW and CANVAS:EDIT require file to exist first")
+        docs.append("- USER management commands require admin privileges")
+        docs.append("- GROUP management commands require admin privileges")
+        
         return "\n".join(docs)
+
+    def validate_shortcode_order(self, shortcodes_in_text: list) -> dict:
+        """Validate the execution order of shortcodes in text"""
+        issues = []
+        
+        # Check for CANVAS operations
+        canvas_operations = [s for s in shortcodes_in_text if s.startswith('CANVAS:')]
+        for operation in canvas_operations:
+            if operation.startswith('CANVAS:EXPORT') or operation.startswith('CANVAS:SHOW') or operation.startswith('CANVAS:EDIT'):
+                # Check if there's a CREATE operation for the same file
+                filename = operation.split(':')[2] if len(operation.split(':')) > 2 else None
+                if filename:
+                    create_op = f"CANVAS:CREATE:{filename}"
+                    if not any(create_op in s for s in shortcodes_in_text):
+                        issues.append(f"⚠️ {operation} requires file to be created first with CANVAS:CREATE")
+        
+        return {
+            'valid': len(issues) == 0,
+            'issues': issues,
+            'suggestions': [
+                "Always create files before trying to export/show/edit them",
+                "Use CANVAS:LIST to check available files first"
+            ]
+        }
 
     async def execute_shortcode(self, shortcode: str, client, message, params):
         """Execute a registered shortcode"""

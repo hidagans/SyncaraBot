@@ -96,18 +96,40 @@ class CanvasManagementShortcode:
         return True
 
     async def export_file(self, client, message, params):
-        filename = params.strip()
-        file = canvas_manager.get_file(filename)
-        if file:
-            file_bytes = BytesIO(file.export().encode('utf-8'))
-            file_bytes.name = filename
-            await client.send_document(
+        try:
+            from syncara.console import console
+            filename = params.strip()
+            console.info(f"Attempting to export file: {filename}")
+            
+            file = canvas_manager.get_file(filename)
+            if file:
+                console.info(f"File {filename} found, exporting...")
+                file_bytes = BytesIO(file.export().encode('utf-8'))
+                file_bytes.name = filename
+                await client.send_document(
+                    chat_id=message.chat.id,
+                    document=file_bytes,
+                    caption=f'📤 Export file `{filename}`',
+                    reply_to_message_id=message.id
+                )
+                console.info(f"Successfully exported file: {filename}")
+                return True
+            else:
+                console.warning(f"File {filename} not found for export")
+                available_files = canvas_manager.list_files()
+                console.info(f"Available files: {available_files}")
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text=f'❌ File `{filename}` tidak ditemukan.\n\nFile tersedia: {", ".join(available_files) if available_files else "Tidak ada"}',
+                    reply_to_message_id=message.id
+                )
+                return False
+        except Exception as e:
+            from syncara.console import console
+            console.error(f"Error in export_file: {str(e)}")
+            await client.send_message(
                 chat_id=message.chat.id,
-                document=file_bytes,
-                caption=f'📤 Export file `{filename}`',
+                text=f'❌ Gagal export file: {str(e)}',
                 reply_to_message_id=message.id
             )
-            return True
-        else:
-            await message.reply('File tidak ditemukan.')
             return False 
