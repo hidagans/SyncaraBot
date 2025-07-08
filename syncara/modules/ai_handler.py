@@ -20,6 +20,7 @@ from syncara.modules.ai_learning import ai_learning
 from syncara.modules.canvas_manager import canvas_manager
 from config.assistants_config import get_assistant_by_username, get_assistant_config
 from syncara import autonomous_ai
+import asyncio
 
 # Inisialisasi komponen
 replicate_api = ReplicateAPI()
@@ -1121,7 +1122,8 @@ async def process_shortcodes_in_response(response_text, client, message):
         failed_executions = []
         created_files = []
         
-        async def execute_shortcode(match):
+        async def execute_shortcode_silent(match):
+            """Execute shortcode without sending files immediately"""
             full_shortcode = match.group(0)  # Full match like [USER:PROMOTE:7691971162]
             shortcode_name = match.group(1).strip()  # USER:PROMOTE
             params_str = match.group(2).strip()  # 7691971162
@@ -1145,10 +1147,11 @@ async def process_shortcodes_in_response(response_text, client, message):
                     console.info(f"Shortcode {shortcode_name} executed successfully")
                     successful_executions.append(shortcode_name)
                     
-                    # Track created files for auto-export
+                    # Track created files for later auto-send
                     if shortcode_name == 'CANVAS:CREATE':
                         filename = params_str.split(':')[0] if ':' in params_str else params_str
                         created_files.append(filename)
+                        console.info(f"File {filename} added to pending send list")
                     
                     return ""  # Remove shortcode from text without replacement
                 else:
@@ -1174,7 +1177,7 @@ async def process_shortcodes_in_response(response_text, client, message):
         
         # Process in reverse order to avoid index issues
         for match in reversed(matches):
-            replacement = await execute_shortcode(match)
+            replacement = await execute_shortcode_silent(match)
             start, end = match.span()
             processed_response = processed_response[:start] + replacement + processed_response[end:]
         
@@ -1182,13 +1185,33 @@ async def process_shortcodes_in_response(response_text, client, message):
         processed_response = re.sub(r'\n\s*\n\s*\n', '\n\n', processed_response)
         processed_response = processed_response.strip()
         
-        # Auto-send created files as final result
+        # Store created files for later sending - DON'T send immediately
+        if created_files:
+            # Schedule file sending after AI response is sent
+            asyncio.create_task(send_created_files_delayed(created_files, client, message))
+            console.info(f"Scheduled delayed sending for files: {created_files}")
+        
+        # Return clean response without files sent yet
+        return processed_response
+        
+    except Exception as e:
+        console.error(f"Error processing shortcodes: {str(e)}")
+        return response_text
+
+async def send_created_files_delayed(created_files, client, message):
+    """Send created files with a delay after AI response"""
+    try:
+        # Wait for AI response to be sent first
+        await asyncio.sleep(1.0)  # Small delay to ensure AI response is sent
+        
+        console.info(f"Now sending delayed files: {created_files}")
+        
+        from syncara.modules.canvas_manager import canvas_manager
+        from io import BytesIO
+        
         for filename in created_files:
             try:
-                console.info(f"Auto-sending created file as final result: {filename}")
-                
-                from syncara.modules.canvas_manager import canvas_manager
-                from io import BytesIO
+                console.info(f"Sending delayed file: {filename}")
                 
                 file_obj = canvas_manager.get_file(filename)
                 if file_obj:
@@ -1196,7 +1219,7 @@ async def process_shortcodes_in_response(response_text, client, message):
                     file_bytes = BytesIO(file_content.encode('utf-8'))
                     file_bytes.name = filename
                     
-                    # Send file as final result with clean caption
+                    # Send file as separate message with clean caption
                     await client.send_document(
                         chat_id=message.chat.id,
                         document=file_bytes,
@@ -1204,104 +1227,15 @@ async def process_shortcodes_in_response(response_text, client, message):
                         reply_to_message_id=message.id
                     )
                     
-                    console.info(f"Successfully sent file as final result: {filename}")
+                    console.info(f"Successfully sent delayed file: {filename}")
+                else:
+                    console.error(f"File {filename} not found in canvas for delayed sending")
                     
             except Exception as e:
-                console.error(f"Error sending file as final result: {str(e)}")
-        
-        # Return clean response without status updates if files were sent
-        if created_files:
-            return processed_response
-        
-        # Generate status update for AI only if no files were created
-        if execution_results:
-            status_update = await generate_shortcode_status_update(execution_results)
-            
-            # Add status update to response if there are meaningful results
-            if status_update:
-                processed_response += f"\n\n{status_update}"
-        
-        return processed_response
-        
-    except Exception as e:
-        console.error(f"Error processing shortcodes: {str(e)}")
-        return response_text
-
-async def generate_shortcode_status_update(execution_results):
-    """Generate a natural status update based on shortcode execution results"""
-    try:
-        successful = [r for r in execution_results if r['success']]
-        failed = [r for r in execution_results if not r['success']]
-        
-        created_files = []
-        exported_files = []
-        
-        # Track successful operations
-        for result in successful:
-            shortcode = result['shortcode']
-            
-            if shortcode == 'CANVAS:CREATE':
-                filename = result['params'].split(':')[0] if ':' in result['params'] else result['params']
-                created_files.append(filename)
+                console.error(f"Error sending delayed file {filename}: {str(e)}")
                 
-            elif shortcode == 'CANVAS:EXPORT':
-                filename = result['params'].strip()
-                exported_files.append(filename)
-        
-        # For files that were created successfully, trigger immediate export
-        for filename in created_files:
-            if filename not in exported_files:
-                console.info(f"Auto-triggering export for created file: {filename}")
-                try:
-                    import asyncio
-                    await asyncio.sleep(0.1)
-                    
-                    from syncara.modules.canvas_manager import canvas_manager
-                    from syncara.shortcode import registry
-                    
-                    file_obj = canvas_manager.get_file(filename)
-                    if file_obj:
-                        # Create a mock message context for export
-                        # We'll send the file directly here instead of through shortcode
-                        
-                        # Get the original message context from execution_results
-                        original_result = next((r for r in execution_results if r['shortcode'] == 'CANVAS:CREATE' and filename in r['params']), None)
-                        
-                        # Send file directly as final result
-                        from io import BytesIO
-                        file_content = file_obj.export()
-                        file_bytes = BytesIO(file_content.encode('utf-8'))
-                        file_bytes.name = filename
-                        
-                        # This will be sent as the final result - no status message needed
-                        console.info(f"File {filename} ready for final export")
-                        exported_files.append(filename)
-                        
-                except Exception as e:
-                    console.error(f"Error in auto-export trigger: {str(e)}")
-        
-        # Generate minimal status update - let the file speak for itself
-        if created_files and exported_files:
-            # If files were both created and exported, no need for status message
-            # The file will be sent separately
-            return ""
-        elif created_files:
-            # Files created but not exported
-            if len(created_files) == 1:
-                return f"✅ File `{created_files[0]}` berhasil dibuat! Sedang menyiapkan untuk download..."
-            else:
-                return f"✅ {len(created_files)} file berhasil dibuat!"
-        else:
-            # Handle failures only if no success
-            failed_creates = [r for r in failed if r['shortcode'] == 'CANVAS:CREATE']
-            if failed_creates:
-                return "❌ Gagal membuat file. Silakan coba lagi."
-        
-        return ""
-        
     except Exception as e:
-        console.error(f"Error generating status update: {str(e)}")
-        return ""
+        console.error(f"Error in send_created_files_delayed: {str(e)}")
 
 async def initialize_ai_handler():
     """Initialize AI handler components"""
@@ -1613,6 +1547,40 @@ File artikel sudah siap dan akan langsung terkirim ke kamu! 😊📂"""
             files = canvas_manager.list_files()
             await message.reply(f"**Step 4: Canvas Status**\nFiles: {files}")
         
+        elif command == "test_final_flow":
+            # Test the final fixed flow
+            await message.reply("🧪 Testing FINAL corrected AI flow...")
+            
+            # Clear canvas first
+            canvas_manager.clear_files()
+            
+            # Simulate real AI response
+            await message.reply("**Step 1: Simulating AI response with shortcode**")
+            
+            test_response = """Oke, siap! Aku akan bikinkan artikel tentang teknologi di tahun 2025 dan mengirimkannya dalam bentuk .txt. Yuk, kita mulai! 🚀✨
+
+[CANVAS:CREATE:artikel_teknologi_2025.txt:txt:Teknologi di Tahun 2025\\n\\nPerkembangan teknologi semakin pesat:\\n\\n1. Artificial Intelligence\\n   - AI lebih pintar dan efisien\\n   - Automasi industri meningkat\\n\\n2. Virtual Reality & Metaverse\\n   - Pengalaman immersive semakin nyata\\n   - Remote work jadi lebih interaktif\\n\\n3. Sustainable Technology\\n   - Energy harvesting technology\\n   - Carbon capture solutions\\n\\nKesimpulan:\\nTeknologi 2025 akan fokus pada sustainability dan human-centric design.]
+
+File artikel sudah siap dan akan langsung terkirim ke kamu! 😊📂"""
+
+            # Step 2: Process shortcodes (should not send file immediately)
+            await message.reply("**Step 2: Processing shortcodes (background)**")
+            processed = await process_shortcodes_in_response(test_response, client, message)
+            
+            # Step 3: Send processed response
+            await message.reply("**Step 3: Processed AI response (should be clean)**")
+            await message.reply(processed)
+            
+            # Step 4: Check if file will be sent with delay
+            await message.reply("**Step 4: Waiting for delayed file sending...**")
+            await asyncio.sleep(2)  # Wait for delayed sending
+            
+            await message.reply("**Step 5: Flow test completed!**")
+            
+            # Check canvas status
+            files = canvas_manager.list_files()
+            await message.reply(f"**Canvas Status:** {files}")
+        
         elif command == "help":
             help_text = """
 🎨 **Canvas Debug Commands:**
@@ -1627,6 +1595,7 @@ File artikel sudah siap dan akan langsung terkirim ke kamu! 😊📂"""
 • `/canvas test_flow` - Test full create→export flow
 • `/canvas test_ai_flow` - Test AI response with shortcode processing
 • `/canvas test_new_flow` - Test new improved AI flow
+• `/canvas test_final_flow` - Test final corrected AI flow
 • `/canvas help` - Show this help
 
 🧪 **Shortcode Testing:**
