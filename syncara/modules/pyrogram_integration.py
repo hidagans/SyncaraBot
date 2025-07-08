@@ -15,6 +15,9 @@ from .pyrogram_helpers import PyrogramHelpers, pyrogram_helpers
 from .pyrogram_scheduler import PyrogramScheduler, pyrogram_scheduler
 from .pyrogram_compatibility import print_compatibility_info, AVAILABLE_TYPES
 from syncara.console import console
+from pyrogram import types
+from typing import Union, Optional, List, Dict, Any, Callable
+from datetime import datetime
 
 class CompletePyrogramMethods(PyrogramMethods, ChatMethods, InlineMethods, CallbackMethods, AdvancedMethods, UtilitiesMethods, PyrogramBoundMethods):
     """
