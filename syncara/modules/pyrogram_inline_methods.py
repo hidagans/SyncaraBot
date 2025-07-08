@@ -8,6 +8,7 @@ from pyrogram import types, enums
 from pyrogram.errors import RPCError
 from typing import Union, List, Optional, Dict, Any
 from syncara.console import console
+from .pyrogram_compatibility import AVAILABLE_TYPES
 
 class InlineMethods:
     """
@@ -18,7 +19,7 @@ class InlineMethods:
     
     async def jawab_inline_query(self, 
                                 inline_query_id: str,
-                                results: List[types.InlineQueryResult],
+                                results: List[Any],
                                 cache_time: int = 300,
                                 is_personal: bool = False,
                                 next_offset: Optional[str] = None,
@@ -62,8 +63,8 @@ class InlineMethods:
                                   bot_username: str,
                                   query: str,
                                   offset: str = "",
-                                  location: Optional[types.Location] = None,
-                                  **kwargs) -> types.BotResults:
+                                  location: Optional[Any] = None,
+                                  **kwargs) -> Any:
         """
         Mendapatkan hasil inline query dari bot.
         
@@ -74,7 +75,7 @@ class InlineMethods:
             location: Lokasi user
             
         Returns:
-            BotResults: Hasil inline query
+            Any: Hasil inline query (BotResults jika tersedia)
         """
         try:
             return await self.get_inline_bot_results(
@@ -94,7 +95,7 @@ class InlineMethods:
                                     result_id: str,
                                     disable_notification: bool = False,
                                     reply_to_message_id: Optional[int] = None,
-                                    **kwargs) -> types.Message:
+                                    **kwargs) -> Any:
         """
         Mengirim hasil inline bot.
         
@@ -126,14 +127,14 @@ class InlineMethods:
     def buat_hasil_artikel(self, 
                           id: str,
                           title: str,
-                          input_message_content: types.InputMessageContent,
+                          input_message_content: Any,
                           url: Optional[str] = None,
                           hide_url: bool = False,
                           description: Optional[str] = None,
                           thumb_url: Optional[str] = None,
                           thumb_width: Optional[int] = None,
                           thumb_height: Optional[int] = None,
-                          reply_markup: Optional[types.InlineKeyboardMarkup] = None) -> types.InlineQueryResultArticle:
+                          reply_markup: Optional[Any] = None) -> Any:
         """
         Membuat hasil inline query berupa artikel.
         
@@ -153,18 +154,34 @@ class InlineMethods:
             InlineQueryResultArticle: Hasil artikel
         """
         try:
-            return types.InlineQueryResultArticle(
-                id=id,
-                title=title,
-                input_message_content=input_message_content,
-                url=url,
-                hide_url=hide_url,
-                description=description,
-                thumb_url=thumb_url,
-                thumb_width=thumb_width,
-                thumb_height=thumb_height,
-                reply_markup=reply_markup
-            )
+            if AVAILABLE_TYPES.get('InlineQueryResultArticle', False):
+                return types.InlineQueryResultArticle(
+                    id=id,
+                    title=title,
+                    input_message_content=input_message_content,
+                    url=url,
+                    hide_url=hide_url,
+                    description=description,
+                    thumb_url=thumb_url,
+                    thumb_width=thumb_width,
+                    thumb_height=thumb_height,
+                    reply_markup=reply_markup
+                )
+            else:
+                # Fallback untuk versi lama
+                return {
+                    "type": "article",
+                    "id": id,
+                    "title": title,
+                    "input_message_content": input_message_content,
+                    "url": url,
+                    "hide_url": hide_url,
+                    "description": description,
+                    "thumb_url": thumb_url,
+                    "thumb_width": thumb_width,
+                    "thumb_height": thumb_height,
+                    "reply_markup": reply_markup
+                }
         except Exception as e:
             console.error(f"Error membuat hasil artikel: {e}")
             raise
@@ -179,9 +196,9 @@ class InlineMethods:
                        description: Optional[str] = None,
                        caption: Optional[str] = None,
                        parse_mode: Optional[enums.ParseMode] = None,
-                       caption_entities: Optional[List[types.MessageEntity]] = None,
-                       reply_markup: Optional[types.InlineKeyboardMarkup] = None,
-                       input_message_content: Optional[types.InputMessageContent] = None) -> types.InlineQueryResultPhoto:
+                       caption_entities: Optional[List[Any]] = None,
+                       reply_markup: Optional[Any] = None,
+                       input_message_content: Optional[Any] = None) -> Any:
         """
         Membuat hasil inline query berupa foto.
         
@@ -203,20 +220,38 @@ class InlineMethods:
             InlineQueryResultPhoto: Hasil foto
         """
         try:
-            return types.InlineQueryResultPhoto(
-                id=id,
-                photo_url=photo_url,
-                thumb_url=thumb_url,
-                photo_width=photo_width,
-                photo_height=photo_height,
-                title=title,
-                description=description,
-                caption=caption,
-                parse_mode=parse_mode,
-                caption_entities=caption_entities,
-                reply_markup=reply_markup,
-                input_message_content=input_message_content
-            )
+            if AVAILABLE_TYPES.get('InlineQueryResultPhoto', False):
+                return types.InlineQueryResultPhoto(
+                    id=id,
+                    photo_url=photo_url,
+                    thumb_url=thumb_url,
+                    photo_width=photo_width,
+                    photo_height=photo_height,
+                    title=title,
+                    description=description,
+                    caption=caption,
+                    parse_mode=parse_mode,
+                    caption_entities=caption_entities,
+                    reply_markup=reply_markup,
+                    input_message_content=input_message_content
+                )
+            else:
+                # Fallback untuk versi lama
+                return {
+                    "type": "photo",
+                    "id": id,
+                    "photo_url": photo_url,
+                    "thumb_url": thumb_url,
+                    "photo_width": photo_width,
+                    "photo_height": photo_height,
+                    "title": title,
+                    "description": description,
+                    "caption": caption,
+                    "parse_mode": parse_mode,
+                    "caption_entities": caption_entities,
+                    "reply_markup": reply_markup,
+                    "input_message_content": input_message_content
+                }
         except Exception as e:
             console.error(f"Error membuat hasil foto: {e}")
             raise
@@ -233,9 +268,9 @@ class InlineMethods:
                         description: Optional[str] = None,
                         caption: Optional[str] = None,
                         parse_mode: Optional[enums.ParseMode] = None,
-                        caption_entities: Optional[List[types.MessageEntity]] = None,
-                        reply_markup: Optional[types.InlineKeyboardMarkup] = None,
-                        input_message_content: Optional[types.InputMessageContent] = None) -> types.InlineQueryResultVideo:
+                                               caption_entities: Optional[List[Any]] = None,
+                       reply_markup: Optional[Any] = None,
+                       input_message_content: Optional[Any] = None) -> Any:
         """
         Membuat hasil inline query berupa video.
         
@@ -259,22 +294,42 @@ class InlineMethods:
             InlineQueryResultVideo: Hasil video
         """
         try:
-            return types.InlineQueryResultVideo(
-                id=id,
-                video_url=video_url,
-                mime_type=mime_type,
-                thumb_url=thumb_url,
-                title=title,
-                video_width=video_width,
-                video_height=video_height,
-                video_duration=video_duration,
-                description=description,
-                caption=caption,
-                parse_mode=parse_mode,
-                caption_entities=caption_entities,
-                reply_markup=reply_markup,
-                input_message_content=input_message_content
-            )
+            if AVAILABLE_TYPES.get('InlineQueryResultVideo', False):
+                return types.InlineQueryResultVideo(
+                    id=id,
+                    video_url=video_url,
+                    mime_type=mime_type,
+                    thumb_url=thumb_url,
+                    title=title,
+                    video_width=video_width,
+                    video_height=video_height,
+                    video_duration=video_duration,
+                    description=description,
+                    caption=caption,
+                    parse_mode=parse_mode,
+                    caption_entities=caption_entities,
+                    reply_markup=reply_markup,
+                    input_message_content=input_message_content
+                )
+            else:
+                # Fallback untuk versi lama
+                return {
+                    "type": "video",
+                    "id": id,
+                    "video_url": video_url,
+                    "mime_type": mime_type,
+                    "thumb_url": thumb_url,
+                    "title": title,
+                    "video_width": video_width,
+                    "video_height": video_height,
+                    "video_duration": video_duration,
+                    "description": description,
+                    "caption": caption,
+                    "parse_mode": parse_mode,
+                    "caption_entities": caption_entities,
+                    "reply_markup": reply_markup,
+                    "input_message_content": input_message_content
+                }
         except Exception as e:
             console.error(f"Error membuat hasil video: {e}")
             raise
@@ -285,11 +340,11 @@ class InlineMethods:
                         title: str,
                         caption: Optional[str] = None,
                         parse_mode: Optional[enums.ParseMode] = None,
-                        caption_entities: Optional[List[types.MessageEntity]] = None,
-                        performer: Optional[str] = None,
-                        audio_duration: Optional[int] = None,
-                        reply_markup: Optional[types.InlineKeyboardMarkup] = None,
-                        input_message_content: Optional[types.InputMessageContent] = None) -> types.InlineQueryResultAudio:
+                                               caption_entities: Optional[List[Any]] = None,
+                       performer: Optional[str] = None,
+                       audio_duration: Optional[int] = None,
+                       reply_markup: Optional[Any] = None,
+                       input_message_content: Optional[Any] = None) -> Any:
         """
         Membuat hasil inline query berupa audio.
         
@@ -309,18 +364,34 @@ class InlineMethods:
             InlineQueryResultAudio: Hasil audio
         """
         try:
-            return types.InlineQueryResultAudio(
-                id=id,
-                audio_url=audio_url,
-                title=title,
-                caption=caption,
-                parse_mode=parse_mode,
-                caption_entities=caption_entities,
-                performer=performer,
-                audio_duration=audio_duration,
-                reply_markup=reply_markup,
-                input_message_content=input_message_content
-            )
+            if AVAILABLE_TYPES.get('InlineQueryResultAudio', False):
+                return types.InlineQueryResultAudio(
+                    id=id,
+                    audio_url=audio_url,
+                    title=title,
+                    caption=caption,
+                    parse_mode=parse_mode,
+                    caption_entities=caption_entities,
+                    performer=performer,
+                    audio_duration=audio_duration,
+                    reply_markup=reply_markup,
+                    input_message_content=input_message_content
+                )
+            else:
+                # Fallback untuk versi lama
+                return {
+                    "type": "audio",
+                    "id": id,
+                    "audio_url": audio_url,
+                    "title": title,
+                    "caption": caption,
+                    "parse_mode": parse_mode,
+                    "caption_entities": caption_entities,
+                    "performer": performer,
+                    "audio_duration": audio_duration,
+                    "reply_markup": reply_markup,
+                    "input_message_content": input_message_content
+                }
         except Exception as e:
             console.error(f"Error membuat hasil audio: {e}")
             raise
@@ -332,13 +403,13 @@ class InlineMethods:
                           mime_type: str,
                           caption: Optional[str] = None,
                           parse_mode: Optional[enums.ParseMode] = None,
-                          caption_entities: Optional[List[types.MessageEntity]] = None,
-                          description: Optional[str] = None,
-                          reply_markup: Optional[types.InlineKeyboardMarkup] = None,
-                          input_message_content: Optional[types.InputMessageContent] = None,
-                          thumb_url: Optional[str] = None,
-                          thumb_width: Optional[int] = None,
-                          thumb_height: Optional[int] = None) -> types.InlineQueryResultDocument:
+                                                   caption_entities: Optional[List[Any]] = None,
+                         description: Optional[str] = None,
+                         reply_markup: Optional[Any] = None,
+                         input_message_content: Optional[Any] = None,
+                         thumb_url: Optional[str] = None,
+                         thumb_width: Optional[int] = None,
+                         thumb_height: Optional[int] = None) -> Any:
         """
         Membuat hasil inline query berupa dokumen.
         
@@ -361,21 +432,40 @@ class InlineMethods:
             InlineQueryResultDocument: Hasil dokumen
         """
         try:
-            return types.InlineQueryResultDocument(
-                id=id,
-                title=title,
-                document_url=document_url,
-                mime_type=mime_type,
-                caption=caption,
-                parse_mode=parse_mode,
-                caption_entities=caption_entities,
-                description=description,
-                reply_markup=reply_markup,
-                input_message_content=input_message_content,
-                thumb_url=thumb_url,
-                thumb_width=thumb_width,
-                thumb_height=thumb_height
-            )
+            if AVAILABLE_TYPES.get('InlineQueryResultDocument', False):
+                return types.InlineQueryResultDocument(
+                    id=id,
+                    title=title,
+                    document_url=document_url,
+                    mime_type=mime_type,
+                    caption=caption,
+                    parse_mode=parse_mode,
+                    caption_entities=caption_entities,
+                    description=description,
+                    reply_markup=reply_markup,
+                    input_message_content=input_message_content,
+                    thumb_url=thumb_url,
+                    thumb_width=thumb_width,
+                    thumb_height=thumb_height
+                )
+            else:
+                # Fallback untuk versi lama
+                return {
+                    "type": "document",
+                    "id": id,
+                    "title": title,
+                    "document_url": document_url,
+                    "mime_type": mime_type,
+                    "caption": caption,
+                    "parse_mode": parse_mode,
+                    "caption_entities": caption_entities,
+                    "description": description,
+                    "reply_markup": reply_markup,
+                    "input_message_content": input_message_content,
+                    "thumb_url": thumb_url,
+                    "thumb_width": thumb_width,
+                    "thumb_height": thumb_height
+                }
         except Exception as e:
             console.error(f"Error membuat hasil dokumen: {e}")
             raise
@@ -386,11 +476,11 @@ class InlineMethods:
                          first_name: str,
                          last_name: Optional[str] = None,
                          vcard: Optional[str] = None,
-                         reply_markup: Optional[types.InlineKeyboardMarkup] = None,
-                         input_message_content: Optional[types.InputMessageContent] = None,
-                         thumb_url: Optional[str] = None,
-                         thumb_width: Optional[int] = None,
-                         thumb_height: Optional[int] = None) -> types.InlineQueryResultContact:
+                                                 reply_markup: Optional[Any] = None,
+                        input_message_content: Optional[Any] = None,
+                        thumb_url: Optional[str] = None,
+                        thumb_width: Optional[int] = None,
+                        thumb_height: Optional[int] = None) -> Any:
         """
         Membuat hasil inline query berupa kontak.
         
@@ -410,18 +500,34 @@ class InlineMethods:
             InlineQueryResultContact: Hasil kontak
         """
         try:
-            return types.InlineQueryResultContact(
-                id=id,
-                phone_number=phone_number,
-                first_name=first_name,
-                last_name=last_name,
-                vcard=vcard,
-                reply_markup=reply_markup,
-                input_message_content=input_message_content,
-                thumb_url=thumb_url,
-                thumb_width=thumb_width,
-                thumb_height=thumb_height
-            )
+            if AVAILABLE_TYPES.get('InlineQueryResultContact', False):
+                return types.InlineQueryResultContact(
+                    id=id,
+                    phone_number=phone_number,
+                    first_name=first_name,
+                    last_name=last_name,
+                    vcard=vcard,
+                    reply_markup=reply_markup,
+                    input_message_content=input_message_content,
+                    thumb_url=thumb_url,
+                    thumb_width=thumb_width,
+                    thumb_height=thumb_height
+                )
+            else:
+                # Fallback untuk versi lama
+                return {
+                    "type": "contact",
+                    "id": id,
+                    "phone_number": phone_number,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "vcard": vcard,
+                    "reply_markup": reply_markup,
+                    "input_message_content": input_message_content,
+                    "thumb_url": thumb_url,
+                    "thumb_width": thumb_width,
+                    "thumb_height": thumb_height
+                }
         except Exception as e:
             console.error(f"Error membuat hasil kontak: {e}")
             raise
@@ -434,11 +540,11 @@ class InlineMethods:
                          live_period: Optional[int] = None,
                          heading: Optional[int] = None,
                          proximity_alert_radius: Optional[int] = None,
-                         reply_markup: Optional[types.InlineKeyboardMarkup] = None,
-                         input_message_content: Optional[types.InputMessageContent] = None,
-                         thumb_url: Optional[str] = None,
-                         thumb_width: Optional[int] = None,
-                         thumb_height: Optional[int] = None) -> types.InlineQueryResultLocation:
+                                                 reply_markup: Optional[Any] = None,
+                        input_message_content: Optional[Any] = None,
+                        thumb_url: Optional[str] = None,
+                        thumb_width: Optional[int] = None,
+                        thumb_height: Optional[int] = None) -> Any:
         """
         Membuat hasil inline query berupa lokasi.
         
@@ -460,20 +566,38 @@ class InlineMethods:
             InlineQueryResultLocation: Hasil lokasi
         """
         try:
-            return types.InlineQueryResultLocation(
-                id=id,
-                latitude=latitude,
-                longitude=longitude,
-                title=title,
-                live_period=live_period,
-                heading=heading,
-                proximity_alert_radius=proximity_alert_radius,
-                reply_markup=reply_markup,
-                input_message_content=input_message_content,
-                thumb_url=thumb_url,
-                thumb_width=thumb_width,
-                thumb_height=thumb_height
-            )
+            if AVAILABLE_TYPES.get('InlineQueryResultLocation', False):
+                return types.InlineQueryResultLocation(
+                    id=id,
+                    latitude=latitude,
+                    longitude=longitude,
+                    title=title,
+                    live_period=live_period,
+                    heading=heading,
+                    proximity_alert_radius=proximity_alert_radius,
+                    reply_markup=reply_markup,
+                    input_message_content=input_message_content,
+                    thumb_url=thumb_url,
+                    thumb_width=thumb_width,
+                    thumb_height=thumb_height
+                )
+            else:
+                # Fallback untuk versi lama
+                return {
+                    "type": "location",
+                    "id": id,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "title": title,
+                    "live_period": live_period,
+                    "heading": heading,
+                    "proximity_alert_radius": proximity_alert_radius,
+                    "reply_markup": reply_markup,
+                    "input_message_content": input_message_content,
+                    "thumb_url": thumb_url,
+                    "thumb_width": thumb_width,
+                    "thumb_height": thumb_height
+                }
         except Exception as e:
             console.error(f"Error membuat hasil lokasi: {e}")
             raise 
