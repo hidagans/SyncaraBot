@@ -15,9 +15,10 @@ import asyncio
 
 # Import console jika dibutuhkan:
 from syncara.console import console
+from syncara.modules.pyrogram_integration import CompletePyrogramMethods
 
-class Bot(Client):
-    """Enhanced Bot class with custom handlers"""
+class Bot(Client, CompletePyrogramMethods):
+    """Enhanced Bot class with custom handlers and complete Pyrogram methods"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.me = None
@@ -32,9 +33,10 @@ class Bot(Client):
         await super().start()
         self.me = await self.get_me()
         console.info(f"Bot Manager started as @{self.me.username} ({self.me.id})")
+        console.info("✅ Semua method Pyrogram telah dimuat ke Bot Manager")
 
-class Ubot(Client):
-    """Enhanced Userbot class"""
+class Ubot(Client, CompletePyrogramMethods):
+    """Enhanced Userbot class with complete Pyrogram methods"""
     __module__ = "pyrogram.client"
 
     def __init__(self, **kwargs):
@@ -51,6 +53,7 @@ class Ubot(Client):
         await super().start()
         self.me = await self.get_me()
         console.info(f"Userbot started as @{self.me.username} ({self.me.id})")
+        console.info("✅ Semua method Pyrogram telah dimuat ke Userbot")
 
 # Assistant Configuration sudah diimport dari config.assistants_config
 
