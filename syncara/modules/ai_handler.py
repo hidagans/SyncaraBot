@@ -1162,6 +1162,18 @@ async def process_shortcodes_in_response(response_text, client, message):
                         if isinstance(result, str):
                             pending_responses.append(result)
                             console.info(f"Response {result} added to pending send list")
+                    elif shortcode_name.startswith(('PYTHON:', 'CODE:', 'CALC:')):
+                        if isinstance(result, str):
+                            pending_responses.append(result)
+                            console.info(f"Python result {result} added to pending send list")
+                    elif shortcode_name.startswith(('SEARCH:', 'FILE:', 'FIND:', 'CHAT:')):
+                        if isinstance(result, str):
+                            pending_responses.append(result)
+                            console.info(f"Search result {result} added to pending send list")
+                    elif shortcode_name.startswith(('TODO:')):
+                        if isinstance(result, str):
+                            pending_responses.append(result)
+                            console.info(f"TODO result {result} added to pending send list")
                     
                     return ""  # Remove shortcode from text without replacement
                 else:
@@ -1260,16 +1272,21 @@ async def send_pending_responses_delayed(pending_responses, client, message):
     try:
         from syncara.shortcode import registry
         
-        # Get all shortcode instances that have send_pending_responses method
+        # Get all shortcode instances that have send_pending_responses or send_pending_results method
         shortcode_instances = []
         for shortcode_name, handler in registry.shortcodes.items():
             if hasattr(handler, 'send_pending_responses'):
+                shortcode_instances.append(handler)
+            elif hasattr(handler, 'send_pending_results'):
                 shortcode_instances.append(handler)
         
         # Send responses from all shortcode instances
         for handler in shortcode_instances:
             try:
-                await handler.send_pending_responses(client, pending_responses)
+                if hasattr(handler, 'send_pending_responses'):
+                    await handler.send_pending_responses(client, pending_responses)
+                elif hasattr(handler, 'send_pending_results'):
+                    await handler.send_pending_results(client, pending_responses)
                 console.info(f"Sent responses from {handler.__class__.__name__}")
             except Exception as e:
                 console.error(f"Error sending responses from {handler.__class__.__name__}: {str(e)}")
@@ -1803,10 +1820,207 @@ async def shortcode_status_command(client, message):
         response += "\n**Test Commands:**\n"
         response += "• `/test_delayed` - Test all shortcode types\n"
         response += "• `/test_all_flow` - Test combined flow\n"
+        response += "• `/test_group_fix` - Test GROUP shortcode fixes\n"
+        response += "• `/test_python` - Test Python execution\n"
+        response += "• `/test_search` - Test file/chat search\n"
+        response += "• `/test_todo` - Test TODO management\n"
+        response += "• `/test_new_features` - Test all new features\n"
+        response += "• `/features_help` - Help for new features\n"
         response += "• `/shortcode_status` - This command\n"
         
         await message.reply_text(response)
         
     except Exception as e:
         console.error(f"Error in shortcode_status_command: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")
+
+@bot.on_message(filters.command("test_group_fix") & filters.user(OWNER_ID))
+async def test_group_fix_command(client, message):
+    """Test improved GROUP shortcode handling"""
+    try:
+        # Test responses with invalid and valid parameters
+        test_responses = [
+            "Testing invalid ID: [GROUP:DELETE_MESSAGE:current_message_id]",
+            "Testing valid keyword: [GROUP:PIN_MESSAGE:current_message_id]",
+            "Testing invalid format: [GROUP:DELETE_MESSAGE:not_a_number]",
+            "Testing reply message: [GROUP:PIN_MESSAGE:reply_message]"
+        ]
+        
+        await message.reply_text("🧪 **Testing Improved GROUP Shortcodes**\n\nTesting parameter validation and special keywords...")
+        
+        for i, test_response in enumerate(test_responses, 1):
+            await message.reply_text(f"**Test {i}:**\n{test_response}")
+            processed_response = await process_shortcodes_in_response(test_response, client, message)
+            await message.reply_text(f"**Result {i}:**\n{processed_response}")
+            await asyncio.sleep(2)  # Small delay between tests
+            
+    except Exception as e:
+        console.error(f"Error in test_group_fix_command: {str(e)}")
+        await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("test_python") & filters.user(OWNER_ID))
+async def test_python_command(client, message):
+    """Test Python execution shortcode"""
+    try:
+        # Test different Python code examples
+        test_codes = [
+            "Simple calculation: [PYTHON:EXEC:2 + 2 * 3]",
+            "Math operations: [CODE:PYTHON:import math; math.sqrt(16) + math.pi]",
+            "String manipulation: [CALC:PYTHON:\"Hello World\".upper().replace(\"WORLD\", \"Python\")]",
+            "List operations: [PYTHON:EXEC:list(range(5))]",
+            "Security test (should fail): [PYTHON:EXEC:import os; os.listdir()]"
+        ]
+        
+        await message.reply_text("🐍 **Testing Python Execution**\n\nTesting various Python code examples...")
+        
+        for i, test_code in enumerate(test_codes, 1):
+            await message.reply_text(f"**Test {i}:**\n{test_code}")
+            processed_response = await process_shortcodes_in_response(test_code, client, message)
+            await message.reply_text(f"**Result {i}:**\n{processed_response}")
+            await asyncio.sleep(3)  # Longer delay for Python execution
+            
+    except Exception as e:
+        console.error(f"Error in test_python_command: {str(e)}")
+        await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("test_search") & filters.user(OWNER_ID))
+async def test_search_command(client, message):
+    """Test file and chat search shortcodes"""
+    try:
+        # Test different search examples
+        test_searches = [
+            "Search Python files: [SEARCH:FILE:*.py]",
+            "Find config files: [FILE:SEARCH:config]",
+            "Search for modules: [FIND:FILE:modules]",
+            "Search chat history: [SEARCH:CHAT:shortcode]",
+            "Find specific messages: [CHAT:SEARCH:Python]"
+        ]
+        
+        await message.reply_text("🔍 **Testing Search Functions**\n\nTesting file and chat search capabilities...")
+        
+        for i, test_search in enumerate(test_searches, 1):
+            await message.reply_text(f"**Test {i}:**\n{test_search}")
+            processed_response = await process_shortcodes_in_response(test_search, client, message)
+            await message.reply_text(f"**Result {i}:**\n{processed_response}")
+            await asyncio.sleep(2)  # Delay for search operations
+            
+    except Exception as e:
+        console.error(f"Error in test_search_command: {str(e)}")
+        await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("test_new_features") & filters.user(OWNER_ID))
+async def test_new_features_command(client, message):
+    """Test all new features together"""
+    try:
+        # Combined test
+        combined_test = """🧪 **Testing All New Features**
+
+AI akan menjalankan kode Python, mencari file, mencari chat, dan mengelola TODO sekaligus!
+
+[PYTHON:EXEC:print("Hello from Python!"); result = 5 * 8; print(f"5 x 8 = {result}")]
+[SEARCH:FILE:shortcode]
+[CHAT:SEARCH:test]
+[TODO:CREATE:Test todo dari AI]
+[TODO:LIST:]
+
+Semua hasil akan muncul setelah response AI ini! 🚀"""
+        
+        await message.reply_text("🧪 **Testing All New Features**\n\nProcessing combined Python, search, and TODO operations...")
+        
+        # Process the test message
+        processed = await process_shortcodes_in_response(combined_test, client, message)
+        await message.reply_text(processed)
+        
+    except Exception as e:
+        console.error(f"Error in test_new_features_command: {str(e)}")
+        await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("test_todo") & filters.user(OWNER_ID))
+async def test_todo_command(client, message):
+    """Test TODO management shortcode"""
+    try:
+        # Test different TODO operations
+        test_todos = [
+            "Create new todo: [TODO:CREATE:Belajar Python programming]",
+            "Create another todo: [TODO:ADD:Setup development environment]",
+            "List all todos: [TODO:LIST:]",
+            "Complete first todo: [TODO:COMPLETE:1]",
+            "Create third todo: [TODO:NEW:Deploy aplikasi ke server]",
+            "Show todo stats: [TODO:STATS:]",
+            "List pending todos: [TODO:SHOW:pending]",
+            "Update todo: [TODO:UPDATE:2:Setup Docker environment]",
+            "List completed todos: [TODO:VIEW:completed]"
+        ]
+        
+        await message.reply_text("📝 **Testing TODO Management**\n\nTesting various TODO operations...")
+        
+        for i, test_todo in enumerate(test_todos, 1):
+            await message.reply_text(f"**Test {i}:**\n{test_todo}")
+            processed_response = await process_shortcodes_in_response(test_todo, client, message)
+            await message.reply_text(f"**Result {i}:**\n{processed_response}")
+            await asyncio.sleep(2)  # Delay between tests
+            
+    except Exception as e:
+        console.error(f"Error in test_todo_command: {str(e)}")
+        await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("features_help") & filters.user(OWNER_ID))
+async def features_help_command(client, message):
+    """Show help for new features"""
+    try:
+        help_text = """🚀 **New Features Help**
+
+**🐍 Python Execution:**
+• `[PYTHON:EXEC:code]` - Execute Python code
+• `[CODE:PYTHON:code]` - Alternative syntax
+• `[CALC:PYTHON:code]` - For calculations
+
+**Examples:**
+• `[PYTHON:EXEC:2 + 2]`
+• `[CODE:PYTHON:import math; math.sqrt(16)]`
+• `[CALC:PYTHON:sum([1,2,3,4,5])]`
+
+**🔍 File & Chat Search:**
+• `[SEARCH:FILE:pattern]` - Search files
+• `[FILE:SEARCH:*.py]` - Find Python files
+• `[FIND:FILE:config]` - Find config files
+• `[SEARCH:CHAT:keyword]` - Search chat history
+• `[CHAT:SEARCH:message]` - Find messages
+
+**Examples:**
+• `[SEARCH:FILE:*.txt]` - Find all text files
+• `[FILE:SEARCH:main]` - Find files with "main"
+• `[CHAT:SEARCH:error]` - Find messages about errors
+
+**📝 TODO Management:**
+• `[TODO:CREATE:description]` - Create new todo
+• `[TODO:LIST:]` - List all todos
+• `[TODO:COMPLETE:id]` - Mark todo as done
+• `[TODO:DELETE:id]` - Delete todo
+• `[TODO:UPDATE:id:new_description]` - Update todo
+• `[TODO:CLEAR:]` - Clear completed todos
+• `[TODO:STATS:]` - Show statistics
+
+**Examples:**
+• `[TODO:CREATE:Belajar Python]` - Create new todo
+• `[TODO:COMPLETE:1]` - Complete first todo
+• `[TODO:LIST:pending]` - Show pending todos
+
+**🛡️ Security Features:**
+• Python execution is sandboxed
+• File access is limited to workspace
+• Dangerous operations are blocked
+• Results are sent with delay after AI response
+
+**🧪 Test Commands:**
+• `/test_python` - Test Python execution
+• `/test_search` - Test search functions
+• `/test_todo` - Test TODO management
+• `/test_new_features` - Test all features
+• `/features_help` - This help message"""
+        
+        await message.reply_text(help_text)
+        
+    except Exception as e:
+        console.error(f"Error in features_help_command: {str(e)}")
         await message.reply_text(f"❌ Error: {str(e)}")

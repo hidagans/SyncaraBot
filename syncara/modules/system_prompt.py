@@ -152,6 +152,8 @@ Gunakan format shortcode sesuai permintaan user. Handler baru akan aktif setelah
             shortcode_capabilities += "- Use CANVAS:LIST to check available files first\n"
             shortcode_capabilities += "- Check admin privileges before using USER/GROUP commands\n"
             shortcode_capabilities += "- Test shortcodes in correct order to avoid failures\n"
+            shortcode_capabilities += "- Use TODO:CREATE before TODO:COMPLETE/DELETE/UPDATE\n"
+            shortcode_capabilities += "- Use TODO:LIST to check existing todos first\n"
             
             # Add canvas shortcode examples
             shortcode_capabilities += "\n\n🎨 CANVAS SHORTCODE EXAMPLES:\n"
@@ -164,7 +166,19 @@ Gunakan format shortcode sesuai permintaan user. Handler baru akan aktif setelah
             shortcode_capabilities += "NEWLINE HANDLING:\n"
             shortcode_capabilities += "- Use \\n for line breaks in content\n"
             shortcode_capabilities += "- Example: 'Line 1\\nLine 2\\nLine 3' becomes proper newlines\n"
-            shortcode_capabilities += "- Don't use literal newlines in shortcode parameters\n"
+            shortcode_capabilities += "- Don't use literal newlines in shortcode parameters\n\n"
+            shortcode_capabilities += "📝 TODO MANAGEMENT EXAMPLES:\n"
+            shortcode_capabilities += "BASIC TODO OPERATIONS:\n"
+            shortcode_capabilities += "1. [TODO:CREATE:Belajar Python programming]\n"
+            shortcode_capabilities += "2. [TODO:LIST:] - View all todos\n"
+            shortcode_capabilities += "3. [TODO:COMPLETE:1] - Mark first todo as done\n"
+            shortcode_capabilities += "4. [TODO:UPDATE:2:Setup Docker environment]\n"
+            shortcode_capabilities += "5. [TODO:DELETE:3] - Delete todo by ID\n"
+            shortcode_capabilities += "6. [TODO:STATS:] - Show todo statistics\n\n"
+            shortcode_capabilities += "TODO FILTERING:\n"
+            shortcode_capabilities += "- [TODO:LIST:pending] - Show only pending todos\n"
+            shortcode_capabilities += "- [TODO:LIST:completed] - Show only completed todos\n"
+            shortcode_capabilities += "- [TODO:CLEAR:] - Clear all completed todos\n"
             
             # Default values
             bot_name = context.get('bot_name', 'Syncara')

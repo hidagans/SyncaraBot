@@ -25,6 +25,9 @@ class ShortcodeRegistry:
             from syncara.shortcode.userbot_management import UserbotManagementShortcode
             from syncara.shortcode.image_generation import ImageGenerationShortcode
             from syncara.shortcode.canvas_management import CanvasManagementShortcode
+            from syncara.shortcode.python_execution import PythonExecutionShortcode
+            from syncara.shortcode.file_search import FileSearchShortcode
+            from syncara.shortcode.todo_management import TodoManagementShortcode
             
             # Create instances
             group_shortcode = GroupManagementShortcode()
@@ -32,6 +35,9 @@ class ShortcodeRegistry:
             userbot_shortcode = UserbotManagementShortcode()
             image_shortcode = ImageGenerationShortcode()
             canvas_shortcode = CanvasManagementShortcode()
+            python_shortcode = PythonExecutionShortcode()
+            search_shortcode = FileSearchShortcode()
+            todo_shortcode = TodoManagementShortcode()
             
             # Register handlers
             self.shortcodes.update(group_shortcode.handlers)
@@ -39,6 +45,9 @@ class ShortcodeRegistry:
             self.shortcodes.update(userbot_shortcode.handlers)
             self.shortcodes.update(image_shortcode.handlers)
             self.shortcodes.update(canvas_shortcode.handlers)
+            self.shortcodes.update(python_shortcode.handlers)
+            self.shortcodes.update(search_shortcode.handlers)
+            self.shortcodes.update(todo_shortcode.handlers)
             
             # Register descriptions
             self.descriptions.update(group_shortcode.descriptions)
@@ -46,6 +55,9 @@ class ShortcodeRegistry:
             self.descriptions.update(userbot_shortcode.descriptions)
             self.descriptions.update(image_shortcode.descriptions)
             self.descriptions.update(canvas_shortcode.descriptions)
+            self.descriptions.update(python_shortcode.descriptions)
+            self.descriptions.update(search_shortcode.descriptions)
+            self.descriptions.update(todo_shortcode.descriptions)
             
             print(f"Loaded {len(self.shortcodes)} shortcode handlers")
             print(f"Loaded {len(self.descriptions)} shortcode descriptions")

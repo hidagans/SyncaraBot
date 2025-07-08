@@ -21,9 +21,9 @@ class GroupManagementShortcode:
         }
         
         self.descriptions = {
-            'GROUP:DELETE_MESSAGE': 'Delete a message by its ID. Usage: [GROUP:DELETE_MESSAGE:message_id]',
-            'GROUP:PIN_MESSAGE': 'Pin a message in the chat. Usage: [GROUP:PIN_MESSAGE:message_id]',
-            'GROUP:UNPIN_MESSAGE': 'Unpin a specific message. Usage: [GROUP:UNPIN_MESSAGE:message_id]',
+            'GROUP:DELETE_MESSAGE': 'Delete a message by its ID. Usage: [GROUP:DELETE_MESSAGE:message_id] or [GROUP:DELETE_MESSAGE:current_message_id] or [GROUP:DELETE_MESSAGE:reply_message]',
+            'GROUP:PIN_MESSAGE': 'Pin a message in the chat. Usage: [GROUP:PIN_MESSAGE:message_id] or [GROUP:PIN_MESSAGE:current_message_id] or [GROUP:PIN_MESSAGE:reply_message]',
+            'GROUP:UNPIN_MESSAGE': 'Unpin a specific message. Usage: [GROUP:UNPIN_MESSAGE:message_id] or [GROUP:UNPIN_MESSAGE:current_message_id] or [GROUP:UNPIN_MESSAGE:reply_message]',
             'GROUP:UNPIN_ALL': 'Unpin all messages in the chat. Usage: [GROUP:UNPIN_ALL:]',
             'GROUP:SET_TITLE': 'Set chat title. Usage: [GROUP:SET_TITLE:new_title]',
             'GROUP:SET_DESCRIPTION': 'Set chat description. Usage: [GROUP:SET_DESCRIPTION:new_description]',
@@ -43,7 +43,36 @@ class GroupManagementShortcode:
             
         """Delete a message by its ID"""
         try:
-            message_id = int(params)
+            params = params.strip()
+            
+            # Handle special keywords
+            if params.lower() in ['current_message_id', 'this_message', 'current']:
+                # Use the message that triggered this shortcode
+                message_id = message.id
+                console.info(f"Using current message ID: {message_id}")
+            elif params.lower() in ['reply_message', 'replied_message']:
+                # Delete the message being replied to
+                if message.reply_to_message:
+                    message_id = message.reply_to_message.id
+                    console.info(f"Using replied message ID: {message_id}")
+                else:
+                    console.error("No replied message found")
+                    return False
+            else:
+                # Try to parse as integer
+                try:
+                    message_id = int(params)
+                except ValueError:
+                    console.error(f"Invalid message ID parameter: {params}")
+                    # Store error for delayed sending
+                    response_id = f"group_delete_error_{message.id}"
+                    self.pending_responses[response_id] = {
+                        'text': f"❌ ID pesan tidak valid: {params}. Gunakan angka atau 'current_message_id'",
+                        'chat_id': message.chat.id,
+                        'reply_to_message_id': message.id
+                    }
+                    return response_id
+            
             await client.delete_messages(message.chat.id, message_id)
             
             # Store for delayed sending
@@ -59,7 +88,14 @@ class GroupManagementShortcode:
             
         except Exception as e:
             console.error(f"[GROUP:DELETE_MESSAGE] Error: {e}")
-            return False
+            # Store error for delayed sending
+            response_id = f"group_delete_error_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"❌ Gagal menghapus pesan: {str(e)}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            return response_id
     
     async def pin_message(self, client, message, params):
         if not await is_admin_or_owner(client, message):
@@ -67,7 +103,43 @@ class GroupManagementShortcode:
             
         """Pin a message in the chat"""
         try:
-            message_id = int(params)
+            params = params.strip()
+            
+            # Handle special keywords
+            if params.lower() in ['current_message_id', 'this_message', 'current']:
+                # Use the message that triggered this shortcode
+                message_id = message.id
+                console.info(f"Using current message ID: {message_id}")
+            elif params.lower() in ['reply_message', 'replied_message']:
+                # Pin the message being replied to
+                if message.reply_to_message:
+                    message_id = message.reply_to_message.id
+                    console.info(f"Using replied message ID: {message_id}")
+                else:
+                    console.error("No replied message found")
+                    # Store error for delayed sending
+                    response_id = f"group_pin_error_{message.id}"
+                    self.pending_responses[response_id] = {
+                        'text': "❌ Tidak ada pesan yang di-reply untuk di-pin",
+                        'chat_id': message.chat.id,
+                        'reply_to_message_id': message.id
+                    }
+                    return response_id
+            else:
+                # Try to parse as integer
+                try:
+                    message_id = int(params)
+                except ValueError:
+                    console.error(f"Invalid message ID parameter: {params}")
+                    # Store error for delayed sending
+                    response_id = f"group_pin_error_{message.id}"
+                    self.pending_responses[response_id] = {
+                        'text': f"❌ ID pesan tidak valid: {params}. Gunakan angka atau 'current_message_id'",
+                        'chat_id': message.chat.id,
+                        'reply_to_message_id': message.id
+                    }
+                    return response_id
+            
             await client.pin_chat_message(
                 chat_id=message.chat.id, 
                 message_id=message_id,
@@ -87,7 +159,14 @@ class GroupManagementShortcode:
             
         except Exception as e:
             console.error(f"[GROUP:PIN_MESSAGE] Error: {e}")
-            return False
+            # Store error for delayed sending
+            response_id = f"group_pin_error_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"❌ Gagal pin pesan: {str(e)}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            return response_id
     
     async def unpin_message(self, client, message, params):
         if not await is_admin_or_owner(client, message):
@@ -95,7 +174,43 @@ class GroupManagementShortcode:
             
         """Unpin a specific message"""
         try:
-            message_id = int(params)
+            params = params.strip()
+            
+            # Handle special keywords
+            if params.lower() in ['current_message_id', 'this_message', 'current']:
+                # Use the message that triggered this shortcode
+                message_id = message.id
+                console.info(f"Using current message ID: {message_id}")
+            elif params.lower() in ['reply_message', 'replied_message']:
+                # Unpin the message being replied to
+                if message.reply_to_message:
+                    message_id = message.reply_to_message.id
+                    console.info(f"Using replied message ID: {message_id}")
+                else:
+                    console.error("No replied message found")
+                    # Store error for delayed sending
+                    response_id = f"group_unpin_error_{message.id}"
+                    self.pending_responses[response_id] = {
+                        'text': "❌ Tidak ada pesan yang di-reply untuk di-unpin",
+                        'chat_id': message.chat.id,
+                        'reply_to_message_id': message.id
+                    }
+                    return response_id
+            else:
+                # Try to parse as integer
+                try:
+                    message_id = int(params)
+                except ValueError:
+                    console.error(f"Invalid message ID parameter: {params}")
+                    # Store error for delayed sending
+                    response_id = f"group_unpin_error_{message.id}"
+                    self.pending_responses[response_id] = {
+                        'text': f"❌ ID pesan tidak valid: {params}. Gunakan angka atau 'current_message_id'",
+                        'chat_id': message.chat.id,
+                        'reply_to_message_id': message.id
+                    }
+                    return response_id
+            
             await client.unpin_chat_message(
                 chat_id=message.chat.id,
                 message_id=message_id
@@ -114,7 +229,14 @@ class GroupManagementShortcode:
             
         except Exception as e:
             console.error(f"[GROUP:UNPIN_MESSAGE] Error: {e}")
-            return False
+            # Store error for delayed sending
+            response_id = f"group_unpin_error_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"❌ Gagal unpin pesan: {str(e)}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            return response_id
     
     async def unpin_all_messages(self, client, message, params):
         if not await is_admin_or_owner(client, message):
