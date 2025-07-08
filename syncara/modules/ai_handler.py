@@ -1121,6 +1121,8 @@ async def process_shortcodes_in_response(response_text, client, message):
         successful_executions = []
         failed_executions = []
         created_files = []
+        pending_images = []
+        pending_responses = []
         
         async def execute_shortcode_silent(match):
             """Execute shortcode without sending files immediately"""
@@ -1147,11 +1149,19 @@ async def process_shortcodes_in_response(response_text, client, message):
                     console.info(f"Shortcode {shortcode_name} executed successfully")
                     successful_executions.append(shortcode_name)
                     
-                    # Track created files for later auto-send
+                    # Track results based on shortcode type
                     if shortcode_name == 'CANVAS:CREATE':
                         filename = params_str.split(':')[0] if ':' in params_str else params_str
                         created_files.append(filename)
                         console.info(f"File {filename} added to pending send list")
+                    elif shortcode_name == 'IMAGE:GEN':
+                        if isinstance(result, str):
+                            pending_images.append(result)
+                            console.info(f"Image {result} added to pending send list")
+                    elif shortcode_name.startswith(('USERBOT:', 'GROUP:', 'USER:')):
+                        if isinstance(result, str):
+                            pending_responses.append(result)
+                            console.info(f"Response {result} added to pending send list")
                     
                     return ""  # Remove shortcode from text without replacement
                 else:
@@ -1185,11 +1195,13 @@ async def process_shortcodes_in_response(response_text, client, message):
         processed_response = re.sub(r'\n\s*\n\s*\n', '\n\n', processed_response)
         processed_response = processed_response.strip()
         
-        # Store created files for later sending - DON'T send immediately
-        if created_files:
+        # Schedule delayed sending for all types of results
+        if created_files or pending_images or pending_responses:
             # Schedule file sending after AI response is sent
-            asyncio.create_task(send_created_files_delayed(created_files, client, message))
-            console.info(f"Scheduled delayed sending for files: {created_files}")
+            asyncio.create_task(send_all_delayed_results(
+                created_files, pending_images, pending_responses, client, message
+            ))
+            console.info(f"Scheduled delayed sending - Files: {created_files}, Images: {pending_images}, Responses: {pending_responses}")
         
         # Return clean response without files sent yet
         return processed_response
@@ -1198,13 +1210,78 @@ async def process_shortcodes_in_response(response_text, client, message):
         console.error(f"Error processing shortcodes: {str(e)}")
         return response_text
 
-async def send_created_files_delayed(created_files, client, message):
-    """Send created files with a delay after AI response"""
+async def send_all_delayed_results(created_files, pending_images, pending_responses, client, message):
+    """Send all delayed results after AI response"""
     try:
         # Wait for AI response to be sent first
         await asyncio.sleep(1.0)  # Small delay to ensure AI response is sent
         
-        console.info(f"Now sending delayed files: {created_files}")
+        console.info(f"Now sending delayed results - Files: {created_files}, Images: {pending_images}, Responses: {pending_responses}")
+        
+        # Send canvas files
+        if created_files:
+            await send_created_files_delayed(created_files, client, message)
+        
+        # Send images
+        if pending_images:
+            await send_pending_images_delayed(pending_images, client, message)
+        
+        # Send responses
+        if pending_responses:
+            await send_pending_responses_delayed(pending_responses, client, message)
+            
+    except Exception as e:
+        console.error(f"Error in send_all_delayed_results: {str(e)}")
+
+async def send_pending_images_delayed(pending_images, client, message):
+    """Send pending images with delay"""
+    try:
+        from syncara.shortcode.image_generation import ImageGenerationShortcode
+        
+        # Get shortcode instance
+        image_shortcode = None
+        from syncara.shortcode import registry
+        for shortcode_name, handler in registry.shortcodes.items():
+            if hasattr(handler, 'send_pending_images'):
+                image_shortcode = handler
+                break
+        
+        if image_shortcode:
+            await image_shortcode.send_pending_images(client, pending_images)
+            console.info(f"Sent {len(pending_images)} pending images")
+        else:
+            console.error("Image shortcode handler not found")
+            
+    except Exception as e:
+        console.error(f"Error in send_pending_images_delayed: {str(e)}")
+
+async def send_pending_responses_delayed(pending_responses, client, message):
+    """Send pending responses with delay"""
+    try:
+        from syncara.shortcode import registry
+        
+        # Get all shortcode instances that have send_pending_responses method
+        shortcode_instances = []
+        for shortcode_name, handler in registry.shortcodes.items():
+            if hasattr(handler, 'send_pending_responses'):
+                shortcode_instances.append(handler)
+        
+        # Send responses from all shortcode instances
+        for handler in shortcode_instances:
+            try:
+                await handler.send_pending_responses(client, pending_responses)
+                console.info(f"Sent responses from {handler.__class__.__name__}")
+            except Exception as e:
+                console.error(f"Error sending responses from {handler.__class__.__name__}: {str(e)}")
+                
+    except Exception as e:
+        console.error(f"Error in send_pending_responses_delayed: {str(e)}")
+
+# Keep the original function for backward compatibility
+async def send_created_files_delayed(created_files, client, message):
+    """Send created files with a delay after AI response"""
+    try:
+        console.info(f"Sending delayed canvas files: {created_files}")
         
         from syncara.modules.canvas_manager import canvas_manager
         from io import BytesIO
@@ -1633,3 +1710,103 @@ async def shortcode_test_command(client, message):
     except Exception as e:
         await message.reply(f"❌ Error testing shortcode: {str(e)}")
         console.error(f"Error in shortcode test: {str(e)}")
+
+@bot.on_message(filters.command("test_delayed") & filters.user(OWNER_ID))
+async def test_delayed_command(client, message):
+    """Test delayed processing for all shortcode types"""
+    try:
+        # Test responses
+        test_responses = [
+            "Testing IMAGE:GEN delayed: [IMAGE:GEN:cute cat in space]",
+            "Testing USERBOT:STATUS delayed: [USERBOT:STATUS:]",
+            "Testing GROUP:PIN_MESSAGE delayed: [GROUP:PIN_MESSAGE:123]", 
+            "Testing USER:WARN delayed: [USER:WARN:testuser:test warning]",
+            "Testing CANVAS:CREATE delayed: [CANVAS:CREATE:test.txt:Hello world content]"
+        ]
+        
+        await message.reply_text("🧪 **Testing Delayed Processing**\n\nTesting all shortcode types with delayed processing...")
+        
+        for i, test_response in enumerate(test_responses, 1):
+            await message.reply_text(f"**Test {i}:**\n{test_response}")
+            processed_response = await process_shortcodes_in_response(test_response, client, message)
+            await message.reply_text(f"**Result {i}:**\n{processed_response}")
+            await asyncio.sleep(2)  # Small delay between tests
+            
+    except Exception as e:
+        console.error(f"Error in test_delayed_command: {str(e)}")
+        await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("test_all_flow") & filters.user(OWNER_ID))
+async def test_all_flow_command(client, message):
+    """Test complete flow with all shortcode types"""
+    try:
+        # Test combined shortcodes
+        test_message = """🧪 **Testing Complete Flow**
+
+AI akan membuat gambar, file, dan manajemen grup sekaligus!
+
+[IMAGE:GEN:cute robot assistant]
+[CANVAS:CREATE:test_combined.txt:This is a test file created with delayed processing]
+[USERBOT:STATUS:]
+
+Semua hasil akan muncul setelah response AI ini terkirim! 🚀"""
+        
+        await message.reply_text("🧪 **Testing Complete Flow**\n\nProcessing combined shortcodes...")
+        
+        # Process the test message
+        processed = await process_shortcodes_in_response(test_message, client, message)
+        await message.reply_text(processed)
+        
+    except Exception as e:
+        console.error(f"Error in test_all_flow_command: {str(e)}")
+        await message.reply_text(f"❌ Test error: {str(e)}")
+
+@bot.on_message(filters.command("shortcode_status") & filters.user(OWNER_ID))
+async def shortcode_status_command(client, message):
+    """Show shortcode status and delayed processing info"""
+    try:
+        from syncara.shortcode import registry
+        
+        response = "🔧 **Shortcode Status & Delayed Processing**\n\n"
+        
+        # Registry info
+        response += f"**Registry Info:**\n"
+        response += f"• Handlers: {len(registry.shortcodes)}\n"
+        response += f"• Descriptions: {len(registry.descriptions)}\n\n"
+        
+        # Check delayed processing support
+        response += "**Delayed Processing Support:**\n"
+        
+        delayed_support = {}
+        for shortcode_name, handler in registry.shortcodes.items():
+            handler_class = handler.__class__.__name__
+            
+            # Check for delayed processing methods
+            has_delayed = False
+            if hasattr(handler, 'send_pending_images'):
+                has_delayed = True
+                delayed_support[handler_class] = "Images"
+            elif hasattr(handler, 'send_pending_responses'):
+                has_delayed = True
+                delayed_support[handler_class] = "Responses"
+            elif hasattr(handler, 'pending_responses'):
+                has_delayed = True
+                delayed_support[handler_class] = "Responses"
+            
+            if has_delayed:
+                response += f"• ✅ {handler_class} - {delayed_support[handler_class]}\n"
+        
+        response += "\n**Available Shortcodes:**\n"
+        for shortcode, desc in registry.descriptions.items():
+            response += f"• `{shortcode}` - {desc}\n"
+        
+        response += "\n**Test Commands:**\n"
+        response += "• `/test_delayed` - Test all shortcode types\n"
+        response += "• `/test_all_flow` - Test combined flow\n"
+        response += "• `/shortcode_status` - This command\n"
+        
+        await message.reply_text(response)
+        
+    except Exception as e:
+        console.error(f"Error in shortcode_status_command: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")

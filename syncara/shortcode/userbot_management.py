@@ -1,6 +1,7 @@
 # syncara/shortcode/userbot_management.py
 from syncara.console import console
 from pyrogram.types import ChatPermissions
+import asyncio
 
 async def is_admin_or_owner(client, message):
     member = await client.get_chat_member(message.chat.id, message.from_user.id)
@@ -23,15 +24,13 @@ class UserbotManagementShortcode:
             'USERBOT:LEAVE': 'Leave a chat/group. Usage: [USERBOT:LEAVE:chat_id]',
             'USERBOT:SEND': 'Send message as userbot. Usage: [USERBOT:SEND:chat_id,message]',
         }
+        
+        self.pending_responses = {}
     
     async def get_status(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Get userbot status"""
         try:
             from syncara import userbot
@@ -45,24 +44,25 @@ class UserbotManagementShortcode:
             else:
                 status_text = "❌ Userbot not connected"
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=status_text,
-                reply_to_message_id=message.id
-            )
-            return True
+            # Store for delayed sending
+            response_id = f"userbot_status_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': status_text,
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[USERBOT:STATUS] Prepared status response: {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error getting userbot status: {e}")
+            console.error(f"[USERBOT:STATUS] Error: {e}")
             return False
     
     async def get_info(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Get detailed userbot information"""
         try:
             from syncara import userbot
@@ -74,24 +74,25 @@ class UserbotManagementShortcode:
             info_text += f"**Phone:** {me.phone_number or 'Unknown'}\n"
             info_text += f"**Connected:** {userbot.is_connected}"
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=info_text,
-                reply_to_message_id=message.id
-            )
-            return True
+            # Store for delayed sending
+            response_id = f"userbot_info_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': info_text,
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[USERBOT:INFO] Prepared info response: {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error getting userbot info: {e}")
+            console.error(f"[USERBOT:INFO] Error: {e}")
             return False
     
     async def join_chat(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Join a chat/group"""
         try:
             from syncara import userbot
@@ -100,24 +101,26 @@ class UserbotManagementShortcode:
                 return False
             
             await userbot.join_chat(chat_id)
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Joined chat: {chat_id}",
-                reply_to_message_id=message.id
-            )
-            return True
+            
+            # Store for delayed sending
+            response_id = f"userbot_join_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Joined chat: {chat_id}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[USERBOT:JOIN] Joined chat {chat_id}: {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error joining chat: {e}")
+            console.error(f"[USERBOT:JOIN] Error: {e}")
             return False
     
     async def leave_chat(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Leave a chat/group"""
         try:
             from syncara import userbot
@@ -126,24 +129,26 @@ class UserbotManagementShortcode:
                 return False
             
             await userbot.leave_chat(chat_id)
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Left chat: {chat_id}",
-                reply_to_message_id=message.id
-            )
-            return True
+            
+            # Store for delayed sending
+            response_id = f"userbot_leave_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Left chat: {chat_id}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[USERBOT:LEAVE] Left chat {chat_id}: {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error leaving chat: {e}")
+            console.error(f"[USERBOT:LEAVE] Error: {e}")
             return False
     
     async def send_message(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Send message as userbot"""
         try:
             from syncara import userbot
@@ -160,12 +165,42 @@ class UserbotManagementShortcode:
                 text=message_text
             )
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Message sent to {chat_id}",
-                reply_to_message_id=message.id
-            )
-            return True
+            # Store for delayed sending
+            response_id = f"userbot_send_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Message sent to {chat_id}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[USERBOT:SEND] Sent message to {chat_id}: {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error sending message: {e}")
-            return False 
+            console.error(f"[USERBOT:SEND] Error: {e}")
+            return False
+    
+    async def send_pending_responses(self, client, response_ids):
+        """Send pending responses"""
+        sent_responses = []
+        
+        for response_id in response_ids:
+            if response_id in self.pending_responses:
+                response_data = self.pending_responses[response_id]
+                
+                try:
+                    await client.send_message(
+                        chat_id=response_data['chat_id'],
+                        text=response_data['text'],
+                        reply_to_message_id=response_data['reply_to_message_id']
+                    )
+                    sent_responses.append(response_id)
+                    console.info(f"[USERBOT] Sent response: {response_id}")
+                    
+                except Exception as e:
+                    console.error(f"[USERBOT] Error sending response {response_id}: {e}")
+                    
+                # Clean up
+                del self.pending_responses[response_id]
+                
+        return sent_responses 

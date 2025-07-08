@@ -2,6 +2,7 @@
 from syncara.console import console
 from pyrogram.types import ChatPermissions, ChatPrivileges  # Tambahkan ChatPrivileges
 from datetime import datetime, timedelta
+import asyncio
 
 async def is_admin_or_owner(client, message):
     member = await client.get_chat_member(message.chat.id, message.from_user.id)
@@ -30,6 +31,8 @@ class UserManagementShortcode:
             'USER:PROMOTE': 'Promote a user to admin. Usage: [USER:PROMOTE:user_id_or_username:title]',
             'USER:DEMOTE': 'Demote a user from admin. Usage: [USER:DEMOTE:user_id_or_username]'
         }
+        
+        self.pending_responses = {}
 
     async def resolve_user_id(self, client, message, user_identifier):
         """
@@ -83,12 +86,8 @@ class UserManagementShortcode:
     
     async def ban_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Ban a user from the group"""
         try:
             user_identifier = params.strip()
@@ -97,43 +96,29 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
                 
             await client.ban_chat_member(chat_id=message.chat.id, user_id=user_id)
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Berhasil ban user: {user_identifier}",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_ban_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Berhasil ban user: {user_identifier}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Banned user {user_id} ({user_identifier}) from chat {message.chat.id}")
-            return True
+            console.info(f"[USER:BAN] Banned user {user_id} ({user_identifier}): {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error banning user: {e}")
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal ban user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:BAN] Error: {e}")
             return False
     
     async def unban_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Unban a user from the group"""
         try:
             user_identifier = params.strip()
@@ -142,43 +127,29 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
                 
             await client.unban_chat_member(chat_id=message.chat.id, user_id=user_id)
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Berhasil unban user: {user_identifier}",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_unban_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Berhasil unban user: {user_identifier}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Unbanned user {user_id} ({user_identifier}) from chat {message.chat.id}")
-            return True
+            console.info(f"[USER:UNBAN] Unbanned user {user_id} ({user_identifier}): {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error unbanning user: {e}")
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal unban user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:UNBAN] Error: {e}")
             return False
     
     async def kick_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Kick a user from the group"""
         try:
             user_identifier = params.strip()
@@ -187,44 +158,30 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
                 
             await client.ban_chat_member(chat_id=message.chat.id, user_id=user_id)
             await client.unban_chat_member(chat_id=message.chat.id, user_id=user_id)
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Berhasil kick user: {user_identifier}",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_kick_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Berhasil kick user: {user_identifier}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Kicked user {user_id} ({user_identifier}) from chat {message.chat.id}")
-            return True
+            console.info(f"[USER:KICK] Kicked user {user_id} ({user_identifier}): {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error kicking user: {e}")
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal kick user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:KICK] Error: {e}")
             return False
     
     async def mute_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Mute a user in the group"""
         try:
             parts = params.split(':')
@@ -234,11 +191,6 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
             
             # Calculate until_date if duration is provided
@@ -268,34 +220,25 @@ class UserManagementShortcode:
                 until_date=until_date
             )
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Berhasil mute user: {user_identifier}{duration_text}",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_mute_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Berhasil mute user: {user_identifier}{duration_text}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Muted user {user_id} ({user_identifier}) in chat {message.chat.id}{duration_text}")
-            return True
+            console.info(f"[USER:MUTE] Muted user {user_id} ({user_identifier}){duration_text}: {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error muting user: {e}")
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal mute user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:MUTE] Error: {e}")
             return False
     
     async def unmute_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Unmute a user in the group"""
         try:
             user_identifier = params.strip()
@@ -304,11 +247,6 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
             
             # Restore default permissions
@@ -329,34 +267,25 @@ class UserManagementShortcode:
                 permissions=permissions
             )
             
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Berhasil unmute user: {user_identifier}",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_unmute_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Berhasil unmute user: {user_identifier}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Unmuted user {user_id} ({user_identifier}) in chat {message.chat.id}")
-            return True
+            console.info(f"[USER:UNMUTE] Unmuted user {user_id} ({user_identifier}): {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error unmuting user: {e}")
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal unmute user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:UNMUTE] Error: {e}")
             return False
     
     async def warn_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Warn a user (placeholder - you can implement warning system)"""
         try:
             parts = params.split(':', 1)
@@ -368,43 +297,27 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
             
-            # Here you can implement warning system with database
-            # For now, just send warning message
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"⚠️ **PERINGATAN** untuk {user_identifier}\n\n**Alasan:** {reason}\n\nIni adalah peringatan resmi dari admin.",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_warn_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"⚠️ **PERINGATAN** untuk {user_identifier}\n\n**Alasan:** {reason}\n\nIni adalah peringatan resmi dari admin.",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Warning issued to user {user_id} ({user_identifier}) in chat {message.chat.id}: {reason}")
-            return True
+            console.info(f"[USER:WARN] Warning issued to user {user_id} ({user_identifier}): {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error warning user: {e}")
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal warn user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:WARN] Error: {e}")
             return False
     
     async def promote_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Promote a user to admin"""
         try:
             parts = params.split(':', 1)
@@ -416,12 +329,6 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                # Send error message to chat
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
             
             console.info(f"Resolved user ID {user_id} for {user_identifier}")
@@ -430,12 +337,14 @@ class UserManagementShortcode:
             try:
                 chat_member = await client.get_chat_member(message.chat.id, user_id)
                 if chat_member.status in ["administrator", "creator"]:
-                    await client.send_message(
-                        chat_id=message.chat.id,
-                        text=f"ℹ️ User {user_identifier} sudah menjadi admin",
-                        reply_to_message_id=message.id
-                    )
-                    return True
+                    # Store for delayed sending
+                    response_id = f"user_promote_already_{message.id}"
+                    self.pending_responses[response_id] = {
+                        'text': f"ℹ️ User {user_identifier} sudah menjadi admin",
+                        'chat_id': message.chat.id,
+                        'reply_to_message_id': message.id
+                    }
+                    return response_id
             except Exception as e:
                 console.error(f"Error checking user status: {e}")
             
@@ -456,7 +365,7 @@ class UserManagementShortcode:
             )
             
             # Set custom title if provided
-            if title != "Admin":
+            if title and title != "Admin":
                 try:
                     await client.set_administrator_title(
                         chat_id=message.chat.id,
@@ -464,38 +373,27 @@ class UserManagementShortcode:
                         title=title
                     )
                 except Exception as e:
-                    console.error(f"Error setting admin title: {e}")
+                    console.error(f"Error setting title: {e}")
             
-            # Send success message
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Berhasil promote {user_identifier} menjadi admin dengan title: {title}",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_promote_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Berhasil promote user: {user_identifier} dengan title: {title}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Promoted user {user_id} ({user_identifier}) to admin in chat {message.chat.id} with title: {title}")
-            return True
+            console.info(f"[USER:PROMOTE] Promoted user {user_id} ({user_identifier}) with title {title}: {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error promoting user: {e}")
-            # Send error message to chat
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal promote user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:PROMOTE] Error: {e}")
             return False
     
     async def demote_user(self, client, message, params):
         if not await is_admin_or_owner(client, message):
-            await client.send_message(
-                chat_id=message.chat.id,
-                text="❌ Hanya admin atau pemilik grup yang bisa menjalankan perintah ini.",
-                reply_to_message_id=message.id
-            )
             return False
+            
         """Demote a user from admin"""
         try:
             user_identifier = params.strip()
@@ -504,25 +402,20 @@ class UserManagementShortcode:
             user_id = await self.resolve_user_id(client, message, user_identifier)
             if user_id is None:
                 console.error(f"Could not resolve user ID for: {user_identifier}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Tidak dapat menemukan user: {user_identifier}",
-                    reply_to_message_id=message.id
-                )
                 return False
-            
-            console.info(f"Resolved user ID {user_id} for {user_identifier}")
             
             # Check if user is admin
             try:
                 chat_member = await client.get_chat_member(message.chat.id, user_id)
-                if chat_member.status not in ["administrator", "creator"]:
-                    await client.send_message(
-                        chat_id=message.chat.id,
-                        text=f"ℹ️ User {user_identifier} bukan admin",
-                        reply_to_message_id=message.id
-                    )
-                    return True
+                if chat_member.status not in ["administrator"]:
+                    # Store for delayed sending
+                    response_id = f"user_demote_not_admin_{message.id}"
+                    self.pending_responses[response_id] = {
+                        'text': f"ℹ️ User {user_identifier} bukan admin",
+                        'chat_id': message.chat.id,
+                        'reply_to_message_id': message.id
+                    }
+                    return response_id
             except Exception as e:
                 console.error(f"Error checking user status: {e}")
             
@@ -542,23 +435,42 @@ class UserManagementShortcode:
                 )
             )
             
-            # Send success message
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f"✅ Berhasil demote {user_identifier} dari admin",
-                reply_to_message_id=message.id
-            )
+            # Store for delayed sending
+            response_id = f"user_demote_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"✅ Berhasil demote user: {user_identifier}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
             
-            console.info(f"Demoted user {user_id} ({user_identifier}) from admin in chat {message.chat.id}")
-            return True
+            console.info(f"[USER:DEMOTE] Demoted user {user_id} ({user_identifier}): {response_id}")
+            return response_id
+            
         except Exception as e:
-            console.error(f"Error demoting user: {e}")
-            try:
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"❌ Gagal demote user: {str(e)}",
-                    reply_to_message_id=message.id
-                )
-            except:
-                pass
+            console.error(f"[USER:DEMOTE] Error: {e}")
             return False
+    
+    async def send_pending_responses(self, client, response_ids):
+        """Send pending responses"""
+        sent_responses = []
+        
+        for response_id in response_ids:
+            if response_id in self.pending_responses:
+                response_data = self.pending_responses[response_id]
+                
+                try:
+                    await client.send_message(
+                        chat_id=response_data['chat_id'],
+                        text=response_data['text'],
+                        reply_to_message_id=response_data['reply_to_message_id']
+                    )
+                    sent_responses.append(response_id)
+                    console.info(f"[USER] Sent response: {response_id}")
+                    
+                except Exception as e:
+                    console.error(f"[USER] Error sending response {response_id}: {e}")
+                    
+                # Clean up
+                del self.pending_responses[response_id]
+                
+        return sent_responses

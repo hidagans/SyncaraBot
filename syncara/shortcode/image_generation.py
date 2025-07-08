@@ -1,5 +1,6 @@
 from syncara.services.replicate import generate_image
 from syncara.console import console
+import asyncio
 
 class ImageGenerationShortcode:
     def __init__(self):
@@ -9,6 +10,7 @@ class ImageGenerationShortcode:
         self.descriptions = {
             'IMAGE:GEN': 'Generate image from text prompt. Usage: [IMAGE:GEN:prompt]'
         }
+        self.pending_images = {}
 
     async def image_gen(self, client, message, params):
         """
@@ -31,15 +33,17 @@ class ImageGenerationShortcode:
                 magic_prompt_option = data.get('magic_prompt_option')
                 style_reference_images = data.get('style_reference_images')
             except Exception as e:
-                await message.reply(f"❌ Format JSON tidak valid: {e}")
+                console.error(f"[IMAGE:GEN] Invalid JSON: {e}")
                 return False
         else:
             image = mask = seed = resolution = style_type = aspect_ratio = magic_prompt_option = style_reference_images = None
+            
         if not prompt:
-            await message.reply("❌ Prompt tidak boleh kosong. Contoh: [IMAGE:GEN:kucing lucu di luar angkasa]")
+            console.error("[IMAGE:GEN] Empty prompt")
             return False
+            
         try:
-            await message.reply("🎨 Sedang membuat gambar... Mohon tunggu.")
+            # Generate image
             image_url = await generate_image(
                 prompt=prompt,
                 image=image,
@@ -51,9 +55,45 @@ class ImageGenerationShortcode:
                 magic_prompt_option=magic_prompt_option,
                 style_reference_images=style_reference_images
             )
-            await message.reply_photo(image_url, caption=f"Prompt: {prompt}")
-            return True
+            
+            # Store for delayed sending
+            image_id = f"image_{message.id}_{len(self.pending_images)}"
+            self.pending_images[image_id] = {
+                'image_url': image_url,
+                'prompt': prompt,
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[IMAGE:GEN] Generated image for delayed sending: {image_id}")
+            return image_id
+            
         except Exception as e:
-            console.error(f"[IMAGEGEN] Error: {e}")
-            await message.reply(f"❌ Gagal generate gambar: {e}")
-            return False 
+            console.error(f"[IMAGE:GEN] Error: {e}")
+            return False
+    
+    async def send_pending_images(self, client, image_ids):
+        """Send pending images"""
+        sent_images = []
+        
+        for image_id in image_ids:
+            if image_id in self.pending_images:
+                image_data = self.pending_images[image_id]
+                
+                try:
+                    await client.send_photo(
+                        chat_id=image_data['chat_id'],
+                        photo=image_data['image_url'],
+                        caption=f"🎨 Prompt: {image_data['prompt']}",
+                        reply_to_message_id=image_data['reply_to_message_id']
+                    )
+                    sent_images.append(image_id)
+                    console.info(f"[IMAGE:GEN] Sent image: {image_id}")
+                    
+                except Exception as e:
+                    console.error(f"[IMAGE:GEN] Error sending image {image_id}: {e}")
+                    
+                # Clean up
+                del self.pending_images[image_id]
+                
+        return sent_images 
