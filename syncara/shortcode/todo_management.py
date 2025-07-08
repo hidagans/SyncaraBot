@@ -72,7 +72,7 @@ class TodoManagementShortcode:
                 return response_id
             
             collection = await self.get_todos_collection(message.chat.id)
-            if not collection:
+            if collection is None:
                 response_id = f"todo_create_error_{message.id}"
                 self.pending_responses[response_id] = {
                     'text': "❌ Database tidak tersedia",
@@ -121,7 +121,7 @@ class TodoManagementShortcode:
         """List all todos or filter by status"""
         try:
             collection = await self.get_todos_collection(message.chat.id)
-            if not collection:
+            if collection is None:
                 response_id = f"todo_list_error_{message.id}"
                 self.pending_responses[response_id] = {
                     'text': "❌ Database tidak tersedia",
@@ -216,7 +216,7 @@ class TodoManagementShortcode:
                 return response_id
             
             collection = await self.get_todos_collection(message.chat.id)
-            if not collection:
+            if collection is None:
                 response_id = f"todo_complete_error_{message.id}"
                 self.pending_responses[response_id] = {
                     'text': "❌ Database tidak tersedia",
@@ -317,7 +317,7 @@ class TodoManagementShortcode:
                 return response_id
             
             collection = await self.get_todos_collection(message.chat.id)
-            if not collection:
+            if collection is None:
                 response_id = f"todo_delete_error_{message.id}"
                 self.pending_responses[response_id] = {
                     'text': "❌ Database tidak tersedia",
@@ -422,7 +422,7 @@ class TodoManagementShortcode:
                 return response_id
             
             collection = await self.get_todos_collection(message.chat.id)
-            if not collection:
+            if collection is None:
                 response_id = f"todo_update_error_{message.id}"
                 self.pending_responses[response_id] = {
                     'text': "❌ Database tidak tersedia",
@@ -504,7 +504,7 @@ class TodoManagementShortcode:
         """Clear all completed todos"""
         try:
             collection = await self.get_todos_collection(message.chat.id)
-            if not collection:
+            if collection is None:
                 response_id = f"todo_clear_error_{message.id}"
                 self.pending_responses[response_id] = {
                     'text': "❌ Database tidak tersedia",
@@ -558,7 +558,7 @@ class TodoManagementShortcode:
         """Get todo statistics"""
         try:
             collection = await self.get_todos_collection(message.chat.id)
-            if not collection:
+            if collection is None:
                 response_id = f"todo_stats_error_{message.id}"
                 self.pending_responses[response_id] = {
                     'text': "❌ Database tidak tersedia",
