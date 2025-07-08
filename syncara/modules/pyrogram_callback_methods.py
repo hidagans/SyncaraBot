@@ -8,6 +8,12 @@ from pyrogram import types, enums
 from pyrogram.errors import RPCError
 from typing import Union, List, Optional, Dict, Any
 from syncara.console import console
+from .pyrogram_compatibility import (
+    AVAILABLE_TYPES,
+    create_bot_command,
+    create_inline_keyboard_markup,
+    create_reply_keyboard_markup
+)
 
 class CallbackMethods:
     """
@@ -82,15 +88,15 @@ class CallbackMethods:
     # ==================== BOT MANAGEMENT METHODS ====================
     
     async def set_perintah_bot(self, 
-                              commands: List[types.BotCommand],
-                              scope: Optional[types.BotCommandScope] = None,
+                              commands: List[Union[dict, Any]],
+                              scope: Optional[Any] = None,
                               language_code: Optional[str] = None,
                               **kwargs) -> bool:
         """
         Mengatur daftar perintah bot.
         
         Args:
-            commands: List perintah bot
+            commands: List perintah bot (dict atau BotCommand objects)
             scope: Scope perintah (default, chat, user, dll)
             language_code: Kode bahasa
             
@@ -98,8 +104,16 @@ class CallbackMethods:
             bool: True jika berhasil
         """
         try:
+            # Handle commands dengan compatibility check
+            processed_commands = []
+            for cmd in commands:
+                if isinstance(cmd, dict):
+                    processed_commands.append(create_bot_command(cmd.get('command', ''), cmd.get('description', '')))
+                else:
+                    processed_commands.append(cmd)
+            
             return await self.set_bot_commands(
-                commands=commands,
+                commands=processed_commands,
                 scope=scope,
                 language_code=language_code,
                 **kwargs
@@ -109,9 +123,9 @@ class CallbackMethods:
             raise
     
     async def get_perintah_bot(self, 
-                              scope: Optional[types.BotCommandScope] = None,
+                              scope: Optional[Any] = None,
                               language_code: Optional[str] = None,
-                              **kwargs) -> List[types.BotCommand]:
+                              **kwargs) -> List[Any]:
         """
         Mendapatkan daftar perintah bot.
         
@@ -133,7 +147,7 @@ class CallbackMethods:
             raise
     
     async def hapus_perintah_bot(self, 
-                                scope: Optional[types.BotCommandScope] = None,
+                                scope: Optional[Any] = None,
                                 language_code: Optional[str] = None,
                                 **kwargs) -> bool:
         """
@@ -157,7 +171,7 @@ class CallbackMethods:
             raise
     
     async def set_hak_akses_bot(self, 
-                               privileges: types.ChatAdministratorRights,
+                               privileges: Union[dict, Any],
                                for_channels: Optional[bool] = None,
                                **kwargs) -> bool:
         """
@@ -182,7 +196,7 @@ class CallbackMethods:
     
     async def get_hak_akses_bot(self, 
                                for_channels: Optional[bool] = None,
-                               **kwargs) -> types.ChatAdministratorRights:
+                               **kwargs) -> Any:
         """
         Mendapatkan hak akses default bot.
         
@@ -203,7 +217,7 @@ class CallbackMethods:
     
     async def set_tombol_menu_chat(self, 
                                   chat_id: Optional[Union[int, str]] = None,
-                                  menu_button: Optional[types.MenuButton] = None,
+                                  menu_button: Optional[Any] = None,
                                   **kwargs) -> bool:
         """
         Mengatur tombol menu bot di chat.
@@ -227,7 +241,7 @@ class CallbackMethods:
     
     async def get_tombol_menu_chat(self, 
                                   chat_id: Optional[Union[int, str]] = None,
-                                  **kwargs) -> types.MenuButton:
+                                  **kwargs) -> Any:
         """
         Mendapatkan tombol menu bot di chat.
         
@@ -382,7 +396,7 @@ class CallbackMethods:
     # ==================== KEYBOARD BUILDER HELPERS ====================
     
     def buat_keyboard_inline(self, 
-                           buttons: List[List[Dict[str, Any]]]) -> types.InlineKeyboardMarkup:
+                           buttons: List[List[Dict[str, Any]]]) -> Any:
         """
         Membuat inline keyboard markup.
         
@@ -400,9 +414,12 @@ class CallbackMethods:
             for row in buttons:
                 keyboard_row = []
                 for button in row:
-                    keyboard_row.append(types.InlineKeyboardButton(**button))
+                    if AVAILABLE_TYPES.get('InlineKeyboardButton', False):
+                        keyboard_row.append(types.InlineKeyboardButton(**button))
+                    else:
+                        keyboard_row.append(button)
                 keyboard.append(keyboard_row)
-            return types.InlineKeyboardMarkup(keyboard)
+            return create_inline_keyboard_markup(keyboard)
         except Exception as e:
             console.error(f"Error membuat keyboard inline: {e}")
             raise
@@ -412,7 +429,7 @@ class CallbackMethods:
                           resize_keyboard: bool = True,
                           one_time_keyboard: bool = False,
                           selective: bool = False,
-                          placeholder: Optional[str] = None) -> types.ReplyKeyboardMarkup:
+                          placeholder: Optional[str] = None) -> Any:
         """
         Membuat reply keyboard markup.
         
@@ -431,9 +448,12 @@ class CallbackMethods:
             for row in buttons:
                 keyboard_row = []
                 for button_text in row:
-                    keyboard_row.append(types.KeyboardButton(button_text))
+                    if AVAILABLE_TYPES.get('KeyboardButton', False):
+                        keyboard_row.append(types.KeyboardButton(button_text))
+                    else:
+                        keyboard_row.append(button_text)
                 keyboard.append(keyboard_row)
-            return types.ReplyKeyboardMarkup(
+            return create_reply_keyboard_markup(
                 keyboard=keyboard,
                 resize_keyboard=resize_keyboard,
                 one_time_keyboard=one_time_keyboard,
@@ -445,7 +465,7 @@ class CallbackMethods:
             raise
     
     def hapus_keyboard(self, 
-                      selective: bool = False) -> types.ReplyKeyboardRemove:
+                      selective: bool = False) -> Any:
         """
         Menghapus keyboard.
         
@@ -456,14 +476,17 @@ class CallbackMethods:
             ReplyKeyboardRemove: Markup untuk menghapus keyboard
         """
         try:
-            return types.ReplyKeyboardRemove(selective=selective)
+            if AVAILABLE_TYPES.get('ReplyKeyboardRemove', False):
+                return types.ReplyKeyboardRemove(selective=selective)
+            else:
+                return {"remove_keyboard": True, "selective": selective}
         except Exception as e:
             console.error(f"Error menghapus keyboard: {e}")
             raise
     
     def paksa_reply(self, 
                    selective: bool = False,
-                   placeholder: Optional[str] = None) -> types.ForceReply:
+                   placeholder: Optional[str] = None) -> Any:
         """
         Memaksa user untuk reply.
         
@@ -475,10 +498,17 @@ class CallbackMethods:
             ForceReply: Markup untuk memaksa reply
         """
         try:
-            return types.ForceReply(
-                selective=selective,
-                input_field_placeholder=placeholder
-            )
+            if AVAILABLE_TYPES.get('ForceReply', False):
+                return types.ForceReply(
+                    selective=selective,
+                    input_field_placeholder=placeholder
+                )
+            else:
+                return {
+                    "force_reply": True,
+                    "selective": selective,
+                    "input_field_placeholder": placeholder
+                }
         except Exception as e:
             console.error(f"Error memaksa reply: {e}")
             raise 

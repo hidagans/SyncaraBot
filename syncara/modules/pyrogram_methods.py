@@ -31,7 +31,6 @@ class PyrogramMethods:
                          disable_notification: bool = False,
                          protect_content: bool = False,
                          message_thread_id: Optional[int] = None,
-                         reply_parameters: Optional[types.ReplyParameters] = None,
                          **kwargs) -> types.Message:
         """
         Mengirim pesan teks ke chat.
@@ -46,7 +45,6 @@ class PyrogramMethods:
             disable_notification: Kirim tanpa notifikasi
             protect_content: Lindungi konten dari forward
             message_thread_id: ID thread untuk supergroup
-            reply_parameters: Parameter reply
             
         Returns:
             Message: Objek pesan yang dikirim
@@ -62,7 +60,6 @@ class PyrogramMethods:
                 disable_notification=disable_notification,
                 protect_content=protect_content,
                 message_thread_id=message_thread_id,
-                reply_parameters=reply_parameters,
                 **kwargs
             )
         except Exception as e:

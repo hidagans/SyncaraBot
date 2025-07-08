@@ -5,8 +5,15 @@ Berisi semua method untuk mengelola chat, member, dan administrasi.
 
 from pyrogram import types, enums
 from pyrogram.errors import RPCError
-from typing import Union, List, Optional, AsyncGenerator
+from typing import Union, List, Optional, AsyncGenerator, Any
 from syncara.console import console
+from .pyrogram_compatibility import (
+    AVAILABLE_TYPES, 
+    create_chat_permissions, 
+    create_chat_privileges,
+    DEFAULT_CHAT_PERMISSIONS,
+    DEFAULT_ADMIN_PRIVILEGES
+)
 
 class ChatMethods:
     """
@@ -151,19 +158,25 @@ class ChatMethods:
     
     async def set_izin_chat(self, 
                            chat_id: Union[int, str],
-                           permissions: types.ChatPermissions,
+                           permissions: Union[dict, Any] = None,
                            **kwargs) -> bool:
         """
         Mengatur izin default untuk semua member chat.
         
         Args:
             chat_id: ID chat atau username
-            permissions: Objek izin chat
+            permissions: Objek izin chat atau dict
             
         Returns:
             bool: True jika berhasil
         """
         try:
+            # Handle permissions dengan compatibility check
+            if permissions is None:
+                permissions = create_chat_permissions(**DEFAULT_CHAT_PERMISSIONS)
+            elif isinstance(permissions, dict):
+                permissions = create_chat_permissions(**permissions)
+            
             return await self.set_chat_permissions(chat_id=chat_id, permissions=permissions, **kwargs)
         except Exception as e:
             console.error(f"Error mengatur izin chat: {e}")
@@ -294,7 +307,7 @@ class ChatMethods:
     async def batasi_member_chat(self, 
                                 chat_id: Union[int, str],
                                 user_id: Union[int, str],
-                                permissions: types.ChatPermissions,
+                                permissions: Union[dict, Any] = None,
                                 until_date: Optional[int] = None,
                                 use_independent_chat_permissions: bool = False,
                                 **kwargs) -> bool:
@@ -304,7 +317,7 @@ class ChatMethods:
         Args:
             chat_id: ID chat atau username
             user_id: ID user atau username yang akan dibatasi
-            permissions: Izin yang diberikan kepada user
+            permissions: Izin yang diberikan kepada user atau dict
             until_date: Timestamp kapan pembatasan berakhir (None = permanent)
             use_independent_chat_permissions: Gunakan izin independen
             
@@ -312,6 +325,21 @@ class ChatMethods:
             bool: True jika berhasil
         """
         try:
+            # Handle permissions dengan compatibility check
+            if permissions is None:
+                # Default restricted permissions
+                restricted_permissions = DEFAULT_CHAT_PERMISSIONS.copy()
+                restricted_permissions.update({
+                    "can_send_messages": False,
+                    "can_send_media_messages": False,
+                    "can_send_polls": False,
+                    "can_send_other_messages": False,
+                    "can_add_web_page_previews": False
+                })
+                permissions = create_chat_permissions(**restricted_permissions)
+            elif isinstance(permissions, dict):
+                permissions = create_chat_permissions(**permissions)
+            
             return await self.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
@@ -327,7 +355,7 @@ class ChatMethods:
     async def promosi_member_chat(self, 
                                  chat_id: Union[int, str],
                                  user_id: Union[int, str],
-                                 privileges: types.ChatPrivileges,
+                                 privileges: Union[dict, Any] = None,
                                  **kwargs) -> bool:
         """
         Mempromosikan member menjadi admin.
@@ -335,12 +363,18 @@ class ChatMethods:
         Args:
             chat_id: ID chat atau username
             user_id: ID user atau username yang akan dipromosikan
-            privileges: Hak akses admin yang diberikan
+            privileges: Hak akses admin yang diberikan atau dict
             
         Returns:
             bool: True jika berhasil
         """
         try:
+            # Handle privileges dengan compatibility check
+            if privileges is None:
+                privileges = create_chat_privileges(**DEFAULT_ADMIN_PRIVILEGES)
+            elif isinstance(privileges, dict):
+                privileges = create_chat_privileges(**privileges)
+            
             return await self.promote_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,

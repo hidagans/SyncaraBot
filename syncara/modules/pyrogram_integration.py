@@ -13,6 +13,7 @@ from .pyrogram_utilities import UtilitiesMethods
 from .pyrogram_bound_methods import PyrogramBoundMethods
 from .pyrogram_helpers import PyrogramHelpers, pyrogram_helpers
 from .pyrogram_scheduler import PyrogramScheduler, pyrogram_scheduler
+from .pyrogram_compatibility import print_compatibility_info, AVAILABLE_TYPES
 from syncara.console import console
 
 class CompletePyrogramMethods(PyrogramMethods, ChatMethods, InlineMethods, CallbackMethods, AdvancedMethods, UtilitiesMethods, PyrogramBoundMethods):
@@ -26,6 +27,10 @@ class CompletePyrogramMethods(PyrogramMethods, ChatMethods, InlineMethods, Callb
         # Initialize helpers and scheduler
         self.helpers = pyrogram_helpers
         self.scheduler = pyrogram_scheduler
+        
+        # Print compatibility info
+        print_compatibility_info()
+        
         console.info("✅ Semua method Pyrogram telah dimuat dengan helpers, cache system, dan scheduler")
     
     # ==================== UTILITY METHODS ====================
