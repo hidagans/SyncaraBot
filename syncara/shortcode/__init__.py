@@ -28,6 +28,7 @@ class ShortcodeRegistry:
             from syncara.shortcode.python_execution import PythonExecutionShortcode
             from syncara.shortcode.file_search import FileSearchShortcode
             from syncara.shortcode.todo_management import TodoManagementShortcode
+            from syncara.shortcode.pyrogram_manager import PyrogramShortcodeManager
             
             # Create instances
             group_shortcode = GroupManagementShortcode()
@@ -38,6 +39,7 @@ class ShortcodeRegistry:
             python_shortcode = PythonExecutionShortcode()
             search_shortcode = FileSearchShortcode()
             todo_shortcode = TodoManagementShortcode()
+            pyrogram_shortcode = PyrogramShortcodeManager()
             
             # Register handlers
             self.shortcodes.update(group_shortcode.handlers)
@@ -48,6 +50,7 @@ class ShortcodeRegistry:
             self.shortcodes.update(python_shortcode.handlers)
             self.shortcodes.update(search_shortcode.handlers)
             self.shortcodes.update(todo_shortcode.handlers)
+            self.shortcodes.update(pyrogram_shortcode.handlers)
             
             # Register descriptions
             self.descriptions.update(group_shortcode.descriptions)
@@ -58,6 +61,12 @@ class ShortcodeRegistry:
             self.descriptions.update(python_shortcode.descriptions)
             self.descriptions.update(search_shortcode.descriptions)
             self.descriptions.update(todo_shortcode.descriptions)
+            
+            # Register Pyrogram descriptions from all handlers
+            self.descriptions.update(pyrogram_shortcode.advanced_handler.descriptions)
+            self.descriptions.update(pyrogram_shortcode.utilities_handler.descriptions)
+            self.descriptions.update(pyrogram_shortcode.inline_handler.descriptions)
+            self.descriptions.update(pyrogram_shortcode.bound_handler.descriptions)
             
             print(f"Loaded {len(self.shortcodes)} shortcode handlers")
             print(f"Loaded {len(self.descriptions)} shortcode descriptions")
@@ -107,9 +116,9 @@ class ShortcodeRegistry:
             categories[category].append((shortcode, desc))
         
         # Generate formatted documentation
-        for category, shortcodes in categories.items():
+        for category, shortcodes in sorted(categories.items()):
             docs.append(f"\n{category}:")
-            for shortcode, desc in shortcodes:
+            for shortcode, desc in sorted(shortcodes):
                 docs.append(f"- [{shortcode}] - {desc}")
         
         # Add execution order notes
@@ -118,6 +127,7 @@ class ShortcodeRegistry:
         docs.append("- CANVAS:SHOW and CANVAS:EDIT require file to exist first")
         docs.append("- USER management commands require admin privileges")
         docs.append("- GROUP management commands require admin privileges")
+        docs.append("- PYROGRAM: prefix untuk semua fungsi Pyrogram method")
         
         return "\n".join(docs)
 
@@ -141,7 +151,8 @@ class ShortcodeRegistry:
             'issues': issues,
             'suggestions': [
                 "Always create files before trying to export/show/edit them",
-                "Use CANVAS:LIST to check available files first"
+                "Use CANVAS:LIST to check available files first",
+                "Use PYROGRAM: prefix for all Pyrogram method calls"
             ]
         }
 
