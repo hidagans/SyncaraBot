@@ -29,11 +29,6 @@ class CanvasManagementShortcode:
             if len(parts) < 2:
                 error_msg = 'Format: [CANVAS:CREATE:filename:type:isi]'
                 console.error(f"Invalid format: {error_msg}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=error_msg,
-                    reply_to_message_id=message.id
-                )
                 return False
                 
             filename = parts[0].strip()
@@ -47,67 +42,23 @@ class CanvasManagementShortcode:
             file = canvas_manager.create_file(filename, filetype, content)
             
             if not file:
-                error_msg = f'❌ Gagal membuat file: {filename}'
-                console.error(error_msg)
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=error_msg,
-                    reply_to_message_id=message.id
-                )
+                console.error(f"Failed to create file: {filename}")
                 return False
             
             # Verify file was created
             verification = canvas_manager.get_file(filename)
             if not verification:
-                error_msg = f'❌ File {filename} tidak dapat diverifikasi setelah dibuat'
-                console.error(error_msg)
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=error_msg,
-                    reply_to_message_id=message.id
-                )
+                console.error(f"File {filename} cannot be verified after creation")
                 return False
                 
             console.info(f"File {filename} created and verified successfully")
             
-            # Auto-send file as document immediately after creation
-            # This ensures the file is available even if separate EXPORT fails
-            try:
-                file_content = file.get_content()
-                file_bytes = BytesIO(file_content.encode('utf-8'))
-                file_bytes.name = filename
-                
-                await client.send_document(
-                    chat_id=message.chat.id,
-                    document=file_bytes,
-                    caption=f'📄 **File Virtual Created Successfully!**\n\n**Filename:** `{filename}`\n**Type:** {filetype}\n**Size:** {len(file_content)} characters\n\n**Content Preview:**\n{file_content[:200]}{"..." if len(file_content) > 200 else ""}',
-                    reply_to_message_id=message.id
-                )
-                
-                console.info(f"File {filename} auto-exported successfully after creation")
-                
-                # Mark this file as successfully exported in canvas manager
-                # Add a flag to track this
-                if hasattr(file, 'auto_exported'):
-                    file.auto_exported = True
-                
-                return True
-                
-            except Exception as doc_error:
-                console.error(f"Error auto-exporting document: {str(doc_error)}")
-                
-                # Fallback: still return True because file was created successfully
-                # The separate EXPORT shortcode can try again
-                console.info(f"File {filename} created successfully, but auto-export failed. Will rely on separate EXPORT.")
-                return True
+            # DON'T auto-export here anymore - let EXPORT shortcode handle it
+            # This allows AI to respond naturally first, then process shortcodes
+            return True
                 
         except Exception as e:
             console.error(f"Error in create_file: {str(e)}")
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f'❌ Gagal membuat file: {str(e)}',
-                reply_to_message_id=message.id
-            )
             return False
 
     async def show_file(self, client, message, params):

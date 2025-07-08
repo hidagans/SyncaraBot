@@ -1119,6 +1119,7 @@ async def process_shortcodes_in_response(response_text, client, message):
         execution_results = []
         successful_executions = []
         failed_executions = []
+        created_files = []
         
         async def execute_shortcode(match):
             full_shortcode = match.group(0)  # Full match like [USER:PROMOTE:7691971162]
@@ -1143,6 +1144,12 @@ async def process_shortcodes_in_response(response_text, client, message):
                 if result:
                     console.info(f"Shortcode {shortcode_name} executed successfully")
                     successful_executions.append(shortcode_name)
+                    
+                    # Track created files for auto-export
+                    if shortcode_name == 'CANVAS:CREATE':
+                        filename = params_str.split(':')[0] if ':' in params_str else params_str
+                        created_files.append(filename)
+                    
                     return ""  # Remove shortcode from text without replacement
                 else:
                     console.error(f"Shortcode {shortcode_name} failed")
@@ -1175,7 +1182,38 @@ async def process_shortcodes_in_response(response_text, client, message):
         processed_response = re.sub(r'\n\s*\n\s*\n', '\n\n', processed_response)
         processed_response = processed_response.strip()
         
-        # Generate status update for AI
+        # Auto-send created files as final result
+        for filename in created_files:
+            try:
+                console.info(f"Auto-sending created file as final result: {filename}")
+                
+                from syncara.modules.canvas_manager import canvas_manager
+                from io import BytesIO
+                
+                file_obj = canvas_manager.get_file(filename)
+                if file_obj:
+                    file_content = file_obj.export()
+                    file_bytes = BytesIO(file_content.encode('utf-8'))
+                    file_bytes.name = filename
+                    
+                    # Send file as final result with clean caption
+                    await client.send_document(
+                        chat_id=message.chat.id,
+                        document=file_bytes,
+                        caption=f"📄 **{filename}**\n\nFile siap untuk didownload! ✅",
+                        reply_to_message_id=message.id
+                    )
+                    
+                    console.info(f"Successfully sent file as final result: {filename}")
+                    
+            except Exception as e:
+                console.error(f"Error sending file as final result: {str(e)}")
+        
+        # Return clean response without status updates if files were sent
+        if created_files:
+            return processed_response
+        
+        # Generate status update for AI only if no files were created
         if execution_results:
             status_update = await generate_shortcode_status_update(execution_results)
             
@@ -1195,97 +1233,69 @@ async def generate_shortcode_status_update(execution_results):
         successful = [r for r in execution_results if r['success']]
         failed = [r for r in execution_results if not r['success']]
         
-        status_parts = []
         created_files = []
         exported_files = []
         
-        # Handle successful operations
+        # Track successful operations
         for result in successful:
             shortcode = result['shortcode']
             
             if shortcode == 'CANVAS:CREATE':
-                # Extract filename from params
                 filename = result['params'].split(':')[0] if ':' in result['params'] else result['params']
                 created_files.append(filename)
                 
             elif shortcode == 'CANVAS:EXPORT':
                 filename = result['params'].strip()
                 exported_files.append(filename)
-                
-            elif shortcode.startswith('USER:'):
-                status_parts.append(f"✅ User management berhasil dijalankan")
-                
-            elif shortcode.startswith('GROUP:'):
-                status_parts.append(f"✅ Group management berhasil dijalankan")
-                
-            elif shortcode.startswith('IMAGE:'):
-                status_parts.append(f"🎨 Gambar berhasil dibuat!")
         
-        # Check for files that were created but failed to export
-        failed_exports = []
-        for result in failed:
-            if result['shortcode'] == 'CANVAS:EXPORT':
-                filename = result['params'].strip()
-                failed_exports.append(filename)
-        
-        # Try to auto-retry failed exports for recently created files
-        for filename in failed_exports:
-            if filename in created_files:
-                console.info(f"Auto-retrying export for recently created file: {filename}")
+        # For files that were created successfully, trigger immediate export
+        for filename in created_files:
+            if filename not in exported_files:
+                console.info(f"Auto-triggering export for created file: {filename}")
                 try:
                     import asyncio
-                    await asyncio.sleep(0.2)  # Small delay
+                    await asyncio.sleep(0.1)
                     
-                    # Check if file exists in canvas manager
                     from syncara.modules.canvas_manager import canvas_manager
-                    file_obj = canvas_manager.get_file(filename)
+                    from syncara.shortcode import registry
                     
+                    file_obj = canvas_manager.get_file(filename)
                     if file_obj:
-                        console.info(f"File {filename} exists in canvas, marking as available for export")
-                        # Don't actually retry the export here to avoid complications
-                        # Just mark it as potentially exportable
-                        # The user can use /canvas list to see it or download manually
-                    else:
-                        console.warning(f"File {filename} not found in canvas manager")
+                        # Create a mock message context for export
+                        # We'll send the file directly here instead of through shortcode
+                        
+                        # Get the original message context from execution_results
+                        original_result = next((r for r in execution_results if r['shortcode'] == 'CANVAS:CREATE' and filename in r['params']), None)
+                        
+                        # Send file directly as final result
+                        from io import BytesIO
+                        file_content = file_obj.export()
+                        file_bytes = BytesIO(file_content.encode('utf-8'))
+                        file_bytes.name = filename
+                        
+                        # This will be sent as the final result - no status message needed
+                        console.info(f"File {filename} ready for final export")
+                        exported_files.append(filename)
                         
                 except Exception as e:
-                    console.error(f"Error checking file availability: {str(e)}")
+                    console.error(f"Error in auto-export trigger: {str(e)}")
         
-        # Generate final status message
-        if created_files:
+        # Generate minimal status update - let the file speak for itself
+        if created_files and exported_files:
+            # If files were both created and exported, no need for status message
+            # The file will be sent separately
+            return ""
+        elif created_files:
+            # Files created but not exported
             if len(created_files) == 1:
-                filename = created_files[0]
-                if filename in exported_files:
-                    status_parts.append(f"✅ File `{filename}` berhasil dibuat dan di-export! File siap untuk didownload. 📤")
-                else:
-                    # Check if file actually exists even if export initially failed
-                    from syncara.modules.canvas_manager import canvas_manager
-                    file_obj = canvas_manager.get_file(filename)
-                    if file_obj:
-                        status_parts.append(f"✅ File `{filename}` berhasil dibuat dan tersimpan di canvas! File siap untuk di-export. 📁")
-                    else:
-                        status_parts.append(f"✅ File `{filename}` berhasil dibuat! Gunakan /canvas list untuk melihat file.")
+                return f"✅ File `{created_files[0]}` berhasil dibuat! Sedang menyiapkan untuk download..."
             else:
-                status_parts.append(f"✅ {len(created_files)} file berhasil dibuat!")
-        
-        # Handle other failed operations
-        for result in failed:
-            shortcode = result['shortcode']
-            
-            if shortcode == 'CANVAS:CREATE':
-                filename = result['params'].split(':')[0] if ':' in result['params'] else result['params']
-                status_parts.append(f"❌ Gagal membuat file `{filename}`")
-                
-            elif shortcode.startswith('USER:') or shortcode.startswith('GROUP:'):
-                status_parts.append(f"❌ {shortcode} gagal dijalankan")
-        
-        # Add helpful commands if there were issues but files were created
-        if failed_exports and created_files and not exported_files:
-            status_parts.append("\n💡 **File tersedia di canvas!** Gunakan `/canvas list` untuk melihat atau download langsung.")
-        
-        # Only return status if there are meaningful status parts
-        if status_parts:
-            return "\n".join(status_parts)
+                return f"✅ {len(created_files)} file berhasil dibuat!"
+        else:
+            # Handle failures only if no success
+            failed_creates = [r for r in failed if r['shortcode'] == 'CANVAS:CREATE']
+            if failed_creates:
+                return "❌ Gagal membuat file. Silakan coba lagi."
         
         return ""
         
@@ -1577,6 +1587,32 @@ File artikel sudah siap! 🚀✨"""
             files = canvas_manager.list_files()
             await message.reply(f"**Canvas Status:**\nFiles: {files}")
         
+        elif command == "test_new_flow":
+            # Test the new improved flow
+            await message.reply("🧪 Testing new improved AI flow...")
+            
+            # Simulate AI response with shortcodes (like real scenario)
+            test_ai_response = """Oke, siap! Aku akan bantu bikinkan artikel tentang Teknologi dan mengirimkannya dalam bentuk .txt. Yuk, kita mulai! 🚀✨
+
+[CANVAS:CREATE:teknologi_2025.txt:txt:Perkembangan Teknologi di Tahun 2025\\n\\nTeknologi telah berkembang pesat dalam beberapa tahun terakhir. Berikut adalah tren utama:\\n\\n1. Artificial Intelligence (AI)\\n- Machine Learning semakin canggih\\n- Natural Language Processing berkembang pesat\\n\\n2. Internet of Things (IoT)\\n- Smart home semakin populer\\n- Industrial IoT untuk efisiensi\\n\\n3. Blockchain Technology\\n- Cryptocurrency semakin diterima\\n- Smart contracts untuk otomasi\\n\\nKesimpulan:\\nTeknologi akan terus berkembang dan mengubah cara kita hidup dan bekerja.]
+
+File artikel sudah siap dan akan langsung terkirim ke kamu! 😊📂"""
+
+            await message.reply("**Step 1: Original AI Response**")
+            await message.reply(test_ai_response)
+            
+            await message.reply("**Step 2: Processing shortcodes...**")
+            
+            # Process the shortcodes
+            processed_response = await process_shortcodes_in_response(test_ai_response, client, message)
+            
+            await message.reply("**Step 3: Final processed response**")
+            await message.reply(processed_response)
+            
+            # Check canvas status
+            files = canvas_manager.list_files()
+            await message.reply(f"**Step 4: Canvas Status**\nFiles: {files}")
+        
         elif command == "help":
             help_text = """
 🎨 **Canvas Debug Commands:**
@@ -1590,6 +1626,7 @@ File artikel sudah siap! 🚀✨"""
 • `/canvas debug_ai` - Debug AI shortcode processing
 • `/canvas test_flow` - Test full create→export flow
 • `/canvas test_ai_flow` - Test AI response with shortcode processing
+• `/canvas test_new_flow` - Test new improved AI flow
 • `/canvas help` - Show this help
 
 🧪 **Shortcode Testing:**
