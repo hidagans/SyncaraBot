@@ -368,6 +368,9 @@ class PyrogramMethodsTester:
         assert 'pesan' in methods
         assert 'media' in methods
         assert 'chat' in methods
+        assert 'scheduler' in methods
+        assert 'helpers' in methods
+        assert 'bound_methods' in methods
         return methods
     
     async def test_bantuan_method(self):
@@ -406,6 +409,242 @@ class PyrogramMethodsTester:
         assert message.poll is not None
         return message
     
+    # ==================== SCHEDULER TESTS ====================
+    
+    async def test_scheduler_methods(self):
+        """Test semua method scheduler"""
+        console.info("📅 Testing Scheduler Methods...")
+        
+        # Test start/stop scheduler
+        await self.test_method("start_scheduler", self.test_start_scheduler)
+        await self.test_method("stop_scheduler", self.test_stop_scheduler)
+        
+        # Test scheduled task management
+        await self.test_method("add_scheduled_task", self.test_add_scheduled_task)
+        await self.test_method("get_scheduled_tasks", self.test_get_scheduled_tasks)
+        await self.test_method("remove_scheduled_task", self.test_remove_scheduled_task)
+        
+        # Test predefined scheduling
+        await self.test_method("jadwalkan_pesan", self.test_jadwalkan_pesan)
+        await self.test_method("jadwalkan_backup", self.test_jadwalkan_backup)
+    
+    async def test_start_scheduler(self):
+        """Test start_scheduler method"""
+        result = await self.bot.start_scheduler()
+        assert result == True
+        return result
+    
+    async def test_stop_scheduler(self):
+        """Test stop_scheduler method"""
+        result = await self.bot.stop_scheduler()
+        assert result == True
+        return result
+    
+    async def test_add_scheduled_task(self):
+        """Test add_scheduled_task method"""
+        
+        async def test_task():
+            console.info("Test task executed")
+        
+        result = self.bot.add_scheduled_task(
+            task_id="test_task",
+            name="Test Task",
+            func=test_task,
+            interval_seconds=60
+        )
+        assert result == True
+        return result
+    
+    async def test_get_scheduled_tasks(self):
+        """Test get_scheduled_tasks method"""
+        tasks = self.bot.get_scheduled_tasks()
+        assert isinstance(tasks, list)
+        return tasks
+    
+    async def test_remove_scheduled_task(self):
+        """Test remove_scheduled_task method"""
+        result = self.bot.remove_scheduled_task("test_task")
+        assert result == True
+        return result
+    
+    async def test_jadwalkan_pesan(self):
+        """Test jadwalkan_pesan method"""
+        from datetime import datetime, timedelta
+        
+        # Schedule message for 5 minutes from now
+        send_time = datetime.now() + timedelta(minutes=5)
+        result = await self.bot.jadwalkan_pesan(
+            chat_id=TEST_CHAT_ID,
+            text="Pesan terjadwal",
+            send_time=send_time
+        )
+        assert result == True
+        return result
+    
+    async def test_jadwalkan_backup(self):
+        """Test jadwalkan_backup method"""
+        result = await self.bot.jadwalkan_backup(
+            chat_id=TEST_CHAT_ID,
+            backup_interval_hours=24
+        )
+        assert result == True
+        return result
+    
+    # ==================== HELPER TESTS ====================
+    
+    async def test_helper_methods(self):
+        """Test semua helper methods"""
+        console.info("🔧 Testing Helper Methods...")
+        
+        # Test cache methods
+        await self.test_method("get_cache_stats", self.test_get_cache_stats)
+        await self.test_method("cleanup_cache", self.test_cleanup_cache)
+        
+        # Test utility methods
+        await self.test_method("format_file_size", self.test_format_file_size)
+        await self.test_method("format_duration", self.test_format_duration)
+        await self.test_method("extract_mentions", self.test_extract_mentions)
+        await self.test_method("extract_hashtags", self.test_extract_hashtags)
+        
+        # Test progress callback
+        await self.test_method("create_progress_callback", self.test_create_progress_callback)
+    
+    async def test_get_cache_stats(self):
+        """Test get_cache_stats method"""
+        stats = self.bot.get_cache_stats()
+        assert isinstance(stats, dict)
+        assert 'memory_cache' in stats
+        return stats
+    
+    async def test_cleanup_cache(self):
+        """Test cleanup_cache method"""
+        result = await self.bot.cleanup_cache()
+        assert isinstance(result, dict)
+        assert 'memory_cache_cleaned' in result
+        return result
+    
+    async def test_format_file_size(self):
+        """Test format_file_size method"""
+        result = self.bot.format_file_size(1024)
+        assert isinstance(result, str)
+        assert "KB" in result
+        return result
+    
+    async def test_format_duration(self):
+        """Test format_duration method"""
+        result = self.bot.format_duration(3661)
+        assert isinstance(result, str)
+        assert "h" in result
+        return result
+    
+    async def test_extract_mentions(self):
+        """Test extract_mentions method"""
+        result = self.bot.extract_mentions("Hello @user1 and @user2")
+        assert isinstance(result, list)
+        assert "user1" in result
+        assert "user2" in result
+        return result
+    
+    async def test_extract_hashtags(self):
+        """Test extract_hashtags method"""
+        result = self.bot.extract_hashtags("Check out #python and #telegram")
+        assert isinstance(result, list)
+        assert "python" in result
+        assert "telegram" in result
+        return result
+    
+    async def test_create_progress_callback(self):
+        """Test create_progress_callback method"""
+        callback = self.bot.create_progress_callback(100, "Test Progress")
+        assert callable(callback)
+        return callback
+    
+    # ==================== BOUND METHODS TESTS ====================
+    
+    async def test_bound_methods(self):
+        """Test bound methods functionality"""
+        console.info("🔗 Testing Bound Methods...")
+        
+        # Test chat bound methods
+        await self.test_method("test_chat_bound_methods", self.test_chat_bound_methods)
+        
+        # Test message bound methods
+        await self.test_method("test_message_bound_methods", self.test_message_bound_methods)
+    
+    async def test_chat_bound_methods(self):
+        """Test chat bound methods"""
+        try:
+            # Get chat object
+            chat = await self.bot.get_chat(TEST_CHAT_ID)
+            
+            # Test if bound methods exist
+            assert hasattr(chat, 'get_members')
+            assert hasattr(chat, 'get_member')
+            assert hasattr(chat, 'backup_chat')
+            
+            console.info("✅ Chat bound methods are available")
+            return True
+        except Exception as e:
+            console.error(f"❌ Chat bound methods test failed: {e}")
+            return False
+    
+    async def test_message_bound_methods(self):
+        """Test message bound methods"""
+        try:
+            # Send a test message
+            message = await self.bot.kirim_pesan(
+                chat_id=TEST_CHAT_ID,
+                text="Test message for bound methods"
+            )
+            
+            # Test if bound methods exist
+            assert hasattr(message, 'reply_text')
+            assert hasattr(message, 'edit_text')
+            assert hasattr(message, 'delete_message')
+            assert hasattr(message, 'pin_message')
+            
+            console.info("✅ Message bound methods are available")
+            return True
+        except Exception as e:
+            console.error(f"❌ Message bound methods test failed: {e}")
+            return False
+    
+    # ==================== ADVANCED FEATURES TESTS ====================
+    
+    async def test_advanced_features(self):
+        """Test advanced features"""
+        console.info("🚀 Testing Advanced Features...")
+        
+        # Test batch operations
+        await self.test_method("batch_operation", self.test_batch_operation)
+        
+        # Test safe execution
+        await self.test_method("safe_execute", self.test_safe_execute)
+    
+    async def test_batch_operation(self):
+        """Test batch_operation method"""
+        
+        async def test_op():
+            return "success"
+        
+        operations = [test_op for _ in range(5)]
+        results = await self.bot.batch_operation(operations, batch_size=2, delay=0.1)
+        
+        assert isinstance(results, list)
+        assert len(results) == 5
+        assert all(r == "success" for r in results)
+        return results
+    
+    async def test_safe_execute(self):
+        """Test safe_execute method"""
+        
+        async def test_operation():
+            return "executed safely"
+        
+        result = await self.bot.safe_execute(test_operation, max_retries=3)
+        assert result == "executed safely"
+        return result
+    
     async def test_hentikan_polling(self):
         """Test hentikan_polling method"""
         # Kirim polling dulu
@@ -440,6 +679,10 @@ class PyrogramMethodsTester:
         await self.test_bot_methods()
         await self.test_utility_methods()
         await self.test_polling_methods()
+        await self.test_scheduler_methods()
+        await self.test_helper_methods()
+        await self.test_bound_methods()
+        await self.test_advanced_features()
         
         # Print results
         self.print_results()
