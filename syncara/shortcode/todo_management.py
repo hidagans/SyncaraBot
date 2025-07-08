@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from bson import ObjectId
 from syncara.console import console
-from syncara.database import get_database
+from syncara.database import db
 
 class TodoManagementShortcode:
     def __init__(self):
@@ -53,7 +53,6 @@ class TodoManagementShortcode:
     async def get_todos_collection(self, chat_id):
         """Get MongoDB collection for todos"""
         try:
-            db = await get_database()
             collection_name = f"todos_{chat_id}"
             return db[collection_name]
         except Exception as e:
