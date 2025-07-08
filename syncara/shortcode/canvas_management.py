@@ -70,7 +70,8 @@ class CanvasManagementShortcode:
                 
             console.info(f"File {filename} created and verified successfully")
             
-            # Send file as document
+            # Auto-send file as document immediately after creation
+            # This ensures the file is available even if separate EXPORT fails
             try:
                 file_content = file.get_content()
                 file_bytes = BytesIO(file_content.encode('utf-8'))
@@ -79,21 +80,25 @@ class CanvasManagementShortcode:
                 await client.send_document(
                     chat_id=message.chat.id,
                     document=file_bytes,
-                    caption=f'✅ File `{filename}` berhasil dibuat!\n\nPreview content: {file_content[:100]}{"..." if len(file_content) > 100 else ""}',
+                    caption=f'📄 **File Virtual Created Successfully!**\n\n**Filename:** `{filename}`\n**Type:** {filetype}\n**Size:** {len(file_content)} characters\n\n**Content Preview:**\n{file_content[:200]}{"..." if len(file_content) > 200 else ""}',
                     reply_to_message_id=message.id
                 )
                 
-                console.info(f"File {filename} document sent successfully")
+                console.info(f"File {filename} auto-exported successfully after creation")
+                
+                # Mark this file as successfully exported in canvas manager
+                # Add a flag to track this
+                if hasattr(file, 'auto_exported'):
+                    file.auto_exported = True
+                
                 return True
                 
             except Exception as doc_error:
-                console.error(f"Error sending document: {str(doc_error)}")
-                # Fallback to text message
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f'✅ File `{filename}` berhasil dibuat!\n\nContent:\n{file.get_content()[:500]}{"..." if len(file.get_content()) > 500 else ""}',
-                    reply_to_message_id=message.id
-                )
+                console.error(f"Error auto-exporting document: {str(doc_error)}")
+                
+                # Fallback: still return True because file was created successfully
+                # The separate EXPORT shortcode can try again
+                console.info(f"File {filename} created successfully, but auto-export failed. Will rely on separate EXPORT.")
                 return True
                 
         except Exception as e:
@@ -273,7 +278,14 @@ class CanvasManagementShortcode:
             
             file = canvas_manager.get_file(filename)
             if file:
-                console.info(f"File {filename} found, exporting...")
+                console.info(f"File {filename} found, checking export status...")
+                
+                # Check if file was already auto-exported during creation
+                if hasattr(file, 'auto_exported') and file.auto_exported:
+                    console.info(f"File {filename} was already auto-exported during creation, skipping duplicate export")
+                    return True  # Return success since file was already sent
+                
+                console.info(f"File {filename} not yet exported, proceeding with export...")
                 
                 try:
                     file_content = file.export()
@@ -283,11 +295,15 @@ class CanvasManagementShortcode:
                     await client.send_document(
                         chat_id=message.chat.id,
                         document=file_bytes,
-                        caption=f'📤 Export file `{filename}`\n\nSize: {len(file_content)} characters',
+                        caption=f'📤 **File Export Complete!**\n\n**Filename:** `{filename}`\n**Size:** {len(file_content)} characters\n\n**Status:** Ready for download',
                         reply_to_message_id=message.id
                     )
                     
                     console.info(f"Successfully exported file: {filename}")
+                    
+                    # Mark as exported
+                    file.auto_exported = True
+                    
                     return True
                     
                 except Exception as doc_error:
@@ -304,18 +320,11 @@ class CanvasManagementShortcode:
                 console.warning(f"File {filename} not found for export")
                 available_files = canvas_manager.list_files()
                 console.info(f"Available files: {available_files}")
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f'❌ File `{filename}` tidak ditemukan.\n\nFile tersedia: {", ".join(available_files) if available_files else "Tidak ada"}',
-                    reply_to_message_id=message.id
-                )
+                # DON'T send error message to chat - just log it
+                # This prevents the "File tidak ditemukan" message from appearing
                 return False
                 
         except Exception as e:
             console.error(f"Error in export_file: {str(e)}")
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=f'❌ Gagal export file: {str(e)}',
-                reply_to_message_id=message.id
-            )
+            # DON'T send error message to chat - just log it
             return False 

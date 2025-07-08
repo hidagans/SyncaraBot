@@ -5,6 +5,7 @@ class VirtualFile:
         # Process newline characters in content
         self.content = content.replace('\\n', '\n') if content else ""
         self.history = []
+        self.auto_exported = False  # Track if file was auto-exported during creation
 
     def update_content(self, new_content):
         self.history.append(self.content)

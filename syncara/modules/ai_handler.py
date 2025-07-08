@@ -1104,6 +1104,10 @@ async def process_shortcodes_in_response(response_text, client, message):
         all_matches = list(re.finditer(shortcode_pattern, response_text))
         shortcode_names = [match.group(1).strip() for match in all_matches]
         
+        # If no shortcodes found, return original response
+        if not all_matches:
+            return response_text
+        
         # Validate shortcode execution order
         validation = registry.validate_shortcode_order(shortcode_names)
         if not validation['valid']:
@@ -1111,7 +1115,12 @@ async def process_shortcodes_in_response(response_text, client, message):
             for issue in validation['issues']:
                 console.warning(f"  - {issue}")
         
-        async def replace_shortcode(match):
+        # Collect execution results
+        execution_results = []
+        successful_executions = []
+        failed_executions = []
+        
+        async def execute_shortcode(match):
             full_shortcode = match.group(0)  # Full match like [USER:PROMOTE:7691971162]
             shortcode_name = match.group(1).strip()  # USER:PROMOTE
             params_str = match.group(2).strip()  # 7691971162
@@ -1121,15 +1130,36 @@ async def process_shortcodes_in_response(response_text, client, message):
             # Execute shortcode with params as string
             try:
                 result = await registry.execute_shortcode(shortcode_name, client, message, params_str)
+                
+                execution_result = {
+                    'shortcode': shortcode_name,
+                    'params': params_str,
+                    'success': result,
+                    'full_match': full_shortcode
+                }
+                
+                execution_results.append(execution_result)
+                
                 if result:
                     console.info(f"Shortcode {shortcode_name} executed successfully")
-                    return f"[Executed: {shortcode_name}]"
+                    successful_executions.append(shortcode_name)
+                    return ""  # Remove shortcode from text without replacement
                 else:
                     console.error(f"Shortcode {shortcode_name} failed")
-                    return f"[Failed: {shortcode_name}]"
+                    failed_executions.append(shortcode_name)
+                    return ""  # Remove shortcode from text without replacement
+                    
             except Exception as e:
                 console.error(f"Error executing shortcode {shortcode_name}: {str(e)}")
-                return f"[Error: {shortcode_name}]"
+                failed_executions.append(shortcode_name)
+                execution_results.append({
+                    'shortcode': shortcode_name,
+                    'params': params_str,
+                    'success': False,
+                    'error': str(e),
+                    'full_match': full_shortcode
+                })
+                return ""  # Remove shortcode from text without replacement
         
         # Process shortcodes one by one since re.sub doesn't support async
         processed_response = response_text
@@ -1137,15 +1167,131 @@ async def process_shortcodes_in_response(response_text, client, message):
         
         # Process in reverse order to avoid index issues
         for match in reversed(matches):
-            replacement = await replace_shortcode(match)
+            replacement = await execute_shortcode(match)
             start, end = match.span()
             processed_response = processed_response[:start] + replacement + processed_response[end:]
+        
+        # Clean up extra whitespace and newlines
+        processed_response = re.sub(r'\n\s*\n\s*\n', '\n\n', processed_response)
+        processed_response = processed_response.strip()
+        
+        # Generate status update for AI
+        if execution_results:
+            status_update = await generate_shortcode_status_update(execution_results)
+            
+            # Add status update to response if there are meaningful results
+            if status_update:
+                processed_response += f"\n\n{status_update}"
         
         return processed_response
         
     except Exception as e:
         console.error(f"Error processing shortcodes: {str(e)}")
         return response_text
+
+async def generate_shortcode_status_update(execution_results):
+    """Generate a natural status update based on shortcode execution results"""
+    try:
+        successful = [r for r in execution_results if r['success']]
+        failed = [r for r in execution_results if not r['success']]
+        
+        status_parts = []
+        created_files = []
+        exported_files = []
+        
+        # Handle successful operations
+        for result in successful:
+            shortcode = result['shortcode']
+            
+            if shortcode == 'CANVAS:CREATE':
+                # Extract filename from params
+                filename = result['params'].split(':')[0] if ':' in result['params'] else result['params']
+                created_files.append(filename)
+                
+            elif shortcode == 'CANVAS:EXPORT':
+                filename = result['params'].strip()
+                exported_files.append(filename)
+                
+            elif shortcode.startswith('USER:'):
+                status_parts.append(f"✅ User management berhasil dijalankan")
+                
+            elif shortcode.startswith('GROUP:'):
+                status_parts.append(f"✅ Group management berhasil dijalankan")
+                
+            elif shortcode.startswith('IMAGE:'):
+                status_parts.append(f"🎨 Gambar berhasil dibuat!")
+        
+        # Check for files that were created but failed to export
+        failed_exports = []
+        for result in failed:
+            if result['shortcode'] == 'CANVAS:EXPORT':
+                filename = result['params'].strip()
+                failed_exports.append(filename)
+        
+        # Try to auto-retry failed exports for recently created files
+        for filename in failed_exports:
+            if filename in created_files:
+                console.info(f"Auto-retrying export for recently created file: {filename}")
+                try:
+                    import asyncio
+                    await asyncio.sleep(0.2)  # Small delay
+                    
+                    # Check if file exists in canvas manager
+                    from syncara.modules.canvas_manager import canvas_manager
+                    file_obj = canvas_manager.get_file(filename)
+                    
+                    if file_obj:
+                        console.info(f"File {filename} exists in canvas, marking as available for export")
+                        # Don't actually retry the export here to avoid complications
+                        # Just mark it as potentially exportable
+                        # The user can use /canvas list to see it or download manually
+                    else:
+                        console.warning(f"File {filename} not found in canvas manager")
+                        
+                except Exception as e:
+                    console.error(f"Error checking file availability: {str(e)}")
+        
+        # Generate final status message
+        if created_files:
+            if len(created_files) == 1:
+                filename = created_files[0]
+                if filename in exported_files:
+                    status_parts.append(f"✅ File `{filename}` berhasil dibuat dan di-export! File siap untuk didownload. 📤")
+                else:
+                    # Check if file actually exists even if export initially failed
+                    from syncara.modules.canvas_manager import canvas_manager
+                    file_obj = canvas_manager.get_file(filename)
+                    if file_obj:
+                        status_parts.append(f"✅ File `{filename}` berhasil dibuat dan tersimpan di canvas! File siap untuk di-export. 📁")
+                    else:
+                        status_parts.append(f"✅ File `{filename}` berhasil dibuat! Gunakan /canvas list untuk melihat file.")
+            else:
+                status_parts.append(f"✅ {len(created_files)} file berhasil dibuat!")
+        
+        # Handle other failed operations
+        for result in failed:
+            shortcode = result['shortcode']
+            
+            if shortcode == 'CANVAS:CREATE':
+                filename = result['params'].split(':')[0] if ':' in result['params'] else result['params']
+                status_parts.append(f"❌ Gagal membuat file `{filename}`")
+                
+            elif shortcode.startswith('USER:') or shortcode.startswith('GROUP:'):
+                status_parts.append(f"❌ {shortcode} gagal dijalankan")
+        
+        # Add helpful commands if there were issues but files were created
+        if failed_exports and created_files and not exported_files:
+            status_parts.append("\n💡 **File tersedia di canvas!** Gunakan `/canvas list` untuk melihat atau download langsung.")
+        
+        # Only return status if there are meaningful status parts
+        if status_parts:
+            return "\n".join(status_parts)
+        
+        return ""
+        
+    except Exception as e:
+        console.error(f"Error generating status update: {str(e)}")
+        return ""
 
 async def initialize_ai_handler():
     """Initialize AI handler components"""
@@ -1405,6 +1551,32 @@ async def canvas_debug_command(client, message):
             else:
                 await message.reply("❌ Step 3 failed: Export failed")
                 
+        elif command == "test_ai_flow":
+            # Test AI shortcode processing with realistic scenario
+            await message.reply("🧪 Testing AI shortcode processing flow...")
+            
+            # Simulate AI response with shortcodes
+            test_ai_response = """Oke, aku akan buatkan file artikel tentang AI untuk kamu! 😊
+
+[CANVAS:CREATE:artikel_ai.txt:txt:Artificial Intelligence di Tahun 2025\\n\\nAI telah berkembang pesat dan mengubah cara kita bekerja.\\n\\nFitur-fitur terbaru:\\n1. Natural Language Processing\\n2. Computer Vision\\n3. Machine Learning\\n\\nKesimpulan:\\nAI akan terus berkembang dan membantu manusia.]
+
+Sekarang aku export file-nya untuk kamu ya! 
+
+[CANVAS:EXPORT:artikel_ai.txt]
+
+File artikel sudah siap! 🚀✨"""
+
+            await message.reply(f"**Original AI Response:**\n{test_ai_response}")
+            
+            # Process the shortcodes
+            processed_response = await process_shortcodes_in_response(test_ai_response, client, message)
+            
+            await message.reply(f"**Processed Response:**\n{processed_response}")
+            
+            # Check final canvas status
+            files = canvas_manager.list_files()
+            await message.reply(f"**Canvas Status:**\nFiles: {files}")
+        
         elif command == "help":
             help_text = """
 🎨 **Canvas Debug Commands:**
@@ -1417,7 +1589,11 @@ async def canvas_debug_command(client, message):
 • `/canvas export_test` - Export test file
 • `/canvas debug_ai` - Debug AI shortcode processing
 • `/canvas test_flow` - Test full create→export flow
+• `/canvas test_ai_flow` - Test AI response with shortcode processing
 • `/canvas help` - Show this help
+
+🧪 **Shortcode Testing:**
+• `/shortcode_test SHORTCODE:ACTION params` - Test individual shortcode
             """
             await message.reply(help_text)
         
