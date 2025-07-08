@@ -153,6 +153,19 @@ Gunakan format shortcode sesuai permintaan user. Handler baru akan aktif setelah
             shortcode_capabilities += "- Check admin privileges before using USER/GROUP commands\n"
             shortcode_capabilities += "- Test shortcodes in correct order to avoid failures\n"
             
+            # Add canvas shortcode examples
+            shortcode_capabilities += "\n\n🎨 CANVAS SHORTCODE EXAMPLES:\n"
+            shortcode_capabilities += "CORRECT ORDER:\n"
+            shortcode_capabilities += "1. [CANVAS:CREATE:myfile.txt:txt:File content with\\nNewlines]\n"
+            shortcode_capabilities += "2. [CANVAS:EXPORT:myfile.txt]\n\n"
+            shortcode_capabilities += "WRONG ORDER (will fail):\n"
+            shortcode_capabilities += "1. [CANVAS:EXPORT:myfile.txt] ❌ File doesn't exist yet\n"
+            shortcode_capabilities += "2. [CANVAS:CREATE:myfile.txt:txt:Content] ✅ File created\n\n"
+            shortcode_capabilities += "NEWLINE HANDLING:\n"
+            shortcode_capabilities += "- Use \\n for line breaks in content\n"
+            shortcode_capabilities += "- Example: 'Line 1\\nLine 2\\nLine 3' becomes proper newlines\n"
+            shortcode_capabilities += "- Don't use literal newlines in shortcode parameters\n"
+            
             # Default values
             bot_name = context.get('bot_name', 'Syncara')
             bot_username = context.get('bot_username', 'SyncaraBot')

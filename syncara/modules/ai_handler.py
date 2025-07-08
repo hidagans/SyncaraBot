@@ -1303,7 +1303,7 @@ async def canvas_debug_command(client, message):
                 await message.reply("📂 No files in canvas")
         
         elif command == "clear":
-            canvas_manager.files.clear()
+            canvas_manager.clear_files()
             await message.reply("✅ Canvas cleared")
         
         elif command == "test":
@@ -1321,6 +1321,105 @@ async def canvas_debug_command(client, message):
                     response += f"• {issue}\n"
             
             await message.reply(response)
+        
+        elif command == "create_test":
+            # Create test file manually
+            test_content = "Test file content\nLine 2\nLine 3"
+            file = canvas_manager.create_file("test.txt", "txt", test_content)
+            
+            if file:
+                await message.reply(f"✅ Test file created successfully\nContent: {file.get_content()}")
+            else:
+                await message.reply("❌ Failed to create test file")
+        
+        elif command == "export_test":
+            # Try to export test file
+            from syncara.shortcode import registry
+            result = await registry.execute_shortcode("CANVAS:EXPORT", client, message, "test.txt")
+            
+            if result:
+                await message.reply("✅ Test export successful")
+            else:
+                await message.reply("❌ Test export failed")
+        
+        elif command == "debug_ai":
+            # Debug AI shortcode processing
+            test_ai_response = "Saya akan membuat file artikel untuk Anda:\n\n[CANVAS:CREATE:artikel.txt:txt:Ini adalah konten artikel]\n\nLalu saya export:\n\n[CANVAS:EXPORT:artikel.txt]"
+            
+            response = f"🧪 **AI Response Debug:**\n\n"
+            response += f"**Test Response:**\n{test_ai_response}\n\n"
+            
+            # Check shortcode validation
+            import re
+            shortcode_pattern = r'\[([A-Z]+:[A-Z_]+):([^\]]*)\]'
+            matches = list(re.finditer(shortcode_pattern, test_ai_response))
+            shortcode_names = [match.group(1).strip() for match in matches]
+            
+            validation = registry.validate_shortcode_order(shortcode_names)
+            
+            response += f"**Shortcodes found:** {shortcode_names}\n"
+            response += f"**Valid order:** {'✅' if validation['valid'] else '❌'}\n"
+            
+            if validation['issues']:
+                response += f"**Issues:**\n"
+                for issue in validation['issues']:
+                    response += f"• {issue}\n"
+            
+            await message.reply(response)
+        
+        elif command == "test_flow":
+            # Test full canvas flow: create -> export
+            await message.reply("🧪 Testing full canvas flow...")
+            
+            # Step 1: Create file
+            await message.reply("Step 1: Creating file...")
+            from syncara.shortcode import registry
+            
+            create_result = await registry.execute_shortcode("CANVAS:CREATE", client, message, "test_flow.txt:txt:Hello World\\nThis is line 2\\nThis is line 3")
+            
+            if create_result:
+                await message.reply("✅ Step 1 passed: File created")
+            else:
+                await message.reply("❌ Step 1 failed: File creation failed")
+                return
+            
+            # Step 2: Verify file exists
+            await message.reply("Step 2: Verifying file exists...")
+            files = canvas_manager.list_files()
+            if "test_flow.txt" in files:
+                await message.reply("✅ Step 2 passed: File exists in canvas")
+            else:
+                await message.reply(f"❌ Step 2 failed: File not found. Available: {files}")
+                return
+            
+            # Step 3: Export file
+            await message.reply("Step 3: Exporting file...")
+            import asyncio
+            await asyncio.sleep(0.2)  # Small delay
+            
+            export_result = await registry.execute_shortcode("CANVAS:EXPORT", client, message, "test_flow.txt")
+            
+            if export_result:
+                await message.reply("✅ Step 3 passed: File exported successfully")
+                await message.reply("🎉 Full flow test completed successfully!")
+            else:
+                await message.reply("❌ Step 3 failed: Export failed")
+                
+        elif command == "help":
+            help_text = """
+🎨 **Canvas Debug Commands:**
+
+• `/canvas` - Show canvas status
+• `/canvas list` - List all files with preview
+• `/canvas clear` - Clear all files
+• `/canvas test` - Test shortcode order validation
+• `/canvas create_test` - Create test file manually
+• `/canvas export_test` - Export test file
+• `/canvas debug_ai` - Debug AI shortcode processing
+• `/canvas test_flow` - Test full create→export flow
+• `/canvas help` - Show this help
+            """
+            await message.reply(help_text)
         
     except Exception as e:
         await message.reply(f"❌ Error: {str(e)}")
