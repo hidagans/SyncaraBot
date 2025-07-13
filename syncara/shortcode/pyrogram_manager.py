@@ -23,13 +23,45 @@ class PyrogramShortcodeManager:
         self.inline_handler = PyrogramInlineShortcode()
         self.bound_handler = PyrogramBoundShortcode()
         
-        # Merge all handlers
-        self.handlers.update(self.advanced_handler.handlers)
-        self.handlers.update(self.utilities_handler.handlers)
-        self.handlers.update(self.inline_handler.handlers)
-        self.handlers.update(self.bound_handler.handlers)
+        # Create wrapper handlers for registry compatibility
+        self._create_wrapper_handlers()
         
         console.info(f"✅ Pyrogram Shortcode Manager initialized with {len(self.handlers)} handlers")
+    
+    def _create_wrapper_handlers(self):
+        """Create wrapper handlers that are compatible with registry signature"""
+        # Advanced handlers
+        for shortcode, handler in self.advanced_handler.handlers.items():
+            self.handlers[shortcode] = self._create_wrapper(shortcode, handler, self.advanced_handler)
+        
+        # Utilities handlers
+        for shortcode, handler in self.utilities_handler.handlers.items():
+            self.handlers[shortcode] = self._create_wrapper(shortcode, handler, self.utilities_handler)
+        
+        # Inline handlers
+        for shortcode, handler in self.inline_handler.handlers.items():
+            self.handlers[shortcode] = self._create_wrapper(shortcode, handler, self.inline_handler)
+        
+        # Bound handlers
+        for shortcode, handler in self.bound_handler.handlers.items():
+            self.handlers[shortcode] = self._create_wrapper(shortcode, handler, self.bound_handler)
+    
+    def _create_wrapper(self, shortcode, handler, handler_instance):
+        """Create a wrapper function that converts registry signature to handler signature"""
+        async def wrapper(client, message, params):
+            try:
+                # Extract user_id and chat_id from message
+                user_id = message.from_user.id if message.from_user else 0
+                chat_id = message.chat.id
+                
+                # Call the handler with proper signature and params
+                result = await handler(user_id, chat_id, client, message, params=params)
+                return result
+            except Exception as e:
+                console.error(f"Error in wrapper for {shortcode}: {e}")
+                return f"❌ Error menjalankan shortcode '{shortcode}': {str(e)}"
+        
+        return wrapper
     
     def get_available_shortcodes(self) -> List[str]:
         """
@@ -39,7 +71,7 @@ class PyrogramShortcodeManager:
     
     def get_shortcode_categories(self) -> Dict[str, List[str]]:
         """
-        Mendapatkan shortcode yang dikelompokkan berdasarkan kategori.
+        Mendapatkan kategori shortcode yang tersedia.
         """
         categories = {
             'Advanced Methods': [],
@@ -59,30 +91,6 @@ class PyrogramShortcodeManager:
                 categories['Bound Methods'].append(shortcode)
         
         return categories
-    
-    async def handle_shortcode(self, shortcode: str, user_id: int, chat_id: int, client, message, **kwargs) -> str:
-        """
-        Handle shortcode dengan delegasi ke handler yang sesuai.
-        """
-        if shortcode not in self.handlers:
-            return f"❌ Shortcode '{shortcode}' tidak ditemukan"
-        
-        try:
-            # Determine which handler to use
-            if shortcode in self.advanced_handler.handlers:
-                return await self.advanced_handler.handle_shortcode(shortcode, user_id, chat_id, client, message, **kwargs)
-            elif shortcode in self.utilities_handler.handlers:
-                return await self.utilities_handler.handle_shortcode(shortcode, user_id, chat_id, client, message, **kwargs)
-            elif shortcode in self.inline_handler.handlers:
-                return await self.inline_handler.handle_shortcode(shortcode, user_id, chat_id, client, message, **kwargs)
-            elif shortcode in self.bound_handler.handlers:
-                return await self.bound_handler.handle_shortcode(shortcode, user_id, chat_id, client, message, **kwargs)
-            else:
-                return f"❌ Handler untuk shortcode '{shortcode}' tidak ditemukan"
-        
-        except Exception as e:
-            console.error(f"Error handling shortcode {shortcode}: {e}")
-            return f"❌ Error menjalankan shortcode '{shortcode}': {str(e)}"
     
     def get_shortcode_help(self, shortcode: str = None) -> str:
         """
@@ -181,16 +189,20 @@ class PyrogramShortcodeManager:
             'example': f'{shortcode}'
         })
     
-    async def batch_execute_shortcodes(self, shortcodes: List[str], user_id: int, chat_id: int, client, message, **kwargs) -> List[str]:
+    async def batch_execute_shortcodes(self, shortcodes: List[str], client, message, params_list: List[str] = None) -> List[str]:
         """
         Execute multiple shortcodes dalam batch.
         """
         results = []
         
-        for shortcode in shortcodes:
+        for i, shortcode in enumerate(shortcodes):
             try:
-                result = await self.handle_shortcode(shortcode, user_id, chat_id, client, message, **kwargs)
-                results.append(f"✅ {shortcode}: {result}")
+                params = params_list[i] if params_list and i < len(params_list) else ""
+                if shortcode in self.handlers:
+                    result = await self.handlers[shortcode](client, message, params)
+                    results.append(f"✅ {shortcode}: {result}")
+                else:
+                    results.append(f"❌ {shortcode}: Shortcode tidak ditemukan")
             except Exception as e:
                 results.append(f"❌ {shortcode}: {str(e)}")
         
@@ -217,7 +229,7 @@ class PyrogramShortcodeManager:
             ]
         }
     
-    async def validate_shortcode_permissions(self, shortcode: str, user_id: int, chat_id: int) -> bool:
+    async def validate_shortcode_permissions(self, shortcode: str, message) -> bool:
         """
         Validasi apakah user memiliki permission untuk menggunakan shortcode.
         """
@@ -225,10 +237,13 @@ class PyrogramShortcodeManager:
         # For now, allow all shortcodes
         return True
     
-    async def log_shortcode_usage(self, shortcode: str, user_id: int, chat_id: int, success: bool, **kwargs):
+    async def log_shortcode_usage(self, shortcode: str, message, success: bool, **kwargs):
         """
         Log penggunaan shortcode untuk analytics.
         """
+        user_id = message.from_user.id if message.from_user else 0
+        chat_id = message.chat.id
+        
         log_entry = {
             'shortcode': shortcode,
             'user_id': user_id,

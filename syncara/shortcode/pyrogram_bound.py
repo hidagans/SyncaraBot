@@ -619,28 +619,93 @@ class PyrogramBoundShortcode:
     
     async def user_send_message(self, user_id: int, chat_id: int, client, message, **kwargs):
         """Send message to user"""
-        target_user_id = kwargs.get('user_id', user_id)
-        text = kwargs.get('text', 'Pesan dari bound method')
+        # Parse params string jika ada
+        params = kwargs.get('params', '')
+        if params:
+            # Format: user_id:text atau @username:text
+            parts = params.split(':', 1)
+            if len(parts) >= 2:
+                target_user_str = parts[0].strip()
+                text = parts[1].strip()
+                
+                # Handle username atau user_id
+                if target_user_str.startswith('@'):
+                    target_user_str = target_user_str[1:]
+                
+                # Try to resolve user
+                try:
+                    if target_user_str.isdigit():
+                        target_user_id = int(target_user_str)
+                    else:
+                        # Try to get user by username
+                        user_obj = await client.get_users(target_user_str)
+                        target_user_id = user_obj.id
+                except Exception as e:
+                    console.error(f"Error resolving user {target_user_str}: {e}")
+                    return f"❌ Tidak dapat menemukan user: {target_user_str}"
+            else:
+                return "❌ Format parameter salah. Gunakan: user_id:text atau @username:text"
+        else:
+            # Fallback ke kwargs
+            target_user_id = kwargs.get('user_id', user_id)
+            text = kwargs.get('text', 'Pesan dari bound method')
         
-        user = await client.get_users(target_user_id)
-        result = await user.send_message(text)
-        
-        return f"Pesan berhasil dikirim ke {user.first_name}"
+        try:
+            user = await client.get_users(target_user_id)
+            result = await user.send_message(text)
+            
+            return f"Pesan berhasil dikirim ke {user.first_name}"
+        except Exception as e:
+            console.error(f"Error sending message to user {target_user_id}: {e}")
+            return f"❌ Error mengirim pesan: {str(e)}"
     
     async def user_send_photo(self, user_id: int, chat_id: int, client, message, **kwargs):
         """Send photo to user"""
-        target_user_id = kwargs.get('user_id', user_id)
-        photo = kwargs.get('photo')
-        caption = kwargs.get('caption', 'Foto dari bound method')
+        # Parse params string jika ada
+        params = kwargs.get('params', '')
+        if params:
+            # Format: user_id:photo:caption atau @username:photo:caption
+            parts = params.split(':', 2)
+            if len(parts) >= 2:
+                target_user_str = parts[0].strip()
+                photo = parts[1].strip()
+                caption = parts[2].strip() if len(parts) > 2 else 'Foto dari bound method'
+                
+                # Handle username atau user_id
+                if target_user_str.startswith('@'):
+                    target_user_str = target_user_str[1:]
+                
+                # Try to resolve user
+                try:
+                    if target_user_str.isdigit():
+                        target_user_id = int(target_user_str)
+                    else:
+                        # Try to get user by username
+                        user_obj = await client.get_users(target_user_str)
+                        target_user_id = user_obj.id
+                except Exception as e:
+                    console.error(f"Error resolving user {target_user_str}: {e}")
+                    return f"❌ Tidak dapat menemukan user: {target_user_str}"
+            else:
+                return "❌ Format parameter salah. Gunakan: user_id:photo:caption atau @username:photo:caption"
+        else:
+            # Fallback ke kwargs
+            target_user_id = kwargs.get('user_id', user_id)
+            photo = kwargs.get('photo')
+            caption = kwargs.get('caption', 'Foto dari bound method')
         
         if not photo:
             return "❌ Parameter photo diperlukan"
         
-        user = await client.get_users(target_user_id)
-        result = await user.send_photo(photo, caption=caption)
-        
-        return f"Foto berhasil dikirim ke {user.first_name}"
-    
+        try:
+            user = await client.get_users(target_user_id)
+            result = await user.send_photo(photo, caption=caption)
+            
+            return f"Foto berhasil dikirim ke {user.first_name}"
+        except Exception as e:
+            console.error(f"Error sending photo to user {target_user_id}: {e}")
+            return f"❌ Error mengirim foto: {str(e)}"
+
     # ==================== INLINE QUERY BOUND METHODS ====================
     
     async def inline_query_answer(self, user_id: int, chat_id: int, client, message, **kwargs):
