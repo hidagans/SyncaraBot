@@ -19,38 +19,29 @@ class ShortcodeRegistry:
     def _load_shortcodes(self):
         """Load all shortcode handlers from files in the shortcode directory"""
         try:
-            # Direct import approach - more reliable
-            from syncara.shortcode.group_management import GroupManagementShortcode
-            from syncara.shortcode.users_management import UserManagementShortcode
-            from syncara.shortcode.userbot_management import UserbotManagementShortcode
-            from syncara.shortcode.image_generation import ImageGenerationShortcode
-            from syncara.shortcode.canvas_management import CanvasManagementShortcode
-            from syncara.shortcode.python_execution import PythonExecutionShortcode
-            from syncara.shortcode.file_search import FileSearchShortcode
-            from syncara.shortcode.todo_management import TodoManagementShortcode
-            from syncara.shortcode.pyrogram_manager import PyrogramShortcodeManager
+            # Import all shortcode handlers
+            from .canvas_management import canvas_shortcode
+            from .file_search import file_search_shortcode
+            from .group_management import group_shortcode
+            from .image_generation import image_shortcode
+            from .python_execution import python_shortcode
+            from .todo_management import todo_shortcode
+            from .users_management import users_shortcode
+            from .userbot_management import userbot_shortcode
+            from .pyrogram_manager import pyrogram_manager
+            from .multi_step_management import multi_step_shortcode
             
-            # Create instances
-            group_shortcode = GroupManagementShortcode()
-            user_shortcode = UserManagementShortcode()
-            userbot_shortcode = UserbotManagementShortcode()
-            image_shortcode = ImageGenerationShortcode()
-            canvas_shortcode = CanvasManagementShortcode()
-            python_shortcode = PythonExecutionShortcode()
-            search_shortcode = FileSearchShortcode()
-            todo_shortcode = TodoManagementShortcode()
-            pyrogram_shortcode = PyrogramShortcodeManager()
-            
-            # Register handlers
-            self.shortcodes.update(group_shortcode.handlers)
-            self.shortcodes.update(user_shortcode.handlers)
-            self.shortcodes.update(userbot_shortcode.handlers)
-            self.shortcodes.update(image_shortcode.handlers)
+            # Register all shortcodes
             self.shortcodes.update(canvas_shortcode.handlers)
+            self.shortcodes.update(file_search_shortcode.handlers)
+            self.shortcodes.update(group_shortcode.handlers)
+            self.shortcodes.update(image_shortcode.handlers)
             self.shortcodes.update(python_shortcode.handlers)
-            self.shortcodes.update(search_shortcode.handlers)
             self.shortcodes.update(todo_shortcode.handlers)
-            self.shortcodes.update(pyrogram_shortcode.handlers)
+            self.shortcodes.update(users_shortcode.handlers)
+            self.shortcodes.update(userbot_shortcode.handlers)
+            self.shortcodes.update(pyrogram_manager.handlers)
+            self.shortcodes.update(multi_step_shortcode.handlers)
             
             # Register descriptions
             self.descriptions.update(group_shortcode.descriptions)
