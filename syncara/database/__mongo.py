@@ -312,5 +312,5 @@ async def get_channel_analytics_summary() -> Dict[str, Any]:
         return {}
 
 # ==================== STARTUP ====================
-# Initialize database saat import
-asyncio.create_task(initialize_database())
+# NOTE: Database initialization akan dipanggil dari __main__.py
+# Tidak menggunakan asyncio.create_task() di sini untuk menghindari event loop error

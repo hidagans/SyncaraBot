@@ -13,11 +13,14 @@ class ShortcodeRegistry:
             cls._instance = super().__new__(cls)
             cls._instance.shortcodes = {}
             cls._instance.descriptions = {}
-            cls._instance._load_shortcodes()
+            cls._instance._initialized = False
         return cls._instance
 
     def _load_shortcodes(self):
         """Load all shortcode handlers from files in the shortcode directory"""
+        if self._initialized:
+            return
+            
         try:
             # Import all shortcode handlers
             from .canvas_management import canvas_shortcode
@@ -62,11 +65,12 @@ class ShortcodeRegistry:
             self.descriptions.update(pyrogram_manager.inline_handler.descriptions)
             self.descriptions.update(pyrogram_manager.bound_handler.descriptions)
             
-            print(f"Loaded {len(self.shortcodes)} shortcode handlers")
-            print(f"Loaded {len(self.descriptions)} shortcode descriptions")
+            self._initialized = True
+            print(f"✅ Loaded {len(self.shortcodes)} shortcode handlers")
+            print(f"✅ Loaded {len(self.descriptions)} shortcode descriptions")
             
         except Exception as e:
-            print(f"Error loading shortcodes: {e}")
+            print(f"❌ Error loading shortcodes: {e}")
             # Fallback to manual registration
             self._load_shortcodes_fallback()
     
@@ -90,10 +94,12 @@ class ShortcodeRegistry:
                 'CHANNEL:STATUS': 'Get channel status',
             }
             
-            print("Loaded fallback shortcodes")
+            self._initialized = True
+            print("✅ Loaded fallback shortcodes")
             
         except Exception as e:
-            print(f"Error in fallback shortcode loading: {e}")
+            print(f"❌ Error in fallback shortcode loading: {e}")
+            self._initialized = True
     
     async def _dummy_handler(self, client, message, params):
         """Dummy handler for fallback shortcodes"""
@@ -101,6 +107,9 @@ class ShortcodeRegistry:
 
     def get_shortcode_docs(self) -> str:
         """Generate documentation for all registered shortcodes"""
+        if not self._initialized:
+            self._load_shortcodes()
+            
         docs = ["Available Shortcodes:"]
         
         # Group shortcodes by category
@@ -130,6 +139,9 @@ class ShortcodeRegistry:
 
     def validate_shortcode_order(self, shortcodes_in_text: list) -> dict:
         """Validate the execution order of shortcodes in text"""
+        if not self._initialized:
+            self._load_shortcodes()
+            
         issues = []
         
         # Check for CANVAS operations
@@ -157,9 +169,20 @@ class ShortcodeRegistry:
 
     async def execute_shortcode(self, shortcode: str, client, message, params):
         """Execute a registered shortcode"""
+        if not self._initialized:
+            self._load_shortcodes()
+            
         if shortcode in self.shortcodes:
             return await self.shortcodes[shortcode](client, message, params)
         return False
 
+    def ensure_loaded(self):
+        """Ensure shortcodes are loaded"""
+        if not self._initialized:
+            self._load_shortcodes()
+
 # Create singleton instance
 registry = ShortcodeRegistry()
+
+# Load shortcodes on import (synchronously)
+registry.ensure_loaded()
