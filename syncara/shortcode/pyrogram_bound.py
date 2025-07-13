@@ -115,43 +115,6 @@ class PyrogramBoundShortcode:
             'PYROGRAM:JOIN_REQUEST_DECLINE_ALL': 'Decline semua join request. Usage: [PYROGRAM:JOIN_REQUEST_DECLINE_ALL:]',
         }
     
-    async def handle_shortcode(self, shortcode: str, user_id: int, chat_id: int, client, message, **kwargs):
-        """
-        Handler utama untuk shortcode bound methods.
-        """
-        if shortcode not in self.handlers:
-            return await client.kirim_pesan(
-                chat_id=chat_id,
-                text=f"❌ Shortcode '{shortcode}' tidak dikenali",
-                reply_to_message_id=message.id
-            )
-        
-        # Set pesan "sedang diproses"
-        processing_msg = await client.kirim_pesan(
-            chat_id=chat_id,
-            text="⏳ Memproses shortcode bound method...",
-            reply_to_message_id=message.id
-        )
-        
-        try:
-            handler = self.handlers[shortcode]
-            result = await handler(user_id, chat_id, client, message, **kwargs)
-            
-            # Update pesan dengan hasil
-            await client.edit_pesan(
-                chat_id=chat_id,
-                message_id=processing_msg.id,
-                text=f"✅ Shortcode '{shortcode}' berhasil dijalankan\n\n{result or 'Proses selesai'}"
-            )
-            
-        except Exception as e:
-            console.error(f"Error handling shortcode {shortcode}: {e}")
-            await client.edit_pesan(
-                chat_id=chat_id,
-                message_id=processing_msg.id,
-                text=f"❌ Error menjalankan shortcode '{shortcode}': {str(e)}"
-            )
-    
     # ==================== CHAT BOUND METHODS ====================
     
     async def chat_arsip(self, user_id: int, chat_id: int, client, message, **kwargs):

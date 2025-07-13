@@ -667,19 +667,6 @@ class PyrogramInlineShortcode:
             }
             return response_id
 
-    async def handle_shortcode(self, shortcode: str, user_id: int, chat_id: int, client, message, **kwargs) -> str:
-        """Handle shortcode dengan delegasi ke method yang sesuai"""
-        if shortcode not in self.handlers:
-            return f"❌ Shortcode '{shortcode}' tidak ditemukan"
-        
-        try:
-            params = kwargs.get('params', '')
-            result = await self.handlers[shortcode](client, message, params)
-            return result
-        except Exception as e:
-            console.error(f"Error handling shortcode {shortcode}: {e}")
-            return f"❌ Error menjalankan shortcode '{shortcode}': {str(e)}"
-
     async def send_pending_responses(self, client, response_ids):
         """Kirim pending responses"""
         for response_id in response_ids:
