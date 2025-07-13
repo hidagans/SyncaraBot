@@ -30,6 +30,9 @@ class PyrogramAdvancedShortcode:
             'PYROGRAM:VOTE_POLL': self.vote_poll,
             'PYROGRAM:BULK_KIRIM': self.bulk_kirim,
             'PYROGRAM:BULK_FORWARD': self.bulk_forward,
+            'PYROGRAM:BROADCAST_ALL_GROUPS': self.broadcast_all_groups,
+            'PYROGRAM:GET_ALL_GROUPS': self.get_all_groups,
+            'PYROGRAM:SEND_TO_GROUPS': self.send_to_groups,
         }
         
         self.descriptions = {
@@ -52,6 +55,9 @@ class PyrogramAdvancedShortcode:
             'PYROGRAM:VOTE_POLL': 'Vote pada polling. Usage: [PYROGRAM:VOTE_POLL:message_id:option_index]',
             'PYROGRAM:BULK_KIRIM': 'Kirim pesan ke multiple chat. Usage: [PYROGRAM:BULK_KIRIM:chat1,chat2,...:text:delay]',
             'PYROGRAM:BULK_FORWARD': 'Forward pesan ke multiple chat. Usage: [PYROGRAM:BULK_FORWARD:chat1,chat2,...:message_id:delay]',
+            'PYROGRAM:BROADCAST_ALL_GROUPS': 'Kirim pengumuman ke semua grup. Usage: [PYROGRAM:BROADCAST_ALL_GROUPS:text:delay]',
+            'PYROGRAM:GET_ALL_GROUPS': 'Dapatkan daftar semua grup. Usage: [PYROGRAM:GET_ALL_GROUPS:]',
+            'PYROGRAM:SEND_TO_GROUPS': 'Kirim pesan ke grup yang dipilih. Usage: [PYROGRAM:SEND_TO_GROUPS:group_filter:text:delay]',
         }
         
         self.pending_responses = {}
@@ -703,6 +709,183 @@ class PyrogramAdvancedShortcode:
             response_id = f"bulk_forward_error_{message.id}"
             self.pending_responses[response_id] = {
                 'text': f"❌ Error bulk forward: {str(e)}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            return response_id
+    
+    async def broadcast_all_groups(self, client, message, params):
+        """Kirim pengumuman ke semua grup"""
+        try:
+            parts = params.split(':', 1)
+            if len(parts) < 1:
+                return "❌ Usage: [PYROGRAM:BROADCAST_ALL_GROUPS:text:delay]"
+            
+            text = parts[0]
+            delay = float(parts[1]) if len(parts) > 1 and parts[1].replace('.', '').isdigit() else 2.0
+            
+            # Get all groups
+            all_groups = []
+            async for dialog in client.get_dialogs():
+                if dialog.chat.type in ['group', 'supergroup']:
+                    all_groups.append(dialog.chat.id)
+            
+            if not all_groups:
+                response_id = f"broadcast_error_{message.id}"
+                self.pending_responses[response_id] = {
+                    'text': "❌ Tidak ada grup yang ditemukan",
+                    'chat_id': message.chat.id,
+                    'reply_to_message_id': message.id
+                }
+                return response_id
+            
+            # Send to all groups
+            success_count = 0
+            failed_count = 0
+            
+            for group_id in all_groups:
+                try:
+                    await client.send_message(chat_id=group_id, text=text)
+                    success_count += 1
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                except Exception as e:
+                    failed_count += 1
+                    console.warning(f"Failed to send to group {group_id}: {e}")
+            
+            response_id = f"broadcast_all_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"📢 **Pengumuman Terkirim**\n✅ Berhasil: {success_count} grup\n❌ Gagal: {failed_count} grup\n⏱️ Delay: {delay}s\n\n📝 **Pesan:**\n{text}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[PYROGRAM:BROADCAST_ALL_GROUPS] Sent to {success_count}/{len(all_groups)} groups")
+            return response_id
+            
+        except Exception as e:
+            console.error(f"[PYROGRAM:BROADCAST_ALL_GROUPS] Error: {e}")
+            response_id = f"broadcast_error_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"❌ Error broadcast: {str(e)}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            return response_id
+    
+    async def get_all_groups(self, client, message, params):
+        """Dapatkan daftar semua grup"""
+        try:
+            groups = []
+            async for dialog in client.get_dialogs():
+                if dialog.chat.type in ['group', 'supergroup']:
+                    groups.append({
+                        'id': dialog.chat.id,
+                        'title': dialog.chat.title,
+                        'type': dialog.chat.type,
+                        'member_count': getattr(dialog.chat, 'members_count', 'N/A')
+                    })
+            
+            if not groups:
+                response_id = f"get_groups_empty_{message.id}"
+                self.pending_responses[response_id] = {
+                    'text': "📋 Tidak ada grup yang ditemukan",
+                    'chat_id': message.chat.id,
+                    'reply_to_message_id': message.id
+                }
+                return response_id
+            
+            # Format group list
+            group_list = f"📋 **Daftar Grup ({len(groups)} grup):**\n\n"
+            for i, group in enumerate(groups[:20], 1):  # Limit to 20 groups
+                group_list += f"{i}. **{group['title']}**\n"
+                group_list += f"   🆔 ID: `{group['id']}`\n"
+                group_list += f"   👥 Member: {group['member_count']}\n"
+                group_list += f"   📱 Type: {group['type']}\n\n"
+            
+            if len(groups) > 20:
+                group_list += f"... dan {len(groups) - 20} grup lainnya"
+            
+            response_id = f"get_groups_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': group_list,
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[PYROGRAM:GET_ALL_GROUPS] Found {len(groups)} groups")
+            return response_id
+            
+        except Exception as e:
+            console.error(f"[PYROGRAM:GET_ALL_GROUPS] Error: {e}")
+            response_id = f"get_groups_error_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"❌ Error getting groups: {str(e)}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            return response_id
+    
+    async def send_to_groups(self, client, message, params):
+        """Kirim pesan ke grup yang dipilih"""
+        try:
+            parts = params.split(':', 2)
+            if len(parts) < 2:
+                return "❌ Usage: [PYROGRAM:SEND_TO_GROUPS:group_filter:text:delay]"
+            
+            group_filter = parts[0].lower()
+            text = parts[1]
+            delay = float(parts[2]) if len(parts) > 2 and parts[2].replace('.', '').isdigit() else 2.0
+            
+            # Get filtered groups
+            filtered_groups = []
+            async for dialog in client.get_dialogs():
+                if dialog.chat.type in ['group', 'supergroup']:
+                    title = dialog.chat.title.lower()
+                    if group_filter in title or group_filter == 'all':
+                        filtered_groups.append({
+                            'id': dialog.chat.id,
+                            'title': dialog.chat.title
+                        })
+            
+            if not filtered_groups:
+                response_id = f"send_groups_empty_{message.id}"
+                self.pending_responses[response_id] = {
+                    'text': f"❌ Tidak ada grup yang cocok dengan filter: {group_filter}",
+                    'chat_id': message.chat.id,
+                    'reply_to_message_id': message.id
+                }
+                return response_id
+            
+            # Send to filtered groups
+            success_count = 0
+            failed_count = 0
+            
+            for group in filtered_groups:
+                try:
+                    await client.send_message(chat_id=group['id'], text=text)
+                    success_count += 1
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                except Exception as e:
+                    failed_count += 1
+                    console.warning(f"Failed to send to group {group['title']}: {e}")
+            
+            response_id = f"send_groups_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"📢 **Pesan Terkirim ke Grup**\n🔍 Filter: {group_filter}\n✅ Berhasil: {success_count} grup\n❌ Gagal: {failed_count} grup\n⏱️ Delay: {delay}s\n\n📝 **Pesan:**\n{text}",
+                'chat_id': message.chat.id,
+                'reply_to_message_id': message.id
+            }
+            
+            console.info(f"[PYROGRAM:SEND_TO_GROUPS] Sent to {success_count}/{len(filtered_groups)} groups")
+            return response_id
+            
+        except Exception as e:
+            console.error(f"[PYROGRAM:SEND_TO_GROUPS] Error: {e}")
+            response_id = f"send_groups_error_{message.id}"
+            self.pending_responses[response_id] = {
+                'text': f"❌ Error sending to groups: {str(e)}",
                 'chat_id': message.chat.id,
                 'reply_to_message_id': message.id
             }
