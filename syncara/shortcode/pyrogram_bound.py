@@ -652,7 +652,10 @@ class PyrogramBoundShortcode:
         
         try:
             user = await client.get_users(target_user_id)
-            result = await user.send_message(text)
+            result = await client.send_message(
+                chat_id=target_user_id,
+                text=text
+            )
             
             return f"Pesan berhasil dikirim ke {user.first_name}"
         except Exception as e:
@@ -699,7 +702,11 @@ class PyrogramBoundShortcode:
         
         try:
             user = await client.get_users(target_user_id)
-            result = await user.send_photo(photo, caption=caption)
+            result = await client.send_photo(
+                chat_id=target_user_id,
+                photo=photo,
+                caption=caption
+            )
             
             return f"Foto berhasil dikirim ke {user.first_name}"
         except Exception as e:
