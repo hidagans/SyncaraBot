@@ -34,50 +34,104 @@ async def loadPlugins():
 async def setup_ai_handler():
     """Setup AI handler after initialization"""
     try:
-        from syncara.modules.ai_handler import initialize_ai_handler
-        await initialize_ai_handler()
+        from syncara.modules.ai_handler import setup_assistant_handlers
+        await setup_assistant_handlers()
         console.info("✅ AI handler setup completed")
     except ImportError:
         console.warning("⚠️ AI handler not available")
     except Exception as e:
         console.error(f"❌ Error setting up AI handler: {str(e)}")
 
+async def setup_channel_manager():
+    """Setup channel manager for auto-posting"""
+    try:
+        from syncara.modules.channel_manager import channel_manager
+        console.info("📢 Channel Manager initialized")
+        console.info("📊 Use [CHANNEL:STATUS] to check status")
+        console.info("🚀 Use [CHANNEL:START] to activate auto-posting")
+        
+        # Optional: Auto-start channel posting (uncomment if needed)
+        # from syncara import bot
+        # asyncio.create_task(channel_manager.start_auto_posting(bot))
+        # console.info("🚀 Channel auto-posting started automatically")
+        
+        return channel_manager
+    except Exception as e:
+        console.error(f"❌ Error setting up channel manager: {str(e)}")
+        return None
+
 async def main():
     """Main application entry point"""
     try:
         # Initialize SyncaraBot (both bot and userbot)
-        console.info("Starting SyncaraBot...")
+        console.info("🚀 Starting SyncaraBot...")
+        
+        # Initialize database
+        from syncara.database import initialize_database
+        await initialize_database()
+        
+        # Initialize SyncaraBot
         bot_manager, userbot_client = await initialize_syncara()
         
         # Load plugins AFTER bot initialization
-        console.info("Loading plugins...")
+        console.info("🔌 Loading plugins...")
         await loadPlugins()
         
-        # Setup AI handler - PENTING: Ini yang hilang sebelumnya!
+        # Setup AI handler
+        console.info("🤖 Setting up AI handler...")
         await setup_ai_handler()
         
+        # Setup channel manager
+        console.info("📢 Setting up Channel Manager...")
+        channel_manager = await setup_channel_manager()
+        
         # Start autonomous AI mode
+        console.info("🧠 Starting autonomous AI mode...")
         from syncara import start_autonomous_mode
         await start_autonomous_mode()
         
-        console.info("🚀 SyncaraBot is ready and running!")
-        console.info("💡 Try:")
-        console.info("   - Send /start to the bot manager")
-        console.info("   - Mention or reply to the userbot assistant")
-        console.info("   - Send message in private chat to userbot")
-        console.info("Press Ctrl+C to stop the bot")
+        console.info("✅ SyncaraBot is ready and running!")
+        console.info("💡 Available features:")
+        console.info("   - 🤖 AI Assistant with learning capabilities")
+        console.info("   - 📢 Auto-posting channel management")
+        console.info("   - 🎨 Canvas file management")
+        console.info("   - 🖼️ Image generation")
+        console.info("   - 👥 User/Group management")
+        console.info("   - 📝 Todo management")
+        console.info("   - 🔄 Multi-step workflow processing")
+        console.info("")
+        console.info("📱 Bot username: @" + bot_manager.me.username if bot_manager.me else "Unknown")
+        console.info("🤖 Userbot: " + userbot_client.me.first_name if userbot_client and userbot_client.me else "Not available")
+        console.info("")
+        console.info("📊 Channel Management:")
+        console.info("   - Use [CHANNEL:STATUS] to check auto-posting status")
+        console.info("   - Use [CHANNEL:START] to activate auto-posting") 
+        console.info("   - Use [CHANNEL:STOP] to deactivate auto-posting")
+        console.info("   - Use [CHANNEL:STATS] to view analytics")
+        console.info("")
+        console.info("⏹️ Press Ctrl+C to stop the bot")
         
         # Keep the bot running using pyrogram's idle
         await idle()
         
     except KeyboardInterrupt:
-        console.warning("Received keyboard interrupt")
+        console.warning("⏹️ Received keyboard interrupt")
+        
+        # Stop channel auto-posting if running
+        try:
+            from syncara.modules.channel_manager import channel_manager
+            if channel_manager.is_running:
+                console.info("📢 Stopping channel auto-posting...")
+                await channel_manager.stop_auto_posting()
+        except:
+            pass
+        
     except Exception as e:
-        console.error(f"Error in main: {str(e)}")
+        console.error(f"❌ Error in main: {str(e)}")
         raise
     finally:
         # Cleanup
-        console.info("Shutting down...")
+        console.info("🧹 Shutting down...")
         await stop_syncara()
 
 if __name__ == "__main__":

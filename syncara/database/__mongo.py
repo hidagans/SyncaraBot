@@ -52,6 +52,12 @@ autonomous_tasks = db.autonomous_tasks
 user_patterns = db.user_patterns
 scheduled_actions = db.scheduled_actions
 
+# Channel Management
+channel_posts = db.channel_posts
+channel_analytics = db.channel_analytics
+channel_schedule = db.channel_schedule
+channel_content_queue = db.channel_content_queue
+
 # System Monitoring
 system_logs = db.system_logs
 performance_metrics = db.performance_metrics
@@ -93,6 +99,19 @@ class DatabaseManager:
             # User permissions indexes
             await user_permissions.create_index([("user_id", 1), ("chat_id", 1)], unique=True)
             
+            # Channel management indexes
+            await channel_posts.create_index("post_id", unique=True)
+            await channel_posts.create_index("type")
+            await channel_posts.create_index("created_at")
+            await channel_posts.create_index("posted_time")
+            await channel_posts.create_index("status")
+            
+            await channel_analytics.create_index("timestamp")
+            await channel_analytics.create_index("channel_username")
+            
+            await channel_schedule.create_index("content_type")
+            await channel_schedule.create_index("scheduled_time")
+            
             # System logs indexes
             await system_logs.create_index("timestamp")
             await system_logs.create_index("level")
@@ -124,6 +143,10 @@ class DatabaseManager:
             # Cleanup old cache
             await pyrogram_cache.delete_many({"expires_at": {"$lt": datetime.utcnow()}})
             
+            # Cleanup old channel analytics (keep 3 months)
+            analytics_cutoff = datetime.utcnow() - timedelta(days=90)
+            await channel_analytics.delete_many({"timestamp": {"$lt": analytics_cutoff}})
+            
             print(f"✅ Cleaned up data older than {days_old} days")
             
         except Exception as e:
@@ -137,7 +160,8 @@ class DatabaseManager:
             # Collection counts
             collections = [
                 "users", "groups", "canvas_files", "workflow_executions",
-                "image_generations", "user_permissions", "system_logs"
+                "image_generations", "user_permissions", "system_logs",
+                "channel_posts", "channel_analytics"
             ]
             
             for collection_name in collections:
@@ -232,6 +256,60 @@ async def record_performance_metric(metric_name: str, value: float, unit: str = 
         })
     except Exception as e:
         print(f"Error recording performance metric: {e}")
+
+# ==================== CHANNEL MANAGEMENT HELPERS ====================
+async def log_channel_post(post_id: str, content_type: str, title: str, status: str = "generated"):
+    """Log channel post to database"""
+    try:
+        await channel_posts.insert_one({
+            "post_id": post_id,
+            "type": content_type,
+            "title": title,
+            "status": status,
+            "created_at": datetime.utcnow()
+        })
+    except Exception as e:
+        print(f"Error logging channel post: {e}")
+
+async def update_channel_post_status(post_id: str, status: str, posted_time: datetime = None):
+    """Update channel post status"""
+    try:
+        update_data = {"status": status}
+        if posted_time:
+            update_data["posted_time"] = posted_time
+        
+        await channel_posts.update_one(
+            {"post_id": post_id},
+            {"$set": update_data}
+        )
+    except Exception as e:
+        print(f"Error updating channel post status: {e}")
+
+async def get_channel_analytics_summary() -> Dict[str, Any]:
+    """Get channel analytics summary"""
+    try:
+        # Get latest analytics
+        latest = await channel_analytics.find({}).sort("timestamp", -1).limit(1).to_list(length=1)
+        
+        # Get posts count
+        total_posts = await channel_posts.count_documents({"status": "posted"})
+        
+        # Get today's posts
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_posts = await channel_posts.count_documents({
+            "status": "posted",
+            "posted_time": {"$gte": today_start}
+        })
+        
+        return {
+            "latest_analytics": latest[0] if latest else {},
+            "total_posts": total_posts,
+            "today_posts": today_posts,
+            "last_updated": datetime.utcnow()
+        }
+    except Exception as e:
+        print(f"Error getting channel analytics: {e}")
+        return {}
 
 # ==================== STARTUP ====================
 # Initialize database saat import

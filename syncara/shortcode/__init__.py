@@ -30,6 +30,7 @@ class ShortcodeRegistry:
             from .userbot_management import userbot_shortcode
             from .pyrogram_manager import pyrogram_manager
             from .multi_step_management import multi_step_shortcode
+            from .channel_management import channel_shortcode
             
             # Register all shortcodes
             self.shortcodes.update(canvas_shortcode.handlers)
@@ -42,6 +43,7 @@ class ShortcodeRegistry:
             self.shortcodes.update(userbot_shortcode.handlers)
             self.shortcodes.update(pyrogram_manager.handlers)
             self.shortcodes.update(multi_step_shortcode.handlers)
+            self.shortcodes.update(channel_shortcode.handlers)
             
             # Register descriptions
             self.descriptions.update(group_shortcode.descriptions)
@@ -52,6 +54,7 @@ class ShortcodeRegistry:
             self.descriptions.update(python_shortcode.descriptions)
             self.descriptions.update(file_search_shortcode.descriptions)
             self.descriptions.update(todo_shortcode.descriptions)
+            self.descriptions.update(channel_shortcode.descriptions)
             
             # Register Pyrogram descriptions from all handlers
             self.descriptions.update(pyrogram_manager.advanced_handler.descriptions)
@@ -76,6 +79,7 @@ class ShortcodeRegistry:
                 'USER:INFO': self._dummy_handler,
                 'USERBOT:STATUS': self._dummy_handler,
                 'IMAGE:GEN': self._dummy_handler,
+                'CHANNEL:STATUS': self._dummy_handler,
             }
             
             self.descriptions = {
@@ -83,6 +87,7 @@ class ShortcodeRegistry:
                 'USER:INFO': 'Get user information',
                 'USERBOT:STATUS': 'Get userbot status',
                 'IMAGE:GEN': 'Generate image from text prompt. Usage: [IMAGE:GEN:prompt]',
+                'CHANNEL:STATUS': 'Get channel status',
             }
             
             print("Loaded fallback shortcodes")
@@ -118,6 +123,7 @@ class ShortcodeRegistry:
         docs.append("- CANVAS:SHOW and CANVAS:EDIT require file to exist first")
         docs.append("- USER management commands require admin privileges")
         docs.append("- GROUP management commands require admin privileges")
+        docs.append("- CHANNEL management commands require owner privileges")
         docs.append("- PYROGRAM: prefix untuk semua fungsi Pyrogram method")
         
         return "\n".join(docs)
@@ -143,7 +149,9 @@ class ShortcodeRegistry:
             'suggestions': [
                 "Always create files before trying to export/show/edit them",
                 "Use CANVAS:LIST to check available files first",
-                "Use PYROGRAM: prefix for all Pyrogram method calls"
+                "Use PYROGRAM: prefix for all Pyrogram method calls",
+                "Use CHANNEL: prefix for channel management commands",
+                "Channel management requires owner privileges"
             ]
         }
 
