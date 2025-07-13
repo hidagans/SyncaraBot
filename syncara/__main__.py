@@ -100,8 +100,28 @@ async def main():
         console.info("   - 📝 Todo management")
         console.info("   - 🔄 Multi-step workflow processing")
         console.info("")
-        console.info("📱 Bot username: @" + bot_manager.me.username if bot_manager.me else "Unknown")
-        console.info("🤖 Userbot: " + userbot_client.me.first_name if userbot_client and userbot_client.me else "Not available")
+        # Get bot info from assistant manager
+        bot_info = "Unknown"
+        userbot_info = "Not available"
+        
+        try:
+            if hasattr(bot_manager, 'bot') and bot_manager.bot and hasattr(bot_manager.bot, 'me'):
+                bot_info = f"@{bot_manager.bot.me.username}" if bot_manager.bot.me.username else "Unknown"
+            elif hasattr(bot_manager, 'get_bot_info'):
+                bot_info = bot_manager.get_bot_info()
+        except:
+            pass
+            
+        try:
+            if hasattr(bot_manager, 'assistants') and bot_manager.assistants:
+                first_assistant = list(bot_manager.assistants.values())[0]
+                if hasattr(first_assistant, 'me') and first_assistant.me:
+                    userbot_info = first_assistant.me.first_name or "Assistant"
+        except:
+            pass
+            
+        console.info(f"📱 Bot username: {bot_info}")
+        console.info(f"🤖 Userbot: {userbot_info}")
         console.info("")
         console.info("📊 Channel Management:")
         console.info("   - Use [CHANNEL:STATUS] to check auto-posting status")

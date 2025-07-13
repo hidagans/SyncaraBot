@@ -226,8 +226,7 @@ class ChannelContentGenerator:
             
             topic = random.choice(trends_topics)
             
-            prompt = f"Analisis trend AI terbaru tentang: {topic}. 
-            Berikan insight mendalam dan relevansi untuk pengguna AI assistant."
+            prompt = f"Analisis trend AI terbaru tentang: {topic}. Berikan insight mendalam dan relevansi untuk pengguna AI assistant."
             
             system_prompt = """Kamu adalah AERIS, AI expert dari Syncara.
             Buat AI trends analysis yang:
