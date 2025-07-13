@@ -1356,48 +1356,57 @@ async def send_all_delayed_results(created_files, pending_images, pending_respon
 async def send_pending_images_delayed(pending_images, client, message):
     """Send pending images with delay"""
     try:
-        from syncara.shortcode.image_generation import ImageGenerationShortcode
+        # Import the image shortcode instance directly
+        from syncara.shortcode.image_generation import image_shortcode
         
-        # Get shortcode instance
-        image_shortcode = None
-        from syncara.shortcode import registry
-        for shortcode_name, handler in registry.shortcodes.items():
-            if hasattr(handler, 'send_pending_images'):
-                image_shortcode = handler
-                break
-        
-        if image_shortcode:
+        if image_shortcode and hasattr(image_shortcode, 'send_pending_images'):
             await image_shortcode.send_pending_images(client, pending_images)
             console.info(f"Sent {len(pending_images)} pending images")
         else:
             console.error("Image shortcode handler not found")
             
+    except ImportError as e:
+        console.error(f"Error importing image shortcode: {str(e)}")
     except Exception as e:
         console.error(f"Error in send_pending_images_delayed: {str(e)}")
 
 async def send_pending_responses_delayed(pending_responses, client, message):
     """Send pending responses with delay"""
     try:
-        from syncara.shortcode import registry
-        
-        # Get all shortcode instances that have send_pending_responses or send_pending_results method
+        # Import shortcode instances directly
         shortcode_instances = []
-        for shortcode_name, handler in registry.shortcodes.items():
-            if hasattr(handler, 'send_pending_responses'):
-                shortcode_instances.append(handler)
-            elif hasattr(handler, 'send_pending_results'):
-                shortcode_instances.append(handler)
+        
+        try:
+            from syncara.shortcode.todo_management import todo_shortcode
+            if hasattr(todo_shortcode, 'send_pending_results'):
+                shortcode_instances.append(('todo_shortcode', todo_shortcode))
+        except ImportError:
+            pass
+            
+        try:
+            from syncara.shortcode.python_execution import python_shortcode
+            if hasattr(python_shortcode, 'send_pending_results'):
+                shortcode_instances.append(('python_shortcode', python_shortcode))
+        except ImportError:
+            pass
+            
+        try:
+            from syncara.shortcode.userbot_management import userbot_shortcode
+            if hasattr(userbot_shortcode, 'send_pending_responses'):
+                shortcode_instances.append(('userbot_shortcode', userbot_shortcode))
+        except ImportError:
+            pass
         
         # Send responses from all shortcode instances
-        for handler in shortcode_instances:
+        for handler_name, handler in shortcode_instances:
             try:
                 if hasattr(handler, 'send_pending_responses'):
                     await handler.send_pending_responses(client, pending_responses)
                 elif hasattr(handler, 'send_pending_results'):
                     await handler.send_pending_results(client, pending_responses)
-                console.info(f"Sent responses from {handler.__class__.__name__}")
+                console.info(f"Sent responses from {handler_name}")
             except Exception as e:
-                console.error(f"Error sending responses from {handler.__class__.__name__}: {str(e)}")
+                console.error(f"Error sending responses from {handler_name}: {str(e)}")
                 
     except Exception as e:
         console.error(f"Error in send_pending_responses_delayed: {str(e)}")
