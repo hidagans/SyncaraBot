@@ -208,40 +208,51 @@ def format_chat_history(messages):
     chat_info = messages[0]['chat']
     
     # Build header with group/chat information
-    formatted_history = f"\n=== RIWAYAT PERCAKAPAN {len(messages)} PESAN TERAKHIR ===\n"
-    formatted_history += f"📍 Grup: {chat_info['title']} ({chat_info['type']})\n"
-    formatted_history += f"🆔 Chat ID: {chat_info['id']}\n"
+    formatted_history = f"📝 **Chat History:**\n"
+    formatted_history += f"📍 **Grup:** {chat_info['title']}\n"
+    formatted_history += f"🆔 **Chat ID:** `{chat_info['id']}`\n"
+    formatted_history += f"📱 **Type:** {chat_info['type']}\n"
     if chat_info['username']:
-        formatted_history += f"👤 Username: @{chat_info['username']}\n"
-    formatted_history += "\n"
+        formatted_history += f"👤 **Username:** @{chat_info['username']}\n"
+    formatted_history += f"📊 **Total Messages:** {len(messages)}\n"
+    formatted_history += "─" * 50 + "\n"
     
     for msg in messages:
         # Format timestamp
         timestamp = msg['timestamp'].strftime("%H:%M") if CHAT_HISTORY_CONFIG["include_timestamps"] else ""
         
-        # Build sender info with ID
+        # Build sender info with detailed information
         sender = msg['sender']['display_name']
+        sender_details = f"[ID:{msg['sender']['id']}"
         if msg['sender']['username']:
-            sender += f" (@{msg['sender']['username']})"
-        sender += f" [ID:{msg['sender']['id']}]"
+            sender_details += f" | @{msg['sender']['username']}"
+        sender_details += "]"
         
-        # Build message line with message ID
-        message_line = f"[{timestamp}] #{msg['message_id']} "
+        # Build message line with comprehensive info
+        message_line = f"[{timestamp}] "
         
         # Add reply info if exists
         if msg['reply_to']:
             reply = msg['reply_to']
             reply_sender = reply['sender']['display_name']
+            reply_details = f"[ID:{reply['sender']['id']}"
             if reply['sender']['username']:
-                reply_sender += f" (@{reply['sender']['username']})"
-            message_line += f"↪️ Reply to #{reply['message_id']} from {reply_sender} [ID:{reply['sender']['id']}]: "
+                reply_details += f" | @{reply['sender']['username']}"
+            reply_details += "]"
+            
+            # Truncate reply content if too long
+            reply_content = reply['content']
+            if len(reply_content) > 60:
+                reply_content = reply_content[:60] + "..."
+            
+            message_line += f"↪️ **Reply to #{reply['message_id']}** from {reply_sender} {reply_details}: \"{reply_content}\" → "
         
-        message_line += f"{sender}: {msg['content']}\n"
+        # Add main message with full details
+        message_line += f"**#{msg['message_id']}** 〈 {sender} {sender_details} 〉: {msg['content']}\n"
         
         formatted_history += message_line
     
-    formatted_history += "\n"
-    formatted_history += "=== AKHIR RIWAYAT PERCAKAPAN ===\n\n"
+    formatted_history += "─" * 50 + "\n"
     
     return formatted_history
 

@@ -782,6 +782,24 @@ async def get_chat_history(client, chat_id, limit=None):
                 console.error(f"Error getting userbot info: {str(e)}")
                 return []
         
+        # Get chat info
+        try:
+            chat = await client.get_chat(chat_id)
+            chat_info = {
+                'id': chat.id,
+                'title': chat.title if chat.title else "Private Chat",
+                'type': chat.type.name,
+                'username': chat.username if hasattr(chat, 'username') else None
+            }
+        except Exception as e:
+            console.error(f"Error getting chat info: {str(e)}")
+            chat_info = {
+                'id': chat_id,
+                'title': "Unknown Chat",
+                'type': "unknown",
+                'username': None
+            }
+        
         # Get timezone for timestamp formatting
         tz = pytz.timezone('Asia/Jakarta')
         
@@ -817,7 +835,7 @@ async def get_chat_history(client, chat_id, limit=None):
                 if not content.strip():
                     continue
                 
-                # Get sender info
+                # Get sender info with detailed information
                 sender_info = {
                     'id': None,
                     'name': "Unknown",
@@ -851,12 +869,55 @@ async def get_chat_history(client, chat_id, limit=None):
                         'display_name': message.sender_chat.title or "Channel"
                     }
                 
-                # Add to messages list
+                # Get reply info if exists
+                reply_info = None
+                if message.reply_to_message:
+                    reply_msg = message.reply_to_message
+                    reply_sender_info = {
+                        'id': None,
+                        'name': "Unknown",
+                        'username': None
+                    }
+                    
+                    if reply_msg.from_user:
+                        reply_sender_info = {
+                            'id': reply_msg.from_user.id,
+                            'name': reply_msg.from_user.first_name or "Unknown",
+                            'username': reply_msg.from_user.username
+                        }
+                        
+                        # Check if reply is to assistant
+                        if reply_msg.from_user.id == userbot_info['id']:
+                            reply_sender_info['display_name'] = f"{userbot_info['first_name']} (Assistant)"
+                        else:
+                            reply_sender_info['display_name'] = reply_sender_info['name']
+                            
+                    elif reply_msg.sender_chat:
+                        reply_sender_info = {
+                            'id': reply_msg.sender_chat.id,
+                            'name': reply_msg.sender_chat.title or "Channel",
+                            'username': reply_msg.sender_chat.username,
+                            'display_name': reply_msg.sender_chat.title or "Channel"
+                        }
+                    
+                    reply_content = reply_msg.text or reply_msg.caption or "[Media]"
+                    if len(reply_content) > 100:
+                        reply_content = reply_content[:100] + "..."
+                    
+                    reply_info = {
+                        'message_id': reply_msg.id,
+                        'sender': reply_sender_info,
+                        'content': reply_content
+                    }
+                
+                # Add to messages list with all detailed info
                 messages.append({
                     'message_id': message.id,
                     'sender': sender_info,
+                    'chat': chat_info,
                     'content': content,
                     'timestamp': message.date.astimezone(tz),
+                    'reply_to': reply_info
                 })
                 
             except Exception as e:
@@ -873,20 +934,67 @@ async def get_chat_history(client, chat_id, limit=None):
         return []
 
 def format_chat_history(messages):
-    """Format chat history for AI context"""
+    """Format chat history for AI context with detailed information"""
     try:
         if not messages:
             return ""
         
+        # Check if history is enabled
+        if not CHAT_HISTORY_CONFIG["enabled"]:
+            return ""
+        
+        # Get chat info from first message if available
+        chat_info = None
+        if messages and 'chat' in messages[0]:
+            chat_info = messages[0]['chat']
+        
         formatted_history = []
         
+        # Add header with chat information if available
+        if chat_info:
+            formatted_history.append(f"📍 **Grup:** {chat_info['title']}")
+            formatted_history.append(f"🆔 **Chat ID:** `{chat_info['id']}`")
+            if chat_info.get('username'):
+                formatted_history.append(f"👤 **Username:** @{chat_info['username']}")
+            formatted_history.append("─" * 40)
+        
         for msg in messages:
-            sender_name = msg['sender']['display_name']
-            content = msg['content']
-            timestamp = msg['timestamp'].strftime("%H:%M")
+            timestamp = msg['timestamp'].strftime("%H:%M") if CHAT_HISTORY_CONFIG["include_timestamps"] else ""
             
-            # Format: [HH:MM] Sender: Message
-            formatted_history.append(f"[{timestamp}] {sender_name}: {content}")
+            # Build sender info with detailed information
+            sender_name = msg['sender']['display_name']
+            sender_details = f"[ID:{msg['sender']['id']}"
+            if msg['sender']['username']:
+                sender_details += f" | @{msg['sender']['username']}"
+            sender_details += "]"
+            
+            # Build message line
+            message_line = f"[{timestamp}] "
+            
+            # Add reply info if exists
+            if msg.get('reply_to'):
+                reply = msg['reply_to']
+                reply_sender = reply['sender']['display_name']
+                reply_details = f"[ID:{reply['sender']['id']}"
+                if reply['sender']['username']:
+                    reply_details += f" | @{reply['sender']['username']}"
+                reply_details += "]"
+                
+                # Truncate reply content
+                reply_content = reply['content']
+                if len(reply_content) > 50:
+                    reply_content = reply_content[:50] + "..."
+                
+                message_line += f"↪️ Reply to #{reply['message_id']} from {reply_sender} {reply_details}: \"{reply_content}\" → "
+            
+            # Add main message with message ID
+            if 'message_id' in msg:
+                message_line += f"#{msg['message_id']} 〈 {sender_name} {sender_details} 〉: {msg['content']}"
+            else:
+                # Fallback for older format
+                message_line += f"〈 {sender_name} {sender_details} 〉: {msg['content']}"
+            
+            formatted_history.append(message_line)
         
         return "\n".join(formatted_history)
         
