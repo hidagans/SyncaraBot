@@ -6,3 +6,6 @@ requests
 yt_dlp
 tgcrypto
 pytz
+motor
+aiofiles
+croniter
