@@ -96,4 +96,7 @@ class ImageGenerationShortcode:
                 # Clean up
                 del self.pending_images[image_id]
                 
-        return sent_images 
+        return sent_images
+
+# Create instance untuk diimpor oleh __init__.py
+image_shortcode = ImageGenerationShortcode() 

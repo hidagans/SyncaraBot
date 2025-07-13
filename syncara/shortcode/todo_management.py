@@ -647,4 +647,7 @@ class TodoManagementShortcode:
                     console.info(f"Sent delayed TODO result: {result_id}")
                     
         except Exception as e:
-            console.error(f"Error sending pending TODO results: {str(e)}") 
+            console.error(f"Error sending pending TODO results: {str(e)}")
+
+# Create instance untuk diimpor oleh __init__.py
+todo_shortcode = TodoManagementShortcode() 

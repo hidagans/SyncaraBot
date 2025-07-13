@@ -45,19 +45,19 @@ class ShortcodeRegistry:
             
             # Register descriptions
             self.descriptions.update(group_shortcode.descriptions)
-            self.descriptions.update(user_shortcode.descriptions)
+            self.descriptions.update(users_shortcode.descriptions)
             self.descriptions.update(userbot_shortcode.descriptions)
             self.descriptions.update(image_shortcode.descriptions)
             self.descriptions.update(canvas_shortcode.descriptions)
             self.descriptions.update(python_shortcode.descriptions)
-            self.descriptions.update(search_shortcode.descriptions)
+            self.descriptions.update(file_search_shortcode.descriptions)
             self.descriptions.update(todo_shortcode.descriptions)
             
             # Register Pyrogram descriptions from all handlers
-            self.descriptions.update(pyrogram_shortcode.advanced_handler.descriptions)
-            self.descriptions.update(pyrogram_shortcode.utilities_handler.descriptions)
-            self.descriptions.update(pyrogram_shortcode.inline_handler.descriptions)
-            self.descriptions.update(pyrogram_shortcode.bound_handler.descriptions)
+            self.descriptions.update(pyrogram_manager.advanced_handler.descriptions)
+            self.descriptions.update(pyrogram_manager.utilities_handler.descriptions)
+            self.descriptions.update(pyrogram_manager.inline_handler.descriptions)
+            self.descriptions.update(pyrogram_manager.bound_handler.descriptions)
             
             print(f"Loaded {len(self.shortcodes)} shortcode handlers")
             print(f"Loaded {len(self.descriptions)} shortcode descriptions")

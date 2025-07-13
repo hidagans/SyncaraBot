@@ -203,4 +203,7 @@ class UserbotManagementShortcode:
                 # Clean up
                 del self.pending_responses[response_id]
                 
-        return sent_responses 
+        return sent_responses
+
+# Create instance untuk diimpor oleh __init__.py
+userbot_shortcode = UserbotManagementShortcode() 

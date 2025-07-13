@@ -293,4 +293,7 @@ class PyrogramShortcodeManager:
         return examples
 
 # Global instance
-pyrogram_shortcode_manager = PyrogramShortcodeManager() 
+pyrogram_shortcode_manager = PyrogramShortcodeManager()
+
+# Alias untuk kompatibilitas dengan __init__.py
+pyrogram_manager = pyrogram_shortcode_manager 

@@ -389,3 +389,6 @@ class GroupManagementShortcode:
                 del self.pending_responses[response_id]
                 
         return sent_responses
+
+# Create instance untuk diimpor oleh __init__.py
+group_shortcode = GroupManagementShortcode()

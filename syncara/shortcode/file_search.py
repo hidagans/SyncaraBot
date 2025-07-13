@@ -276,4 +276,7 @@ class FileSearchShortcode:
                 # Clean up
                 del self.pending_results[result_id]
                 
-        return sent_results 
+        return sent_results
+
+# Create instance untuk diimpor oleh __init__.py
+file_search_shortcode = FileSearchShortcode() 

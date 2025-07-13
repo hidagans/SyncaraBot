@@ -278,4 +278,7 @@ class CanvasManagementShortcode:
         except Exception as e:
             console.error(f"Error in export_file: {str(e)}")
             # DON'T send error message to chat - just log it
-            return False 
+            return False
+
+# Create instance untuk diimpor oleh __init__.py
+canvas_shortcode = CanvasManagementShortcode() 
