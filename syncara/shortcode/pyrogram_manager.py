@@ -54,8 +54,14 @@ class PyrogramShortcodeManager:
                 user_id = message.from_user.id if message.from_user else 0
                 chat_id = message.chat.id
                 
-                # Call the handler with proper signature and params
-                result = await handler(user_id, chat_id, client, message, params=params)
+                # Check which handler instance this belongs to and call with appropriate signature
+                if handler_instance == self.bound_handler:
+                    # Bound handlers expect (user_id, chat_id, client, message, **kwargs)
+                    result = await handler(user_id, chat_id, client, message, params=params)
+                else:
+                    # Advanced, Utilities, and Inline handlers expect (client, message, params)
+                    result = await handler(client, message, params)
+                
                 return result
             except Exception as e:
                 console.error(f"Error in wrapper for {shortcode}: {e}")
