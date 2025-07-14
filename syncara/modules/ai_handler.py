@@ -1206,8 +1206,8 @@ async def process_shortcodes_in_response(response_text, client, message):
         import re
         from syncara.shortcode import registry
         
-        # Pattern to match shortcodes like [CATEGORY:ACTION:params]
-        shortcode_pattern = r'\[([A-Z]+:[A-Z_]+):([^\]]*)\]'
+        # Pattern to match shortcodes like [CATEGORY:ACTION] or [CATEGORY:ACTION:params]
+        shortcode_pattern = r'\[([A-Z]+:[A-Z_]+)(?::([^\]]*))?\]'
         
         # Find all shortcodes first for validation
         all_matches = list(re.finditer(shortcode_pattern, response_text))
@@ -1234,9 +1234,15 @@ async def process_shortcodes_in_response(response_text, client, message):
         
         async def execute_shortcode_silent(match):
             """Execute shortcode without sending files immediately"""
-            full_shortcode = match.group(0)  # Full match like [USER:PROMOTE:7691971162]
-            shortcode_name = match.group(1).strip()  # USER:PROMOTE
-            params_str = match.group(2).strip()  # 7691971162
+            full_shortcode = match.group(0)  # Full match like [USER:PROMOTE:7691971162] or [CHANNEL:START]
+            shortcode_name = match.group(1).strip()  # USER:PROMOTE or CHANNEL:START
+            params_str = match.group(2)  # 7691971162 or None
+            
+            # Handle None params (for shortcodes without parameters)
+            if params_str is None:
+                params_str = ""
+            else:
+                params_str = params_str.strip()
             
             console.info(f"Processing shortcode: {shortcode_name} with params: '{params_str}'")
             

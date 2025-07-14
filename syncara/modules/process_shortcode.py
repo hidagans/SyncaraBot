@@ -7,22 +7,26 @@ async def process_shortcode(client, message, text):
         from syncara.shortcode import registry
         from syncara.console import console
         
-        # Pattern untuk mendeteksi shortcode [CATEGORY:ACTION:PARAMS]
-        pattern = r'\[(.*?):(.*?):(.*?)\]'
+        # Pattern untuk mendeteksi shortcode [CATEGORY:ACTION] atau [CATEGORY:ACTION:PARAMS]
+        pattern = r'\[([^:]+):([^:\]]+)(?::([^\]]*))?\]'
         
         # Temukan semua shortcode dalam text
         matches = re.finditer(pattern, text)
         
         for match in matches:
             try:
-                full_match = match.group(0)  # Shortcode lengkap [CATEGORY:ACTION:PARAMS]
-                category = match.group(1)    # Contoh: GROUP
-                action = match.group(2)      # Contoh: PIN_MESSAGE
-                params = match.group(3)      # Contoh: message_id atau parameter lainnya
+                full_match = match.group(0)  # Shortcode lengkap [CATEGORY:ACTION] atau [CATEGORY:ACTION:PARAMS]
+                category = match.group(1)    # Contoh: GROUP atau CHANNEL
+                action = match.group(2)      # Contoh: PIN_MESSAGE atau START
+                params = match.group(3)      # Contoh: message_id atau None untuk shortcode tanpa params
                 
-                # Handle current_message_id
-                if "current_message_id" in params:
-                    params = params.replace("current_message_id", str(message.id))
+                # Handle None params (for shortcodes without parameters)
+                if params is None:
+                    params = ""
+                else:
+                    # Handle current_message_id
+                    if "current_message_id" in params:
+                        params = params.replace("current_message_id", str(message.id))
                 
                 # Construct shortcode key
                 shortcode_key = f"{category}:{action}"
