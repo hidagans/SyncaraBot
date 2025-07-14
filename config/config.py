@@ -14,7 +14,9 @@ API_KEY = os.getenv("API_KEY")
 SESSION_STRING = os.getenv("SESSION_STRING")
 
 OWNER_ID = [
-    6696975845
+    6696975845,  # First owner
+    # Add Kenzo's actual User ID here after running /myid
+    # Get User ID by sending /myid to the bot
 ]
 
 # MongoDB configuration

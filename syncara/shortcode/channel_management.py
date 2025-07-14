@@ -28,7 +28,7 @@ class ChannelManagementShortcode:
         try:
             # Validasi admin
             from config.config import OWNER_ID
-            if message.from_user.id != OWNER_ID:
+            if message.from_user.id not in OWNER_ID:
                 await client.send_message(
                     chat_id=message.chat.id,
                     text="❌ Only owner can control channel auto-posting",
@@ -70,7 +70,7 @@ class ChannelManagementShortcode:
         try:
             # Validasi admin
             from config.config import OWNER_ID
-            if message.from_user.id != OWNER_ID:
+            if message.from_user.id not in OWNER_ID:
                 await client.send_message(
                     chat_id=message.chat.id,
                     text="❌ Only owner can control channel auto-posting",
@@ -111,7 +111,7 @@ class ChannelManagementShortcode:
         try:
             # Validasi admin
             from config.config import OWNER_ID
-            if message.from_user.id != OWNER_ID:
+            if message.from_user.id not in OWNER_ID:
                 await client.send_message(
                     chat_id=message.chat.id,
                     text="❌ Only owner can manually post to channel",

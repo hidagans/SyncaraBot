@@ -82,11 +82,11 @@ class UserManagementShortcode:
                 try:
                     return int(user_identifier)
                 except ValueError:
-                    return None
+                return None
         except Exception as e:
             console.error(f"Error resolving user ID: {str(e)}")
             return None
-
+    
     async def ban_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -113,7 +113,7 @@ class UserManagementShortcode:
                     reply_to_message_id=message.id
                 )
                 return False
-            
+                
             # Ban user
             await client.ban_chat_member(message.chat.id, user_id)
             
@@ -138,7 +138,7 @@ class UserManagementShortcode:
             console.error(f"Error banning user: {str(e)}")
             await self._log_error("user_management", f"Error banning user: {str(e)}")
             return False
-
+    
     async def unban_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -165,7 +165,7 @@ class UserManagementShortcode:
                     reply_to_message_id=message.id
                 )
                 return False
-            
+                
             # Unban user
             await client.unban_chat_member(message.chat.id, user_id)
             
@@ -188,7 +188,7 @@ class UserManagementShortcode:
             console.error(f"Error unbanning user: {str(e)}")
             await self._log_error("user_management", f"Error unbanning user: {str(e)}")
             return False
-
+    
     async def kick_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -215,7 +215,7 @@ class UserManagementShortcode:
                     reply_to_message_id=message.id
                 )
                 return False
-            
+                
             # Kick user (ban then unban)
             await client.ban_chat_member(message.chat.id, user_id)
             await client.unban_chat_member(message.chat.id, user_id)
@@ -241,7 +241,7 @@ class UserManagementShortcode:
             console.error(f"Error kicking user: {str(e)}")
             await self._log_error("user_management", f"Error kicking user: {str(e)}")
             return False
-
+    
     async def mute_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -311,7 +311,7 @@ class UserManagementShortcode:
             console.error(f"Error muting user: {str(e)}")
             await self._log_error("user_management", f"Error muting user: {str(e)}")
             return False
-
+    
     async def unmute_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -372,7 +372,7 @@ class UserManagementShortcode:
             console.error(f"Error unmuting user: {str(e)}")
             await self._log_error("user_management", f"Error unmuting user: {str(e)}")
             return False
-
+    
     async def warn_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -423,7 +423,7 @@ class UserManagementShortcode:
             console.error(f"Error warning user: {str(e)}")
             await self._log_error("user_management", f"Error warning user: {str(e)}")
             return False
-
+    
     async def promote_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -456,16 +456,16 @@ class UserManagementShortcode:
             
             # Promote user
             privileges = ChatPrivileges(
-                can_manage_chat=True,
-                can_delete_messages=True,
-                can_manage_video_chats=True,
-                can_restrict_members=True,
-                can_promote_members=False,
-                can_change_info=True,
-                can_invite_users=True,
+                    can_manage_chat=True,
+                    can_delete_messages=True,
+                    can_manage_video_chats=True,
+                    can_restrict_members=True,
+                    can_promote_members=False,
+                    can_change_info=True,
+                    can_invite_users=True,
                 can_pin_messages=True,
                 is_anonymous=False
-            )
+                )
             
             await client.promote_chat_member(
                 chat_id=message.chat.id,
@@ -475,11 +475,11 @@ class UserManagementShortcode:
             
             # Set custom title if provided
             if title != "Admin":
-                await client.set_administrator_title(
-                    chat_id=message.chat.id,
-                    user_id=user_id,
-                    title=title
-                )
+                    await client.set_administrator_title(
+                        chat_id=message.chat.id,
+                        user_id=user_id,
+                        title=title
+                    )
             
             # Record promotion
             await self._record_permission_change(
@@ -502,7 +502,7 @@ class UserManagementShortcode:
             console.error(f"Error promoting user: {str(e)}")
             await self._log_error("user_management", f"Error promoting user: {str(e)}")
             return False
-
+    
     async def demote_user(self, client, message, params):
         # Validasi tipe chat
         if getattr(message.chat, 'type', None) not in ["group", "supergroup"]:
@@ -532,13 +532,13 @@ class UserManagementShortcode:
             
             # Demote user (remove all admin privileges)
             privileges = ChatPrivileges(
-                can_manage_chat=False,
-                can_delete_messages=False,
-                can_manage_video_chats=False,
-                can_restrict_members=False,
-                can_promote_members=False,
-                can_change_info=False,
-                can_invite_users=False,
+                    can_manage_chat=False,
+                    can_delete_messages=False,
+                    can_manage_video_chats=False,
+                    can_restrict_members=False,
+                    can_promote_members=False,
+                    can_change_info=False,
+                    can_invite_users=False,
                 can_pin_messages=False,
                 is_anonymous=False
             )
@@ -754,7 +754,7 @@ class UserManagementShortcode:
             console.error(f"Error showing user history: {str(e)}")
             await self._log_error("user_management", f"Error showing user history: {str(e)}")
             return False
-
+    
     # ==================== DATABASE OPERATIONS ====================
     
     async def _record_warning(self, user_id: int, chat_id: int, warned_by: int, reason: str) -> int:

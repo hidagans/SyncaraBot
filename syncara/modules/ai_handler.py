@@ -2147,3 +2147,46 @@ async def features_help_command(client, message):
     except Exception as e:
         console.error(f"Error in features_help_command: {str(e)}")
         await message.reply_text(f"❌ Error: {str(e)}")
+
+@bot.on_message(filters.command("myid"))
+async def myid_command(client, message):
+    """Show user ID for easy identification"""
+    try:
+        user_id = message.from_user.id
+        username = message.from_user.username or "No username"
+        first_name = message.from_user.first_name or "No first name"
+        
+        response = f"👤 **Your Information:**\n\n"
+        response += f"🆔 **User ID:** `{user_id}`\n"
+        response += f"👤 **First Name:** {first_name}\n"
+        response += f"🔗 **Username:** @{username}\n\n"
+        response += f"💡 **Note:** Copy this User ID to add as owner in config.py"
+        
+        await message.reply_text(response)
+        
+    except Exception as e:
+        console.error(f"Error in myid_command: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")
+
+@bot.on_message(filters.command("amowner"))
+async def amowner_command(client, message):
+    """Check if user is owner"""
+    try:
+        from config.config import OWNER_ID
+        user_id = message.from_user.id
+        
+        is_owner = user_id in OWNER_ID
+        
+        response = f"🔐 **Owner Status Check:**\n\n"
+        response += f"🆔 **Your User ID:** `{user_id}`\n"
+        response += f"📋 **Owner IDs:** `{OWNER_ID}`\n"
+        response += f"👑 **Is Owner:** {'✅ YES' if is_owner else '❌ NO'}\n\n"
+        
+        if not is_owner:
+            response += f"💡 **To become owner:** Add your User ID to config/config.py OWNER_ID list"
+        
+        await message.reply_text(response)
+        
+    except Exception as e:
+        console.error(f"Error in amowner_command: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")
