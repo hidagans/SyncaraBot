@@ -82,7 +82,7 @@ class UserManagementShortcode:
                 try:
                     return int(user_identifier)
                 except ValueError:
-                    return None
+                return None
         except Exception as e:
             console.error(f"Error resolving user ID: {str(e)}")
             return None
@@ -1052,7 +1052,7 @@ class UserManagementShortcode:
             await self.log_error(module, error)
         except:
             pass
-
+    
     async def send_pending_responses(self, client, response_ids):
         """Send pending responses with delay"""
         if not response_ids:

@@ -486,15 +486,31 @@ class ChannelManager:
         console.info("🚀 Starting Syncara Insights auto-posting...")
         self.is_running = True
         
-        # Start background tasks
-        tasks = [
-            asyncio.create_task(self._daily_content_scheduler(client)),
-            asyncio.create_task(self._weekly_content_scheduler(client)),
-            asyncio.create_task(self._monthly_content_scheduler(client)),
-            asyncio.create_task(self._analytics_tracker(client)),
-        ]
+        try:
+            # Start background tasks with proper error handling
+            tasks = []
+            
+            # Create tasks with exception handling
+            daily_task = asyncio.create_task(self._daily_content_scheduler(client))
+            weekly_task = asyncio.create_task(self._weekly_content_scheduler(client))
+            monthly_task = asyncio.create_task(self._monthly_content_scheduler(client))
+            analytics_task = asyncio.create_task(self._analytics_tracker(client))
+            
+            tasks.extend([daily_task, weekly_task, monthly_task, analytics_task])
+            
+            console.info(f"✅ Started {len(tasks)} scheduler tasks")
+            
+            # Wait for all tasks with proper exception handling
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+        except Exception as e:
+            console.error(f"❌ Error in auto-posting scheduler: {str(e)}")
+            self.is_running = False
+            await self.log_error("channel_manager", f"Auto-posting scheduler error: {str(e)}")
         
-        await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            console.info("🔄 Auto-posting scheduler stopped")
+            self.is_running = False
 
     async def stop_auto_posting(self):
         """Stop auto-posting"""
