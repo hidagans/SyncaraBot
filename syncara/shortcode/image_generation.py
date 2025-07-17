@@ -39,31 +39,31 @@ class ImageGenerationShortcode:
         Optionally support JSON for advanced params.
         """
         try:
-            prompt = params.strip()
+        prompt = params.strip()
             
-            # Advanced: jika params diawali '{', anggap JSON
-            if prompt.startswith('{'):
-                try:
-                    data = json.loads(prompt)
-                    prompt = data.get('prompt')
-                    image = data.get('image')
-                    mask = data.get('mask')
-                    seed = data.get('seed')
-                    resolution = data.get('resolution')
-                    style_type = data.get('style_type')
-                    aspect_ratio = data.get('aspect_ratio')
-                    magic_prompt_option = data.get('magic_prompt_option')
-                    style_reference_images = data.get('style_reference_images')
-                except Exception as e:
-                    console.error(f"[IMAGE:GEN] Invalid JSON: {e}")
-                    return False
-            else:
-                image = mask = seed = resolution = style_type = aspect_ratio = magic_prompt_option = style_reference_images = None
-                
-            if not prompt:
-                console.error("[IMAGE:GEN] Empty prompt")
+        # Advanced: jika params diawali '{', anggap JSON
+        if prompt.startswith('{'):
+            try:
+                data = json.loads(prompt)
+                prompt = data.get('prompt')
+                image = data.get('image')
+                mask = data.get('mask')
+                seed = data.get('seed')
+                resolution = data.get('resolution')
+                style_type = data.get('style_type')
+                aspect_ratio = data.get('aspect_ratio')
+                magic_prompt_option = data.get('magic_prompt_option')
+                style_reference_images = data.get('style_reference_images')
+            except Exception as e:
+                console.error(f"[IMAGE:GEN] Invalid JSON: {e}")
                 return False
-                
+        else:
+            image = mask = seed = resolution = style_type = aspect_ratio = magic_prompt_option = style_reference_images = None
+            
+        if not prompt:
+            console.error("[IMAGE:GEN] Empty prompt")
+            return False
+            
             # Record generation request to database
             generation_id = await self._record_generation_request(
                 user_id=message.from_user.id,
@@ -97,10 +97,10 @@ class ImageGenerationShortcode:
             if image_url:
                 # Store the generated image info
                 image_id = f"image_{message.id}_{generation_id}"
-                self.pending_images[image_id] = {
+            self.pending_images[image_id] = {
                     'url': image_url,
-                    'prompt': prompt,
-                    'chat_id': message.chat.id,
+                'prompt': prompt,
+                'chat_id': message.chat.id,
                     'reply_to_message_id': message.id,
                     'generation_id': generation_id
                 }
