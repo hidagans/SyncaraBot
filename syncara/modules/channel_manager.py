@@ -90,7 +90,7 @@ class ChannelContentGenerator:
                 id=f"daily_tips_{datetime.now().strftime('%Y%m%d')}",
                 type="daily_tips",
                 title="💡 Daily Tips - Syncara AI",
-                content=f"💡 **Daily Tips - Syncara AI**\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"💡 Daily Tips - Syncara AI\n\n{content}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -148,7 +148,7 @@ class ChannelContentGenerator:
                 id=f"weekly_update_{datetime.now().strftime('%Y%W')}",
                 type="weekly_updates", 
                 title="📊 Weekly Updates - Syncara AI",
-                content=f"📊 **Weekly Updates - Syncara AI**\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"📊 Weekly Updates - Syncara AI\n\n{content}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -199,7 +199,7 @@ class ChannelContentGenerator:
                 id=f"user_story_{datetime.now().strftime('%Y%m%d_%H')}",
                 type="user_stories",
                 title="🌟 User Success Story",
-                content=f"🌟 **User Success Story**\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"🌟 User Success Story\n\n{content}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -348,7 +348,7 @@ class ChannelContentGenerator:
                 id=f"fun_facts_{datetime.now().strftime('%Y%m%d')}",
                 type="fun_facts",
                 title="🎯 AI Fun Facts",
-                content=f"🎯 **AI Fun Facts**\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"🎯 AI Fun Facts\n\n{content}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -384,7 +384,7 @@ class ChannelContentGenerator:
             
             poll_data = random.choice(poll_topics)
             
-            content = f"📊 **Interactive Poll**\n\n{poll_data['question']}\n\n"
+            content = f"📊 Interactive Poll\n\n{poll_data['question']}\n\n"
             for i, option in enumerate(poll_data['options'], 1):
                 content += f"{i}. {option}\n"
             
@@ -630,11 +630,11 @@ class ChannelManager:
     async def _post_to_channel(self, client, post: ContentPost):
         """Post content to channel"""
         try:
-            # Post to channel
+            # Post to channel - using None parse_mode to avoid markdown parsing errors
             message = await client.send_message(
                 chat_id=self.channel_username,
                 text=post.content,
-                parse_mode='markdown'
+                parse_mode=None
             )
             
             # Update database
@@ -657,6 +657,37 @@ class ChannelManager:
         except Exception as e:
             console.error(f"Error posting to channel: {str(e)}")
             await self.log_error("channel_manager", f"Error posting to channel: {str(e)}")
+            
+            # Try posting without special formatting if markdown fails
+            try:
+                # Strip markdown formatting and try again
+                plain_content = post.content.replace('**', '').replace('*', '').replace('`', '')
+                message = await client.send_message(
+                    chat_id=self.channel_username,
+                    text=plain_content,
+                    parse_mode=None
+                )
+                
+                # Update database
+                await self._ensure_db_connection()
+                await self.channel_posts.update_one(
+                    {"post_id": post.id},
+                    {
+                        "$set": {
+                            "status": "posted",
+                            "posted_time": datetime.utcnow(),
+                            "message_id": message.id,
+                            "channel_username": self.channel_username
+                        }
+                    }
+                )
+                
+                console.info(f"✅ Posted to channel (plain text): {post.type} - {post.title}")
+                await self.log_system_event("info", "channel_manager", f"Posted content (plain): {post.type}")
+                
+            except Exception as e2:
+                console.error(f"Failed to post even with plain text: {str(e2)}")
+                await self.log_error("channel_manager", f"Failed to post plain text: {str(e2)}")
 
     async def _is_content_posted_today(self, content_type: str) -> bool:
         """Check if content type was posted today"""
