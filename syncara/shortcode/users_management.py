@@ -82,7 +82,7 @@ class UserManagementShortcode:
                 try:
                     return int(user_identifier)
                 except ValueError:
-                return None
+                    return None
         except Exception as e:
             console.error(f"Error resolving user ID: {str(e)}")
             return None
