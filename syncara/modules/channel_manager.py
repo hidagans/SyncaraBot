@@ -12,6 +12,18 @@ import json
 
 from syncara.console import console
 from syncara.services import ReplicateAPI
+import re
+
+def escape_markdown_v2(text: str) -> str:
+    """Escape special characters for MarkdownV2"""
+    # Characters that need to be escaped in MarkdownV2
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    
+    # Escape each character
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    
+    return text
 
 @dataclass
 class ContentPost:
@@ -90,7 +102,7 @@ class ChannelContentGenerator:
                 id=f"daily_tips_{datetime.now().strftime('%Y%m%d')}",
                 type="daily_tips",
                 title="💡 Daily Tips - Syncara AI",
-                content=f"💡 Daily Tips - Syncara AI\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"💡 *Daily Tips \\- Syncara AI*\n\n{escape_markdown_v2(content)}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -148,7 +160,7 @@ class ChannelContentGenerator:
                 id=f"weekly_update_{datetime.now().strftime('%Y%W')}",
                 type="weekly_updates", 
                 title="📊 Weekly Updates - Syncara AI",
-                content=f"📊 Weekly Updates - Syncara AI\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"📊 *Weekly Updates \\- Syncara AI*\n\n{escape_markdown_v2(content)}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -199,7 +211,7 @@ class ChannelContentGenerator:
                 id=f"user_story_{datetime.now().strftime('%Y%m%d_%H')}",
                 type="user_stories",
                 title="🌟 User Success Story",
-                content=f"🌟 User Success Story\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"🌟 *User Success Story*\n\n{escape_markdown_v2(content)}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -249,7 +261,7 @@ class ChannelContentGenerator:
                 id=f"ai_trends_{datetime.now().strftime('%Y%m')}",
                 type="ai_trends",
                 title="🚀 AI Trends Analysis",
-                content=f"🚀 **AI Trends Analysis**\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"🚀 *AI Trends Analysis*\n\n{escape_markdown_v2(content)}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -293,7 +305,7 @@ class ChannelContentGenerator:
                 max_tokens=600
             )
             
-            content = f"❓ **Q&A Session**\n\n**Q:** {question}\n\n**A:** {answer}"
+            content = f"❓ *Q&A Session*\n\n*Q:* {escape_markdown_v2(question)}\n\n*A:* {escape_markdown_v2(answer)}"
             hashtags = ["#QnA", "#AIHelp", "#SyncaraSupport", "#AIEducation"]
             
             post = ContentPost(
@@ -348,7 +360,7 @@ class ChannelContentGenerator:
                 id=f"fun_facts_{datetime.now().strftime('%Y%m%d')}",
                 type="fun_facts",
                 title="🎯 AI Fun Facts",
-                content=f"🎯 AI Fun Facts\n\n{content}\n\n{' '.join(hashtags)}",
+                content=f"🎯 *AI Fun Facts*\n\n{escape_markdown_v2(content)}\n\n{' '.join(hashtags)}",
                 hashtags=hashtags
             )
             
@@ -384,12 +396,12 @@ class ChannelContentGenerator:
             
             poll_data = random.choice(poll_topics)
             
-            content = f"📊 Interactive Poll\n\n{poll_data['question']}\n\n"
+            content = f"📊 *Interactive Poll*\n\n{escape_markdown_v2(poll_data['question'])}\n\n"
             for i, option in enumerate(poll_data['options'], 1):
-                content += f"{i}. {option}\n"
+                content += f"{i}\\. {escape_markdown_v2(option)}\n"
             
-            content += "\n💬 Vote di comments atau emoji react!\n"
-            content += "📈 Hasil akan dibagikan minggu depan!"
+            content += f"\n💬 {escape_markdown_v2('Vote di comments atau emoji react!')}\n"
+            content += f"📈 {escape_markdown_v2('Hasil akan dibagikan minggu depan!')}"
             
             hashtags = ["#Poll", "#Community", "#Feedback", "#Engagement"]
             
@@ -630,11 +642,11 @@ class ChannelManager:
     async def _post_to_channel(self, client, post: ContentPost):
         """Post content to channel"""
         try:
-            # Post to channel - using None parse_mode to avoid markdown parsing errors
+            # Post to channel - using MarkdownV2 parse_mode with proper formatting
             message = await client.send_message(
                 chat_id=self.channel_username,
                 text=post.content,
-                parse_mode=None
+                parse_mode='MarkdownV2'
             )
             
             # Update database
@@ -655,17 +667,14 @@ class ChannelManager:
             await self.log_system_event("info", "channel_manager", f"Posted content: {post.type}")
             
         except Exception as e:
-            console.error(f"Error posting to channel: {str(e)}")
-            await self.log_error("channel_manager", f"Error posting to channel: {str(e)}")
+            console.error(f"Error posting to channel with MarkdownV2: {str(e)}")
             
-            # Try posting without special formatting if markdown fails
+            # Try with regular Markdown parse mode
             try:
-                # Strip markdown formatting and try again
-                plain_content = post.content.replace('**', '').replace('*', '').replace('`', '')
                 message = await client.send_message(
                     chat_id=self.channel_username,
-                    text=plain_content,
-                    parse_mode=None
+                    text=post.content,
+                    parse_mode='Markdown'
                 )
                 
                 # Update database
@@ -682,12 +691,43 @@ class ChannelManager:
                     }
                 )
                 
-                console.info(f"✅ Posted to channel (plain text): {post.type} - {post.title}")
-                await self.log_system_event("info", "channel_manager", f"Posted content (plain): {post.type}")
+                console.info(f"✅ Posted to channel (Markdown): {post.type} - {post.title}")
+                await self.log_system_event("info", "channel_manager", f"Posted content (Markdown): {post.type}")
                 
             except Exception as e2:
-                console.error(f"Failed to post even with plain text: {str(e2)}")
-                await self.log_error("channel_manager", f"Failed to post plain text: {str(e2)}")
+                console.error(f"Error posting with Markdown: {str(e2)}")
+                await self.log_error("channel_manager", f"Error posting with Markdown: {str(e2)}")
+                
+                # Final fallback - try posting without special formatting
+                try:
+                    # Strip markdown formatting and try again
+                    plain_content = post.content.replace('*', '').replace('_', '').replace('__', '').replace('~', '').replace('||', '').replace('`', '').replace('>', '')
+                    message = await client.send_message(
+                        chat_id=self.channel_username,
+                        text=plain_content,
+                        parse_mode=None
+                    )
+                    
+                    # Update database
+                    await self._ensure_db_connection()
+                    await self.channel_posts.update_one(
+                        {"post_id": post.id},
+                        {
+                            "$set": {
+                                "status": "posted",
+                                "posted_time": datetime.utcnow(),
+                                "message_id": message.id,
+                                "channel_username": self.channel_username
+                            }
+                        }
+                    )
+                    
+                    console.info(f"✅ Posted to channel (plain text): {post.type} - {post.title}")
+                    await self.log_system_event("info", "channel_manager", f"Posted content (plain): {post.type}")
+                    
+                except Exception as e3:
+                    console.error(f"Failed to post even with plain text: {str(e3)}")
+                    await self.log_error("channel_manager", f"Failed to post plain text: {str(e3)}")
 
     async def _is_content_posted_today(self, content_type: str) -> bool:
         """Check if content type was posted today"""
