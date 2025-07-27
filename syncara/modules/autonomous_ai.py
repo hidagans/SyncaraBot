@@ -135,13 +135,15 @@ class AutonomousAI:
     async def get_active_users(self):
         """Get users who have been active in the last 24 hours"""
         try:
-            # Get users with recent activity
+            # Get users with recent activity, but exclude unreachable ones
             cutoff_time = datetime.now() - timedelta(hours=24)
             
             active_users_cursor = users.find({
                 "last_interaction": {"$gte": cutoff_time},
-                "interaction_count": {"$gte": 3}  # At least 3 interactions
-            }).limit(50)  # Limit to 50 most active users
+                "interaction_count": {"$gte": 3},  # At least 3 interactions
+                "unreachable": {"$ne": True},  # Not marked as unreachable
+                "conversation_history": {"$exists": True, "$ne": []}  # Has conversation history
+            }).limit(30)  # Reduce limit to avoid overwhelming
             
             active_users = []
             async for user in active_users_cursor:
@@ -420,28 +422,55 @@ class AutonomousAI:
         
         while self.is_running:
             try:
-                # Monitor inactive groups/users
+                # Monitor inactive users (with better filtering)
                 inactive_threshold = datetime.now() - timedelta(days=7)
                 
+                # Only target users who:
+                # 1. Have recent interactions (not too old)
+                # 2. Are not marked as unreachable
+                # 3. Have sufficient conversation history
                 inactive_chats = await users.find({
-                    "last_interaction": {"$lt": inactive_threshold},
-                    "interaction_count": {"$gte": 5}
-                }).limit(20).to_list(length=20)
+                    "last_interaction": {"$lt": inactive_threshold, "$gte": datetime.now() - timedelta(days=30)},  # Not older than 30 days
+                    "interaction_count": {"$gte": 5},  # At least 5 interactions
+                    "unreachable": {"$ne": True},  # Not marked as unreachable
+                    "conversation_history": {"$exists": True, "$ne": []}  # Has conversation history
+                }).limit(10).to_list(length=10)  # Reduce to 10 to avoid spam
+                
+                console.info(f"💬 Found {len(inactive_chats)} inactive users to re-engage")
                 
                 for chat in inactive_chats:
                     await self.send_reengagement_message(chat["user_id"])
+                    await asyncio.sleep(5)  # 5 second delay between messages to avoid rate limits
                 
-                await asyncio.sleep(3600)  # Check every hour
+                await asyncio.sleep(21600)  # Check every 6 hours instead of 1 hour
                 
             except Exception as e:
                 console.error(f"Error in chat health monitor: {e}")
-                await asyncio.sleep(600)
+                await asyncio.sleep(3600)  # Wait 1 hour on error
     
     async def send_reengagement_message(self, user_id):
         """Send re-engagement message to inactive users"""
         from syncara import assistant_manager
         
         try:
+            # Verify user exists and we can message them
+            user_data = await users.find_one({"user_id": user_id})
+            if not user_data:
+                console.warning(f"User {user_id} not found in database")
+                return
+            
+            # Check if user has enough interaction history (at least 3 interactions)
+            interaction_count = user_data.get("interaction_count", 0)
+            if interaction_count < 3:
+                console.info(f"User {user_id} has insufficient interaction history ({interaction_count})")
+                return
+            
+            # Check if user has recent conversations (not just database entry)
+            conv_history = user_data.get("conversation_history", [])
+            if not conv_history or len(conv_history) < 2:
+                console.info(f"User {user_id} has no conversation history")
+                return
+            
             messages = [
                 "👋 Hai! Lama gak ketemu nih. Apa kabar? Ada yang bisa aku bantu?",
                 "😊 Kangen ngobrol sama kamu! Ada update menarik nih, mau tau?",
@@ -451,12 +480,46 @@ class AutonomousAI:
             client = assistant_manager.get_assistant("AERIS")
             if client:
                 message = random.choice(messages)
-                await client.send_message(
-                    chat_id=user_id,
-                    text=f"💝 **Re-engagement**\n\n{message}"
-                )
                 
-                console.info(f"📤 Sent re-engagement message to {user_id}")
+                # Try to send message with error handling
+                try:
+                    await client.send_message(
+                        chat_id=user_id,
+                        text=f"💝 **Re-engagement**\n\n{message}"
+                    )
+                    
+                    # Log successful re-engagement
+                    await autonomous_tasks.insert_one({
+                        "type": "re_engagement",
+                        "user_id": user_id,
+                        "message": message,
+                        "timestamp": datetime.now(),
+                        "status": "sent"
+                    })
+                    
+                    console.info(f"📤 Sent re-engagement message to {user_id}")
+                    
+                except Exception as telegram_error:
+                    if "PEER_ID_INVALID" in str(telegram_error):
+                        console.warning(f"Cannot send to user {user_id}: Invalid peer (user may have blocked or deleted chat)")
+                        
+                        # Mark user as unreachable to avoid future attempts
+                        await users.update_one(
+                            {"user_id": user_id},
+                            {"$set": {"unreachable": True, "unreachable_since": datetime.now()}}
+                        )
+                    else:
+                        console.error(f"Telegram error sending to {user_id}: {telegram_error}")
+                        
+                    # Log failed attempt
+                    await autonomous_tasks.insert_one({
+                        "type": "re_engagement",
+                        "user_id": user_id,
+                        "message": message,
+                        "timestamp": datetime.now(),
+                        "status": "failed",
+                        "error": str(telegram_error)
+                    })
         
         except Exception as e:
             console.error(f"Error sending re-engagement message: {e}")
