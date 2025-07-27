@@ -5,7 +5,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 from syncara.services import ReplicateAPI
 from syncara import bot, assistant_manager, console
 from config.config import OWNER_ID
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import json
 from syncara.modules.assistant_memory import (
@@ -21,6 +21,7 @@ from syncara.modules.canvas_manager import canvas_manager
 from config.assistants_config import get_assistant_by_username, get_assistant_config
 from syncara import autonomous_ai
 import asyncio
+from syncara.database import autonomous_tasks, user_patterns
 
 # Inisialisasi komponen
 replicate_api = ReplicateAPI()
@@ -1507,63 +1508,158 @@ def remove_music_commands():
 
 @bot.on_message(filters.command("autonomous") & filters.user(OWNER_ID))
 async def autonomous_control(client, message):
-    """Control autonomous AI mode"""
+    """Control autonomous AI features"""
     try:
-        args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+        from syncara import autonomous_ai
+        from syncara.database import autonomous_tasks, user_patterns
         
-        if not args:
-            status = "🟢 Active" if autonomous_ai.is_running else "🔴 Inactive"
-            await message.reply(f"""
-🤖 **Autonomous AI Control**
-
-**Status:** {status}
-**Monitored Chats:** {len(autonomous_ai.monitoring_chats)}
-**Active Tasks:** {len(autonomous_ai.active_tasks)}
-
-**Commands:**
-• `/autonomous start` - Start autonomous mode
-• `/autonomous stop` - Stop autonomous mode  
-• `/autonomous status` - Show detailed status
-• `/autonomous add_chat [chat_id]` - Add chat to monitoring
-• `/autonomous schedule [type] [time] [params]` - Schedule task
-            """)
-            return
+        parts = message.text.split(maxsplit=2)
         
-        command = args[0].lower()
-        
-        if command == "start":
-            if not autonomous_ai.is_running:
-                import asyncio
-                asyncio.create_task(autonomous_ai.start_autonomous_mode())
-                await message.reply("✅ Autonomous AI Mode started!")
+        if len(parts) == 1:
+            # Show status
+            status = "🟢 Running" if autonomous_ai.is_running else "🔴 Stopped"
+            
+            # Get statistics
+            total_tasks = await autonomous_tasks.count_documents({})
+            recent_tasks = await autonomous_tasks.count_documents({
+                "timestamp": {"$gte": datetime.now() - timedelta(hours=24)}
+            })
+            active_patterns = await user_patterns.count_documents({})
+            
+            await message.reply_text(
+                f"🤖 **Autonomous AI Status**\n\n"
+                f"📊 **Status**: {status}\n"
+                f"📈 **Statistics**:\n"
+                f"   • Total tasks: {total_tasks}\n"
+                f"   • Last 24h: {recent_tasks}\n"
+                f"   • User patterns: {active_patterns}\n"
+                f"   • Last check: {autonomous_ai.last_activity_check.strftime('%H:%M:%S')}\n\n"
+                f"🔧 **Commands**:\n"
+                f"   • `/autonomous status` - Show status\n"
+                f"   • `/autonomous tasks` - Show recent tasks\n"
+                f"   • `/autonomous patterns` - Show user patterns\n"
+                f"   • `/autonomous test` - Test proactive features\n"
+                f"   • `/autonomous restart` - Restart autonomous AI"
+            )
+            
+        elif parts[1] == "status":
+            # Detailed status
+            features = {
+                "🔍 User Monitoring": autonomous_ai.is_running,
+                "🚀 Proactive Assistance": autonomous_ai.is_running,
+                "📅 Scheduled Tasks": autonomous_ai.is_running,
+                "💬 Chat Health": autonomous_ai.is_running,
+                "🧠 Learning Optimizer": autonomous_ai.is_running
+            }
+            
+            feature_list = "\n".join([
+                f"   {name}: {'✅' if status else '❌'}"
+                for name, status in features.items()
+            ])
+            
+            await message.reply_text(
+                f"🤖 **Detailed Autonomous AI Status**\n\n"
+                f"📊 **Features**:\n{feature_list}\n\n"
+                f"⏰ **Timing**:\n"
+                f"   • User monitoring: Every 5 minutes\n"
+                f"   • Proactive assistance: Every 15 minutes\n"
+                f"   • Scheduled tasks: Every 1 minute\n"
+                f"   • Chat health: Every 1 hour\n"
+                f"   • Learning optimizer: Every 2 hours"
+            )
+            
+        elif parts[1] == "tasks":
+            # Show recent tasks
+            recent_tasks_cursor = autonomous_tasks.find({
+                "timestamp": {"$gte": datetime.now() - timedelta(hours=24)}
+            }).sort("timestamp", -1).limit(10)
+            
+            tasks_list = []
+            async for task in recent_tasks_cursor:
+                timestamp = task["timestamp"].strftime("%H:%M")
+                task_type = task.get("type", "unknown")
+                status = task.get("status", "unknown")
+                tasks_list.append(f"   • {timestamp} - {task_type} ({status})")
+            
+            tasks_text = "\n".join(tasks_list) if tasks_list else "   No recent tasks"
+            
+            await message.reply_text(
+                f"📋 **Recent Autonomous Tasks (24h)**\n\n"
+                f"{tasks_text}"
+            )
+            
+        elif parts[1] == "patterns":
+            # Show user patterns summary
+            patterns_cursor = user_patterns.find({}).sort("last_updated", -1).limit(5)
+            
+            patterns_list = []
+            async for pattern in patterns_cursor:
+                user_id = pattern["user_id"]
+                pattern_data = pattern.get("pattern_data", {})
+                confidence = pattern_data.get("prediction_confidence", 0)
+                action = pattern_data.get("suggested_action", "none")
+                patterns_list.append(f"   • User {user_id}: {action} ({confidence:.1f})")
+            
+            patterns_text = "\n".join(patterns_list) if patterns_list else "   No patterns found"
+            
+            await message.reply_text(
+                f"🧠 **User Patterns Analysis**\n\n"
+                f"{patterns_text}"
+            )
+            
+        elif parts[1] == "test":
+            # Test autonomous features
+            await message.reply_text("🧪 **Testing Autonomous Features...**")
+            
+            # Test user pattern analysis
+            from syncara.database import users
+            test_users = await users.find({}).limit(3).to_list(length=3)
+            
+            if test_users:
+                for user_data in test_users:
+                    user_id = user_data["user_id"]
+                    pattern = await autonomous_ai.analyze_user_pattern(user_id)
+                    if pattern:
+                        await message.reply_text(
+                            f"✅ **Pattern Analysis Test**\n"
+                            f"User: {user_id}\n"
+                            f"Action: {pattern.get('suggested_action', 'none')}\n"
+                            f"Confidence: {pattern.get('prediction_confidence', 0):.2f}"
+                        )
+                        break
+            
+            # Test proactive opportunities
+            opportunities = await autonomous_ai.find_proactive_opportunities("AERIS")
+            if opportunities:
+                await message.reply_text(
+                    f"🎯 **Proactive Opportunities Found**: {len(opportunities)}\n"
+                    f"First opportunity: {opportunities[0].get('type', 'unknown')}"
+                )
             else:
-                await message.reply("⚠️ Autonomous AI already running!")
-        
-        elif command == "stop":
+                await message.reply_text("📝 **No proactive opportunities found**")
+                
+        elif parts[1] == "restart":
+            # Restart autonomous AI
+            await message.reply_text("🔄 **Restarting Autonomous AI...**")
+            
+            # Stop current instance
             autonomous_ai.is_running = False
-            await message.reply("🛑 Autonomous AI Mode stopped!")
-        
-        elif command == "add_chat":
-            if len(args) > 1:
-                chat_id = int(args[1])
-                autonomous_ai.monitoring_chats.add(chat_id)
-                await message.reply(f"✅ Added chat {chat_id} to monitoring!")
-        
-        elif command == "schedule":
-            # Schedule autonomous task
-            if len(args) >= 3:
-                task_type = args[1]
-                schedule_time = args[2]  # Format: "2024-01-01 10:00"
-                # Parse and schedule task
-                await autonomous_ai.scheduled_actions.append({
-                    'type': task_type,
-                    'execute_at': datetime.strptime(schedule_time, "%Y-%m-%d %H:%M"),
-                    'params': ' '.join(args[3:]) if len(args) > 3 else {}
-                })
-                await message.reply(f"⏰ Scheduled {task_type} task for {schedule_time}")
-    
+            await asyncio.sleep(2)
+            
+            # Start new instance
+            from syncara import start_autonomous_mode
+            await start_autonomous_mode()
+            
+            await message.reply_text("✅ **Autonomous AI restarted successfully!**")
+            
+        else:
+            await message.reply_text(
+                "❓ **Unknown command**\n\n"
+                "Available options: `status`, `tasks`, `patterns`, `test`, `restart`"
+            )
+            
     except Exception as e:
-        await message.reply(f"❌ Error: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")
 
 @bot.on_message(filters.command("canvas") & filters.user(OWNER_ID))
 async def canvas_debug_command(client, message):
@@ -2099,94 +2195,4 @@ async def features_help_command(client, message):
 • `[CALC:PYTHON:code]` - For calculations
 
 **Examples:**
-• `[PYTHON:EXEC:2 + 2]`
-• `[CODE:PYTHON:import math; math.sqrt(16)]`
-• `[CALC:PYTHON:sum([1,2,3,4,5])]`
-
-**🔍 File & Chat Search:**
-• `[SEARCH:FILE:pattern]` - Search files
-• `[FILE:SEARCH:*.py]` - Find Python files
-• `[FIND:FILE:config]` - Find config files
-• `[SEARCH:CHAT:keyword]` - Search chat history
-• `[CHAT:SEARCH:message]` - Find messages
-
-**Examples:**
-• `[SEARCH:FILE:*.txt]` - Find all text files
-• `[FILE:SEARCH:main]` - Find files with "main"
-• `[CHAT:SEARCH:error]` - Find messages about errors
-
-**📝 TODO Management:**
-• `[TODO:CREATE:description]` - Create new todo
-• `[TODO:LIST:]` - List all todos
-• `[TODO:COMPLETE:id]` - Mark todo as done
-• `[TODO:DELETE:id]` - Delete todo
-• `[TODO:UPDATE:id:new_description]` - Update todo
-• `[TODO:CLEAR:]` - Clear completed todos
-• `[TODO:STATS:]` - Show statistics
-
-**Examples:**
-• `[TODO:CREATE:Belajar Python]` - Create new todo
-• `[TODO:COMPLETE:1]` - Complete first todo
-• `[TODO:LIST:pending]` - Show pending todos
-
-**🛡️ Security Features:**
-• Python execution is sandboxed
-• File access is limited to workspace
-• Dangerous operations are blocked
-• Results are sent with delay after AI response
-
-**🧪 Test Commands:**
-• `/test_python` - Test Python execution
-• `/test_search` - Test search functions
-• `/test_todo` - Test TODO management
-• `/test_new_features` - Test all features
-• `/features_help` - This help message"""
-        
-        await message.reply_text(help_text)
-        
-    except Exception as e:
-        console.error(f"Error in features_help_command: {str(e)}")
-        await message.reply_text(f"❌ Error: {str(e)}")
-
-@bot.on_message(filters.command("myid"))
-async def myid_command(client, message):
-    """Show user ID for easy identification"""
-    try:
-        user_id = message.from_user.id
-        username = message.from_user.username or "No username"
-        first_name = message.from_user.first_name or "No first name"
-        
-        response = f"👤 **Your Information:**\n\n"
-        response += f"🆔 **User ID:** `{user_id}`\n"
-        response += f"👤 **First Name:** {first_name}\n"
-        response += f"🔗 **Username:** @{username}\n\n"
-        response += f"💡 **Note:** Copy this User ID to add as owner in config.py"
-        
-        await message.reply_text(response)
-        
-    except Exception as e:
-        console.error(f"Error in myid_command: {str(e)}")
-        await message.reply_text(f"❌ Error: {str(e)}")
-
-@bot.on_message(filters.command("amowner"))
-async def amowner_command(client, message):
-    """Check if user is owner"""
-    try:
-        from config.config import OWNER_ID
-        user_id = message.from_user.id
-        
-        is_owner = user_id in OWNER_ID
-        
-        response = f"🔐 **Owner Status Check:**\n\n"
-        response += f"🆔 **Your User ID:** `{user_id}`\n"
-        response += f"📋 **Owner IDs:** `{OWNER_ID}`\n"
-        response += f"👑 **Is Owner:** {'✅ YES' if is_owner else '❌ NO'}\n\n"
-        
-        if not is_owner:
-            response += f"💡 **To become owner:** Add your User ID to config/config.py OWNER_ID list"
-        
-        await message.reply_text(response)
-        
-    except Exception as e:
-        console.error(f"Error in amowner_command: {str(e)}")
-        await message.reply_text(f"❌ Error: {str(e)}")
+• `

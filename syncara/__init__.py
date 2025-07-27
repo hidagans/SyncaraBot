@@ -194,10 +194,39 @@ async def stop_syncara():
 
 async def start_autonomous_mode():
     """Start autonomous AI mode"""
-    console.info("🚀 Starting Autonomous AI Mode...")
-    # Start autonomous AI in background
-    asyncio.create_task(autonomous_ai.start_autonomous_mode())
-    console.info("✅ Autonomous AI Mode started!")
+    try:
+        console.info("🚀 Starting Autonomous AI Mode...")
+        
+        # Initialize database connections
+        from syncara.database import initialize_database
+        await initialize_database()
+        
+        # Start autonomous AI in background
+        task = asyncio.create_task(autonomous_ai.start_autonomous_mode())
+        
+        # Add task exception handler
+        def handle_autonomous_exception(task):
+            try:
+                task.result()
+            except Exception as e:
+                console.error(f"❌ Autonomous AI crashed: {e}")
+                console.info("🔄 Attempting to restart autonomous AI...")
+                # Restart autonomous AI
+                asyncio.create_task(autonomous_ai.start_autonomous_mode())
+        
+        task.add_done_callback(handle_autonomous_exception)
+        
+        console.info("✅ Autonomous AI Mode started successfully!")
+        console.info("📊 Features active:")
+        console.info("   - 🔍 User activity monitoring")
+        console.info("   - 🚀 Proactive assistance")
+        console.info("   - 📅 Scheduled tasks")
+        console.info("   - 💬 Chat health monitoring")
+        console.info("   - 🧠 Learning optimization")
+        
+    except Exception as e:
+        console.error(f"❌ Failed to start Autonomous AI Mode: {e}")
+        console.warning("⚠️ Bot will continue without autonomous features")
 
 # Helper functions untuk backward compatibility
 def get_userbot():

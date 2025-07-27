@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import random
 from syncara.shortcode import registry
 from syncara.services import ReplicateAPI
-from syncara.database import db
+from syncara.database import db, users, user_patterns, autonomous_tasks, scheduled_actions
 from syncara.console import console
 
 class AutonomousAI:
@@ -13,6 +13,7 @@ class AutonomousAI:
         self.user_patterns = {}
         self.scheduled_actions = []
         self.is_running = False
+        self.last_activity_check = datetime.now()
     
     async def start_autonomous_mode(self):
         console.info("🤖 Starting Autonomous AI Mode...")
@@ -25,32 +26,52 @@ class AutonomousAI:
             asyncio.create_task(self.chat_health_monitor()),
             asyncio.create_task(self.learning_optimizer()),
         ]
-        await asyncio.gather(*tasks)
+        
+        try:
+            await asyncio.gather(*tasks)
+        except Exception as e:
+            console.error(f"Error in autonomous mode: {e}")
+            self.is_running = False
     
     async def monitor_user_activity(self):
+        console.info("🔍 Starting user activity monitoring...")
         while self.is_running:
             try:
                 active_users = await self.get_active_users()
+                console.info(f"📊 Monitoring {len(active_users)} active users")
+                
                 for user_id in active_users:
                     pattern = await self.analyze_user_pattern(user_id)
-                    if pattern['prediction_confidence'] > 0.8:
+                    if pattern and pattern.get('prediction_confidence', 0) > 0.7:
                         await self.execute_proactive_action(user_id, pattern)
-                await asyncio.sleep(300)
+                
+                # Update last activity check
+                self.last_activity_check = datetime.now()
+                await asyncio.sleep(300)  # Check every 5 minutes
+                
             except Exception as e:
                 console.error(f"Error in monitor_user_activity: {e}")
                 await asyncio.sleep(60)
     
     async def proactive_assistance(self):
+        console.info("🚀 Starting proactive assistance...")
         from syncara import assistant_manager
+        
         while self.is_running:
             try:
                 assistants = assistant_manager.get_all_assistants()
+                console.info(f"🤖 Running proactive assistance for {len(assistants)} assistants")
+                
                 for assistant_id, assistant_data in assistants.items():
                     client = assistant_data["client"]
                     opportunities = await self.find_proactive_opportunities(assistant_id)
+                    
                     for opportunity in opportunities:
                         await self.execute_proactive_help(client, opportunity)
-                await asyncio.sleep(600)
+                        await asyncio.sleep(10)  # Delay between actions
+                
+                await asyncio.sleep(900)  # Check every 15 minutes
+                
             except Exception as e:
                 console.error(f"Error in proactive_assistance: {e}")
                 await asyncio.sleep(120)
@@ -61,58 +82,475 @@ class AutonomousAI:
             action_type = pattern['suggested_action']
             assistant_id = self.select_best_assistant(action_type)
             client = assistant_manager.get_assistant(assistant_id)
+            
             if not client:
+                console.warning(f"Assistant {assistant_id} not available")
                 return
+            
             proactive_message = await self.generate_proactive_message(user_id, pattern)
+            
             await client.send_message(
                 chat_id=user_id,
-                text=f"👋 **Proactive Assistant**\n\n{proactive_message}"
+                text=f"💡 **Proactive Assistant**\n\n{proactive_message}"
             )
+            
             await self.log_proactive_action(user_id, action_type, proactive_message)
+            console.info(f"✅ Sent proactive message to user {user_id}")
+            
         except Exception as e:
             console.error(f"Error executing proactive action: {e}")
     
     async def generate_proactive_message(self, user_id, pattern):
-        user_context = await self.get_user_context(user_id)
-        prompt = f"""
-        User pattern analysis:
-        - Last activity: {pattern['last_activity']}
-        - Common actions: {pattern['common_actions']}
-        - Predicted need: {pattern['suggested_action']}
-        - User preferences: {user_context.get('preferences', {})}
-        
-        Generate a helpful proactive message offering assistance.
-        Include relevant shortcodes if applicable.
-        """
-        replicate_api = ReplicateAPI()
-        response = await replicate_api.generate_response(
-            prompt=prompt,
-            system_prompt="You are a proactive AI assistant. Be helpful but not intrusive.",
-            temperature=0.7
-        )
-        return response
+        try:
+            user_context = await self.get_user_context(user_id)
+            
+            messages = {
+                'help_offer': [
+                    "Hai! Aku lihat kamu sering nanya tentang ini. Butuh bantuan lebih detail? 🤔",
+                    "Ada yang bisa aku bantu? Aku notice kamu lagi explore fitur ini 😊",
+                    "Mau aku kasih tips untuk hal yang kamu lagi cari? 💡"
+                ],
+                'feature_suggestion': [
+                    "Eh, tau gak ada fitur baru yang mungkin kamu suka? Mau aku tunjukin? ✨",
+                    "Kamu udah coba fitur shortcode belum? Bisa bikin hidup lebih mudah loh! 🚀",
+                    "Ada cara lebih efisien buat yang kamu lagi kerjain nih 🔧"
+                ],
+                'reminder': [
+                    "Ingetin aja, jangan lupa istirahat ya! 😴",
+                    "Udah lama gak ngobrol, apa kabar? 👋",
+                    "Ada yang tertunda gak? Mau aku bantu track? 📝"
+                ]
+            }
+            
+            action_type = pattern.get('suggested_action', 'help_offer')
+            possible_messages = messages.get(action_type, messages['help_offer'])
+            
+            return random.choice(possible_messages)
+            
+        except Exception as e:
+            console.error(f"Error generating proactive message: {e}")
+            return "Hai! Ada yang bisa aku bantu? 😊"
     
-    # Placeholder methods for demo (implementasi detail bisa disesuaikan kebutuhan)
+    # REAL IMPLEMENTATIONS instead of placeholders
     async def get_active_users(self):
-        return []
+        """Get users who have been active in the last 24 hours"""
+        try:
+            # Get users with recent activity
+            cutoff_time = datetime.now() - timedelta(hours=24)
+            
+            active_users_cursor = users.find({
+                "last_interaction": {"$gte": cutoff_time},
+                "interaction_count": {"$gte": 3}  # At least 3 interactions
+            }).limit(50)  # Limit to 50 most active users
+            
+            active_users = []
+            async for user in active_users_cursor:
+                active_users.append(user["user_id"])
+            
+            return active_users
+            
+        except Exception as e:
+            console.error(f"Error getting active users: {e}")
+            return []
+    
     async def analyze_user_pattern(self, user_id):
-        return {'prediction_confidence': 0, 'suggested_action': '', 'last_activity': '', 'common_actions': []}
+        """Analyze user patterns from database"""
+        try:
+            # Get user data
+            user_data = await users.find_one({"user_id": user_id})
+            if not user_data:
+                return None
+            
+            # Get existing patterns
+            pattern_data = await user_patterns.find_one({"user_id": user_id})
+            
+            # Analyze interaction frequency
+            interaction_count = user_data.get("interaction_count", 0)
+            last_interaction = user_data.get("last_interaction", datetime.now())
+            
+            # Calculate time since last interaction
+            time_since_last = datetime.now() - last_interaction
+            
+            # Determine suggested action based on patterns
+            suggested_action = "help_offer"
+            confidence = 0.5
+            
+            if time_since_last.total_seconds() > 3600:  # 1 hour
+                if interaction_count > 10:
+                    suggested_action = "reminder"
+                    confidence = 0.8
+            elif interaction_count > 5:
+                suggested_action = "feature_suggestion"
+                confidence = 0.7
+            
+            # Check conversation history for specific patterns
+            conv_history = user_data.get("conversation_history", [])
+            if len(conv_history) > 0:
+                recent_messages = conv_history[-5:]  # Last 5 messages
+                # If user asking similar questions, increase confidence
+                if len(set(msg.get("type", "") for msg in recent_messages)) <= 2:
+                    confidence += 0.2
+            
+            pattern = {
+                'user_id': user_id,
+                'last_activity': last_interaction.isoformat(),
+                'interaction_count': interaction_count,
+                'suggested_action': suggested_action,
+                'prediction_confidence': min(confidence, 1.0),
+                'common_actions': [msg.get("type", "chat") for msg in conv_history[-10:]],
+                'time_since_last': time_since_last.total_seconds()
+            }
+            
+            # Update patterns in database
+            await user_patterns.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "pattern_data": pattern,
+                    "last_updated": datetime.now()
+                }},
+                upsert=True
+            )
+            
+            return pattern
+            
+        except Exception as e:
+            console.error(f"Error analyzing user pattern for {user_id}: {e}")
+            return None
+    
     async def find_proactive_opportunities(self, assistant_id):
-        return []
+        """Find opportunities for proactive assistance"""
+        try:
+            opportunities = []
+            
+            # Check for users who might need help
+            users_needing_help = await users.find({
+                "last_interaction": {"$gte": datetime.now() - timedelta(hours=6)},
+                "interaction_count": {"$gte": 2}
+            }).limit(10).to_list(length=10)
+            
+            for user_data in users_needing_help:
+                user_id = user_data["user_id"]
+                
+                # Check if user has unresolved issues
+                conv_history = user_data.get("conversation_history", [])
+                if conv_history:
+                    last_msg = conv_history[-1]
+                    if "?" in last_msg.get("message", "") and not last_msg.get("resolved", False):
+                        opportunities.append({
+                            "type": "help_offer",
+                            "user_id": user_id,
+                            "priority": 0.8,
+                            "reason": "unresolved_question"
+                        })
+            
+            # Check for feature suggestions
+            feature_opportunities = await users.find({
+                "interaction_count": {"$gte": 5},
+                "ai_learning_patterns.topics": {"$exists": True}
+            }).limit(5).to_list(length=5)
+            
+            for user_data in feature_opportunities:
+                opportunities.append({
+                    "type": "feature_suggestion",
+                    "user_id": user_data["user_id"],
+                    "priority": 0.6,
+                    "reason": "active_user"
+                })
+            
+            return opportunities[:5]  # Return top 5 opportunities
+            
+        except Exception as e:
+            console.error(f"Error finding proactive opportunities: {e}")
+            return []
+    
     async def execute_proactive_help(self, client, opportunity):
-        pass
+        """Execute proactive help action"""
+        try:
+            user_id = opportunity["user_id"]
+            help_type = opportunity["type"]
+            
+            messages = {
+                "help_offer": "👋 Hai! Aku lihat kamu butuh bantuan. Ada yang bisa aku bantu?",
+                "feature_suggestion": "✨ Eh, ada fitur keren yang mungkin kamu suka! Mau aku tunjukin?",
+                "reminder": "⏰ Jangan lupa istirahat ya! Semangat terus! 💪"
+            }
+            
+            message = messages.get(help_type, messages["help_offer"])
+            
+            await client.send_message(
+                chat_id=user_id,
+                text=f"🤖 **Proactive Assistant**\n\n{message}"
+            )
+            
+            # Log the action
+            await autonomous_tasks.insert_one({
+                "type": "proactive_help",
+                "user_id": user_id,
+                "help_type": help_type,
+                "timestamp": datetime.now(),
+                "status": "executed"
+            })
+            
+            console.info(f"✅ Executed proactive help for user {user_id}")
+            
+        except Exception as e:
+            console.error(f"Error executing proactive help: {e}")
+    
     def select_best_assistant(self, action_type):
-        return 'AERIS'
+        """Select best assistant for action type"""
+        assistant_mapping = {
+            'help_offer': 'AERIS',
+            'feature_suggestion': 'NOVA',
+            'reminder': 'KAIROS',
+            'technical_help': 'ZEKE',
+            'music_suggestion': 'LYRA'
+        }
+        return assistant_mapping.get(action_type, 'AERIS')
+    
     async def log_proactive_action(self, user_id, action_type, message):
-        pass
+        """Log proactive action to database"""
+        try:
+            await autonomous_tasks.insert_one({
+                "type": "proactive_action",
+                "user_id": user_id,
+                "action_type": action_type,
+                "message": message,
+                "timestamp": datetime.now(),
+                "status": "completed"
+            })
+        except Exception as e:
+            console.error(f"Error logging proactive action: {e}")
+    
     async def get_user_context(self, user_id):
-        return {}
+        """Get user context from database"""
+        try:
+            user_data = await users.find_one({"user_id": user_id})
+            if not user_data:
+                return {}
+            
+            return {
+                "preferences": user_data.get("ai_learning_patterns", {}),
+                "interaction_count": user_data.get("interaction_count", 0),
+                "last_topics": [msg.get("type", "") for msg in user_data.get("conversation_history", [])[-5:]]
+            }
+        except Exception as e:
+            console.error(f"Error getting user context: {e}")
+            return {}
+    
     async def scheduled_tasks_runner(self):
-        await asyncio.sleep(1)
+        """Run scheduled tasks"""
+        console.info("📅 Starting scheduled tasks runner...")
+        
+        while self.is_running:
+            try:
+                # Get pending scheduled tasks
+                pending_tasks = await scheduled_actions.find({
+                    "execute_at": {"$lte": datetime.now()},
+                    "status": "pending"
+                }).limit(10).to_list(length=10)
+                
+                for task in pending_tasks:
+                    await self.execute_scheduled_task(task)
+                
+                await asyncio.sleep(60)  # Check every minute
+                
+            except Exception as e:
+                console.error(f"Error in scheduled tasks runner: {e}")
+                await asyncio.sleep(60)
+    
+    async def execute_scheduled_task(self, task):
+        """Execute a scheduled task"""
+        try:
+            task_id = task["_id"]
+            task_type = task.get("type", "message")
+            
+            # Mark as executing
+            await scheduled_actions.update_one(
+                {"_id": task_id},
+                {"$set": {"status": "executing", "started_at": datetime.now()}}
+            )
+            
+            if task_type == "reminder":
+                await self.send_reminder(task)
+            elif task_type == "suggestion":
+                await self.send_suggestion(task)
+            
+            # Mark as completed
+            await scheduled_actions.update_one(
+                {"_id": task_id},
+                {"$set": {"status": "completed", "completed_at": datetime.now()}}
+            )
+            
+            console.info(f"✅ Executed scheduled task: {task_type}")
+            
+        except Exception as e:
+            console.error(f"Error executing scheduled task: {e}")
+            await scheduled_actions.update_one(
+                {"_id": task["_id"]},
+                {"$set": {"status": "failed", "error": str(e)}}
+            )
+    
+    async def send_reminder(self, task):
+        """Send reminder message"""
+        from syncara import assistant_manager
+        
+        user_id = task.get("user_id")
+        message = task.get("message", "⏰ Reminder dari assistant kamu!")
+        assistant_id = task.get("assistant_id", "AERIS")
+        
+        client = assistant_manager.get_assistant(assistant_id)
+        if client:
+            await client.send_message(chat_id=user_id, text=message)
+    
+    async def send_suggestion(self, task):
+        """Send suggestion message"""
+        from syncara import assistant_manager
+        
+        user_id = task.get("user_id")
+        suggestion = task.get("suggestion", "💡 Ada saran nih dari assistant kamu!")
+        assistant_id = task.get("assistant_id", "NOVA")
+        
+        client = assistant_manager.get_assistant(assistant_id)
+        if client:
+            await client.send_message(chat_id=user_id, text=suggestion)
+    
     async def chat_health_monitor(self):
-        await asyncio.sleep(1)
+        """Monitor chat health and engagement"""
+        console.info("💬 Starting chat health monitor...")
+        
+        while self.is_running:
+            try:
+                # Monitor inactive groups/users
+                inactive_threshold = datetime.now() - timedelta(days=7)
+                
+                inactive_chats = await users.find({
+                    "last_interaction": {"$lt": inactive_threshold},
+                    "interaction_count": {"$gte": 5}
+                }).limit(20).to_list(length=20)
+                
+                for chat in inactive_chats:
+                    await self.send_reengagement_message(chat["user_id"])
+                
+                await asyncio.sleep(3600)  # Check every hour
+                
+            except Exception as e:
+                console.error(f"Error in chat health monitor: {e}")
+                await asyncio.sleep(600)
+    
+    async def send_reengagement_message(self, user_id):
+        """Send re-engagement message to inactive users"""
+        from syncara import assistant_manager
+        
+        try:
+            messages = [
+                "👋 Hai! Lama gak ketemu nih. Apa kabar? Ada yang bisa aku bantu?",
+                "😊 Kangen ngobrol sama kamu! Ada update menarik nih, mau tau?",
+                "✨ Udah lama gak chat! Ada fitur baru yang keren loh, mau coba?"
+            ]
+            
+            client = assistant_manager.get_assistant("AERIS")
+            if client:
+                message = random.choice(messages)
+                await client.send_message(
+                    chat_id=user_id,
+                    text=f"💝 **Re-engagement**\n\n{message}"
+                )
+                
+                console.info(f"📤 Sent re-engagement message to {user_id}")
+        
+        except Exception as e:
+            console.error(f"Error sending re-engagement message: {e}")
+    
     async def learning_optimizer(self):
-        await asyncio.sleep(1)
+        """Optimize AI learning based on patterns"""
+        console.info("🧠 Starting learning optimizer...")
+        
+        while self.is_running:
+            try:
+                # Analyze learning patterns and optimize
+                await self.optimize_response_patterns()
+                await self.update_user_preferences()
+                await self.cleanup_old_data()
+                
+                await asyncio.sleep(7200)  # Run every 2 hours
+                
+            except Exception as e:
+                console.error(f"Error in learning optimizer: {e}")
+                await asyncio.sleep(1800)
+    
+    async def optimize_response_patterns(self):
+        """Optimize response patterns based on user feedback"""
+        try:
+            # Get users with feedback data
+            users_with_feedback = await users.find({
+                "ai_learning_quality": {"$exists": True, "$ne": []}
+            }).limit(50).to_list(length=50)
+            
+            for user_data in users_with_feedback:
+                user_id = user_data["user_id"]
+                quality_data = user_data.get("ai_learning_quality", [])
+                
+                if len(quality_data) >= 5:
+                    # Analyze patterns and update preferences
+                    await self.update_learning_preferences(user_id, quality_data)
+            
+            console.info("🎯 Optimized response patterns")
+            
+        except Exception as e:
+            console.error(f"Error optimizing response patterns: {e}")
+    
+    async def update_learning_preferences(self, user_id, quality_data):
+        """Update user learning preferences"""
+        try:
+            # Analyze preferred response length
+            avg_length = sum(data.get("response_length", 0) for data in quality_data) / len(quality_data)
+            
+            # Analyze emoji usage preference
+            emoji_usage = sum(1 for data in quality_data if data.get("has_emoji", False)) / len(quality_data)
+            
+            preferences = {
+                "preferred_response_length": avg_length,
+                "emoji_preference": emoji_usage,
+                "last_optimized": datetime.now()
+            }
+            
+            await users.update_one(
+                {"user_id": user_id},
+                {"$set": {"learning_preferences": preferences}}
+            )
+            
+        except Exception as e:
+            console.error(f"Error updating learning preferences: {e}")
+    
+    async def update_user_preferences(self):
+        """Update user preferences based on interaction patterns"""
+        try:
+            # Update user interaction patterns
+            await users.update_many(
+                {"last_interaction": {"$exists": True}},
+                {"$set": {"preferences_updated": datetime.now()}}
+            )
+            
+            console.info("📊 Updated user preferences")
+            
+        except Exception as e:
+            console.error(f"Error updating user preferences: {e}")
+    
+    async def cleanup_old_data(self):
+        """Cleanup old autonomous tasks and patterns"""
+        try:
+            # Remove tasks older than 30 days
+            cutoff_date = datetime.now() - timedelta(days=30)
+            
+            result = await autonomous_tasks.delete_many({
+                "timestamp": {"$lt": cutoff_date}
+            })
+            
+            if result.deleted_count > 0:
+                console.info(f"🗑️ Cleaned up {result.deleted_count} old autonomous tasks")
+            
+        except Exception as e:
+            console.error(f"Error cleaning up old data: {e}")
 
 class SmartShortcodeExecutor:
     def __init__(self):

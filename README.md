@@ -14,6 +14,7 @@ Bot Telegram dengan AI Assistant menggunakan Replicate API
 - **📊 Analytics & Insights** - Analisis pola penggunaan user
 - **🎯 Personalized Responses** - Respons yang dipersonalisasi berdasarkan preferensi user
 - **💾 Advanced Memory** - Sistem memori yang menyimpan riwayat dan preferensi
+- **🤖 Autonomous AI Mode** - AI yang proaktif dan dapat bekerja secara mandiri
 
 ## 📋 Setup
 
@@ -171,6 +172,36 @@ Bot mendukung multiple personality dengan karakteristik unik:
 - `/assistants` - Lihat status semua assistant
 - `/assistant_info [ASSISTANT]` - Info detail assistant
 - `/test_assistant [ASSISTANT]` - Test assistant tertentu
+
+## 🤖 Autonomous AI Features
+
+### Fitur Proaktif
+- **🔍 User Activity Monitoring** - Memantau aktivitas user dan pola interaksi
+- **🚀 Proactive Assistance** - Memberikan bantuan sebelum diminta
+- **📅 Scheduled Tasks** - Menjalankan tugas terjadwal otomatis
+- **💬 Chat Health Monitoring** - Memantau kesehatan chat dan engagement
+- **🧠 Learning Optimization** - Optimasi pembelajaran berdasarkan feedback
+
+### Cara Kerja
+1. **Pattern Recognition** - Menganalisis pola user dari database
+2. **Proactive Actions** - Memberikan saran dan bantuan secara proaktif
+3. **Smart Scheduling** - Menjalankan reminder dan tasks terjadwal
+4. **Re-engagement** - Menghubungi kembali user yang tidak aktif
+5. **Learning Loop** - Belajar dari interaksi untuk meningkatkan performa
+
+### Autonomous AI Commands (Owner Only)
+- `/autonomous` - Status dan overview
+- `/autonomous status` - Status detail semua fitur
+- `/autonomous tasks` - Lihat tasks 24 jam terakhir
+- `/autonomous patterns` - Analisis pola user terbaru
+- `/autonomous test` - Test fitur autonomous
+- `/autonomous restart` - Restart autonomous AI
+
+### Database Collections untuk Autonomous AI
+- `autonomous_tasks` - Log semua autonomous actions
+- `user_patterns` - Analisis pola penggunaan user
+- `scheduled_actions` - Tasks yang dijadwalkan
+- `users` - Data user dengan interaction patterns
 
 ## 📝 License
 
