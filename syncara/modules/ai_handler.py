@@ -158,7 +158,9 @@ async def _trigger_user_save_for_command(client, message):
     """Universal trigger untuk save user data di bot commands"""
     try:
         if message and message.from_user:
-            await kenalan_dan_update(client, message.from_user, send_greeting=False)
+            # Detect context from message type
+            context = "private" if message.chat.type == enums.ChatType.PRIVATE else "group"
+            await kenalan_dan_update(client, message.from_user, send_greeting=False, interaction_context=context)
     except Exception as e:
         console.error(f"Error in command user save trigger: {e}")
 
@@ -681,9 +683,9 @@ async def setup_assistant_handlers():
                 async def assistant_message_handler(client, message):
                     """Handle messages for specific assistant"""
                     try:
-                        # 🚀 TAMBAH TRIGGER: Auto-kenalan & save user data untuk group messages
+                        # 🚀 TRIGGER: Save user data untuk group messages (tanpa greeting)
                         if message.from_user:
-                            await kenalan_dan_update(client, message.from_user, send_greeting=False)
+                            await kenalan_dan_update(client, message.from_user, send_greeting=False, interaction_context="group")
                         
                         # Get text from either message text or caption
                         text = message.text or message.caption
@@ -718,9 +720,9 @@ async def setup_assistant_handlers():
                 async def assistant_private_handler(client, message):
                     """Handler for private messages to specific assistant"""
                     try:
-                        # Tambahkan auto-kenalan & ingatan
+                        # Tambahkan auto-kenalan & ingatan dengan context private
                         if message.from_user:
-                            await kenalan_dan_update(client, message.from_user)
+                            await kenalan_dan_update(client, message.from_user, interaction_context="private")
                         
                         # Process AI response with specific personality
                         await process_ai_response_with_personality(client, message, message.text, None, assistant_config['personality'])

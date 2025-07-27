@@ -10,8 +10,12 @@ async def _trigger_user_save(client, message):
     """Universal trigger untuk save user data di semua shortcode"""
     try:
         if message and message.from_user:
+            # Detect context from message type
+            from pyrogram import enums
+            context = "private" if message.chat.type == enums.ChatType.PRIVATE else "group"
+            
             from syncara.modules.assistant_memory import kenalan_dan_update
-            await kenalan_dan_update(client, message.from_user, send_greeting=False)
+            await kenalan_dan_update(client, message.from_user, send_greeting=False, interaction_context=context)
     except Exception as e:
         # Jangan biarkan error trigger mengganggu shortcode execution
         from syncara.console import console

@@ -461,22 +461,49 @@ class AutonomousAI:
             )
     
     async def safe_send_message(self, client, user_id, text, message_type="autonomous"):
-        """Safely send message with PEER_ID_INVALID error handling"""
+        """Safely send message with PEER_ID_INVALID error handling and context validation"""
         try:
             # Check if user is marked as unreachable
             user_data = await users.find_one({"user_id": user_id})
-            if user_data and user_data.get("unreachable", False):
+            if not user_data:
+                console.warning(f"User {user_id} not found in database")
+                return False
+                
+            if user_data.get("unreachable", False):
                 console.info(f"User {user_id} is marked as unreachable, skipping message")
                 return False
+            
+            # Check interaction context for proactive messages
+            if message_type in ["proactive_action", "proactive_help", "reminder", "suggestion"]:
+                contexts = user_data.get('interaction_contexts', {})
+                has_private_chat = contexts.get('has_private_chat', False)
+                
+                if not has_private_chat:
+                    console.info(f"User {user_id} never had private chat, skipping {message_type} message")
+                    # Don't mark as unreachable, just skip proactive private messages
+                    await autonomous_tasks.insert_one({
+                        "type": message_type,
+                        "user_id": user_id,
+                        "timestamp": datetime.now(),
+                        "status": "skipped",
+                        "reason": "no_private_chat_history"
+                    })
+                    return False
+                
+                # Additional validation for user interaction level
+                interaction_count = user_data.get("interaction_count", 0)
+                if interaction_count < 3:
+                    console.info(f"User {user_id} has insufficient interaction count ({interaction_count}) for {message_type}")
+                    return False
             
             await client.send_message(chat_id=user_id, text=text)
             return True
             
         except Exception as e:
             if "PEER_ID_INVALID" in str(e):
-                console.warning(f"Cannot send {message_type} message to user {user_id}: Invalid peer")
+                console.warning(f"Cannot send {message_type} message to user {user_id}: Invalid peer (blocked or no private chat)")
                 
-                # Mark user as unreachable
+                # Mark user as unreachable for private messages only
                 await users.update_one(
                     {"user_id": user_id},
                     {"$set": {"unreachable": True, "unreachable_since": datetime.now()}}

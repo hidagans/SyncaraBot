@@ -3,13 +3,14 @@ from syncara.console import console
 from datetime import datetime
 import json
 
-async def kenalan_dan_update(client, user, send_greeting=True):
+async def kenalan_dan_update(client, user, send_greeting=True, interaction_context="unknown"):
     """Kenalan dengan user dan simpan/update ke database
     
     Args:
         client: Pyrogram client
         user: User object
         send_greeting: Boolean, kirim greeting message atau tidak (default: True)
+        interaction_context: String, context interaction ("private", "group", "unknown")
     """
     try:
         user_data = await users.find_one({"user_id": user.id})
@@ -23,6 +24,13 @@ async def kenalan_dan_update(client, user, send_greeting=True):
                 "last_interaction": datetime.utcnow(),
                 "first_seen": datetime.utcnow(),
                 "interaction_count": 1,
+                "interaction_contexts": {
+                    "private_count": 1 if interaction_context == "private" else 0,
+                    "group_count": 1 if interaction_context == "group" else 0,
+                    "has_private_chat": interaction_context == "private",
+                    "last_context": interaction_context,
+                    "preferred_context": interaction_context if interaction_context != "unknown" else "group"
+                },
                 "preferences": {
                     "communication_style": "default",  # formal, casual, friendly
                     "response_length": "medium",  # short, medium, long
@@ -58,18 +66,39 @@ async def kenalan_dan_update(client, user, send_greeting=True):
                 
                 await client.send_message(user.id, welcome_message)
             
-            console.info(f"👋 New user registered: {user.first_name} (@{user.username}) - ID: {user.id}")
+            console.info(f"👋 New user registered: {user.first_name} (@{user.username}) - ID: {user.id} - Context: {interaction_context}")
             
         else:
             # User lama, update waktu interaksi dan increment counter
             interaction_count = user_data.get('interaction_count', 0) + 1
+            
+            # Update interaction contexts
+            contexts = user_data.get('interaction_contexts', {})
+            if interaction_context == "private":
+                contexts['private_count'] = contexts.get('private_count', 0) + 1
+                contexts['has_private_chat'] = True
+            elif interaction_context == "group":
+                contexts['group_count'] = contexts.get('group_count', 0) + 1
+            
+            contexts['last_context'] = interaction_context
+            
+            # Determine preferred context based on usage
+            private_count = contexts.get('private_count', 0)
+            group_count = contexts.get('group_count', 0)
+            if private_count > group_count:
+                contexts['preferred_context'] = "private"
+            elif group_count > private_count:
+                contexts['preferred_context'] = "group"
+            else:
+                contexts['preferred_context'] = contexts.get('preferred_context', 'group')
             
             update_data = {
                 "last_interaction": datetime.utcnow(),
                 "username": user.username,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
-                "interaction_count": interaction_count
+                "interaction_count": interaction_count,
+                "interaction_contexts": contexts
             }
             
             await users.update_one({"user_id": user.id}, {"$set": update_data})
@@ -87,7 +116,7 @@ async def kenalan_dan_update(client, user, send_greeting=True):
                 
                 await client.send_message(user.id, greeting)
             
-            console.info(f"🔄 Updated user: {user.first_name} (@{user.username}) - Interaction #{interaction_count}")
+            console.info(f"🔄 Updated user: {user.first_name} (@{user.username}) - Interaction #{interaction_count} - Context: {interaction_context}")
             
     except Exception as e:
         console.error(f"Error in kenalan_dan_update: {str(e)}")
