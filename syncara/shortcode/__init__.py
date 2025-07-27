@@ -5,6 +5,18 @@ import inspect
 from typing import Dict, Callable
 from config.config import OWNER_ID
 
+# Import trigger function
+async def _trigger_user_save(client, message):
+    """Universal trigger untuk save user data di semua shortcode"""
+    try:
+        if message and message.from_user:
+            from syncara.modules.assistant_memory import kenalan_dan_update
+            await kenalan_dan_update(client, message.from_user)
+    except Exception as e:
+        # Jangan biarkan error trigger mengganggu shortcode execution
+        from syncara.console import console
+        console.error(f"Error in user save trigger: {e}")
+
 class ShortcodeRegistry:
     _instance = None
     
@@ -49,140 +61,108 @@ class ShortcodeRegistry:
             self.shortcodes.update(channel_shortcode.handlers)
             
             # Register descriptions
-            self.descriptions.update(group_shortcode.descriptions)
-            self.descriptions.update(users_shortcode.descriptions)
-            self.descriptions.update(userbot_shortcode.descriptions)
-            self.descriptions.update(image_shortcode.descriptions)
-            self.descriptions.update(canvas_shortcode.descriptions)
-            self.descriptions.update(python_shortcode.descriptions)
-            self.descriptions.update(file_search_shortcode.descriptions)
-            self.descriptions.update(todo_shortcode.descriptions)
-            self.descriptions.update(channel_shortcode.descriptions)
-            
-            # Register Pyrogram descriptions from all handlers
-            self.descriptions.update(pyrogram_manager.advanced_handler.descriptions)
-            self.descriptions.update(pyrogram_manager.utilities_handler.descriptions)
-            self.descriptions.update(pyrogram_manager.inline_handler.descriptions)
-            self.descriptions.update(pyrogram_manager.bound_handler.descriptions)
-            
-            self._initialized = True
-            print(f"✅ Loaded {len(self.shortcodes)} shortcode handlers")
-            print(f"✅ Loaded {len(self.descriptions)} shortcode descriptions")
-            
-        except Exception as e:
-            print(f"❌ Error loading shortcodes: {e}")
-            # Fallback to manual registration
-            self._load_shortcodes_fallback()
-    
-    def _load_shortcodes_fallback(self):
-        """Fallback method to load shortcodes manually"""
-        try:
-            # Manual registration of basic shortcodes
-            self.shortcodes = {
-                'GROUP:INFO': self._dummy_handler,
-                'USER:INFO': self._dummy_handler,
-                'USERBOT:STATUS': self._dummy_handler,
-                'IMAGE:GEN': self._dummy_handler,
-                'CHANNEL:STATUS': self._dummy_handler,
-            }
-            
-            self.descriptions = {
-                'GROUP:INFO': 'Get group information',
-                'USER:INFO': 'Get user information',
-                'USERBOT:STATUS': 'Get userbot status',
-                'IMAGE:GEN': 'Generate image from text prompt. Usage: [IMAGE:GEN:prompt]',
-                'CHANNEL:STATUS': 'Get channel status',
-            }
-            
-            self._initialized = True
-            print("✅ Loaded fallback shortcodes")
-            
-        except Exception as e:
-            print(f"❌ Error in fallback shortcode loading: {e}")
-            self._initialized = True
-    
-    async def _dummy_handler(self, client, message, params):
-        """Dummy handler for fallback shortcodes"""
-        return True
-
-    def get_shortcode_docs(self) -> str:
-        """Generate documentation for all registered shortcodes"""
-        if not self._initialized:
-            self._load_shortcodes()
-            
-        docs = ["Available Shortcodes:"]
-        
-        # Group shortcodes by category
-        categories = {}
-        for shortcode, desc in self.descriptions.items():
-            category = shortcode.split(':')[0]
-            if category not in categories:
-                categories[category] = []
-            categories[category].append((shortcode, desc))
-        
-        # Generate formatted documentation
-        for category, shortcodes in sorted(categories.items()):
-            docs.append(f"\n{category}:")
-            for shortcode, desc in sorted(shortcodes):
-                docs.append(f"- [{shortcode}] - {desc}")
-        
-        # Add execution order notes
-        docs.append("\n⚠️ Important Notes:")
-        docs.append("- CANVAS:CREATE must be executed before CANVAS:EXPORT")
-        docs.append("- CANVAS:SHOW and CANVAS:EDIT require file to exist first")
-        docs.append("- USER management commands require admin privileges")
-        docs.append("- GROUP management commands require admin privileges")
-        docs.append("- CHANNEL management commands require owner privileges")
-        docs.append("- PYROGRAM: prefix untuk semua fungsi Pyrogram method")
-        
-        return "\n".join(docs)
-
-    def validate_shortcode_order(self, shortcodes_in_text: list) -> dict:
-        """Validate the execution order of shortcodes in text"""
-        if not self._initialized:
-            self._load_shortcodes()
-            
-        issues = []
-        
-        # Check for CANVAS operations
-        canvas_operations = [s for s in shortcodes_in_text if s.startswith('CANVAS:')]
-        for operation in canvas_operations:
-            if operation.startswith('CANVAS:EXPORT') or operation.startswith('CANVAS:SHOW') or operation.startswith('CANVAS:EDIT'):
-                # Check if there's a CREATE operation for the same file
-                filename = operation.split(':')[2] if len(operation.split(':')) > 2 else None
-                if filename:
-                    create_op = f"CANVAS:CREATE:{filename}"
-                    if not any(create_op in s for s in shortcodes_in_text):
-                        issues.append(f"⚠️ {operation} requires file to be created first with CANVAS:CREATE")
-        
-        return {
-            'valid': len(issues) == 0,
-            'issues': issues,
-            'suggestions': [
-                "Always create files before trying to export/show/edit them",
-                "Use CANVAS:LIST to check available files first",
-                "Use PYROGRAM: prefix for all Pyrogram method calls",
-                "Use CHANNEL: prefix for channel management commands",
-                "Channel management requires owner privileges"
+            all_shortcode_handlers = [
+                canvas_shortcode, file_search_shortcode, group_shortcode,
+                image_shortcode, python_shortcode, todo_shortcode,
+                users_shortcode, userbot_shortcode, pyrogram_manager,
+                multi_step_shortcode, channel_shortcode
             ]
-        }
-
-    async def execute_shortcode(self, shortcode: str, client, message, params):
-        """Execute a registered shortcode"""
-        if not self._initialized:
-            self._load_shortcodes()
             
-        if shortcode in self.shortcodes:
-            return await self.shortcodes[shortcode](client, message, params)
-        return False
+            for handler in all_shortcode_handlers:
+                if hasattr(handler, 'descriptions'):
+                    self.descriptions.update(handler.descriptions)
+                    
+            # Add fallback descriptions for any missing ones
+            for key in self.shortcodes.keys():
+                if key not in self.descriptions:
+                    if key.startswith('OWNER:'):
+                        self.descriptions[key] = 'Owner-only command'
+                    else:
+                        self.descriptions[key] = 'Shortcode command'
+            
+            # Add dummy handlers for any patterns that might be expected
+            dummy_patterns = [
+                'USERBOT:STATUS', 'USERBOT:INFO', 'USERBOT:JOIN', 'USERBOT:LEAVE', 'USERBOT:SEND',
+                'USER:BAN', 'USER:UNBAN', 'USER:KICK', 'USER:MUTE', 'USER:UNMUTE',
+                'TODO:CREATE', 'TODO:LIST', 'TODO:COMPLETE', 'TODO:DELETE',
+                'CANVAS:CREATE', 'CANVAS:LIST', 'CANVAS:READ', 'CANVAS:UPDATE',
+                'IMAGE:GENERATE', 'IMAGE:HISTORY', 'IMAGE:STATS',
+                'GROUP:INFO', 'GROUP:MEMBERS', 'GROUP:STATS',
+                'PYTHON:EXEC', 'PYTHON:EVAL'
+            ]
+            
+            for pattern in dummy_patterns:
+                if pattern not in self.shortcodes:
+                    self.shortcodes[pattern] = self._dummy_handler
+                    if pattern not in self.descriptions:
+                        self.descriptions[pattern] = f'Handler for {pattern.lower().replace(":", " ")}'
+            
+            self._initialized = True
+            
+        except Exception as e:
+            print(f"Error loading shortcodes: {e}")
 
-    def ensure_loaded(self):
-        """Ensure shortcodes are loaded"""
+    async def _dummy_handler(self, client, message, params):
+        """Dummy handler untuk shortcode yang belum diimplementasi"""
+        return "⚠️ Shortcode handler belum diimplementasi"
+
+    async def execute_shortcode(self, shortcode_pattern, client, message, params=""):
+        """Execute a shortcode with universal user trigger"""
+        try:
+            # 🚀 UNIVERSAL TRIGGER: Save user data untuk SEMUA shortcode executions
+            await _trigger_user_save(client, message)
+            
+            # Load shortcodes if not already loaded
+            if not self._initialized:
+                self._load_shortcodes()
+            
+            # Find matching shortcode handler
+            handler = None
+            matched_pattern = None
+            
+            # Exact match first
+            if shortcode_pattern in self.shortcodes:
+                handler = self.shortcodes[shortcode_pattern]
+                matched_pattern = shortcode_pattern
+            else:
+                # Try pattern matching
+                for pattern, func in self.shortcodes.items():
+                    if shortcode_pattern.startswith(pattern.split(':')[0]):
+                        handler = func
+                        matched_pattern = pattern
+                        break
+            
+            if handler:
+                try:
+                    # Execute the shortcode handler
+                    result = await handler(client, message, params)
+                    return result if result is not None else "✅ Shortcode executed successfully"
+                except Exception as e:
+                    error_msg = f"❌ Error executing {matched_pattern}: {str(e)}"
+                    # Log error untuk debugging
+                    try:
+                        from syncara.console import console
+                        console.error(f"Shortcode execution error: {e}")
+                    except:
+                        print(f"Shortcode execution error: {e}")
+                    return error_msg
+            else:
+                return f"❌ Unknown shortcode: {shortcode_pattern}"
+                
+        except Exception as e:
+            return f"❌ Critical shortcode error: {str(e)}"
+
+    def get_shortcode_list(self):
+        """Get list of available shortcodes"""
         if not self._initialized:
             self._load_shortcodes()
+        return list(self.shortcodes.keys())
 
-# Create singleton instance
+    def get_shortcode_descriptions(self):
+        """Get descriptions of all shortcodes"""
+        if not self._initialized:
+            self._load_shortcodes()
+        return self.descriptions.copy()
+
+# Create global registry instance
 registry = ShortcodeRegistry()
-
-# Load shortcodes on import (synchronously)
-registry.ensure_loaded()

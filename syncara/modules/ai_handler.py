@@ -153,11 +153,23 @@ custom_userbot_filter = filters.create(userbot_filter)
 #         debug_log(f"Error in bot debug handler: {str(e)}")
 #         console.error(f"Error in bot debug handler: {str(e)}")
 
+# Universal trigger helper function
+async def _trigger_user_save_for_command(client, message):
+    """Universal trigger untuk save user data di bot commands"""
+    try:
+        if message and message.from_user:
+            await kenalan_dan_update(client, message.from_user)
+    except Exception as e:
+        console.error(f"Error in command user save trigger: {e}")
+
 # Bot manager commands
 @bot.on_message(filters.command("start") | filters.command("help"))
 async def start_command(client, message):
     """Handle start command for the manager bot dengan inline keyboard"""
     try:
+        # 🚀 TRIGGER: Save user data for start/help command
+        await _trigger_user_save_for_command(client, message)
+        
         from syncara.modules.system_prompt import system_prompt
         current_prompt = system_prompt.current_prompt_name
 
@@ -669,6 +681,10 @@ async def setup_assistant_handlers():
                 async def assistant_message_handler(client, message):
                     """Handle messages for specific assistant"""
                     try:
+                        # 🚀 TAMBAH TRIGGER: Auto-kenalan & save user data untuk group messages
+                        if message.from_user:
+                            await kenalan_dan_update(client, message.from_user)
+                        
                         # Get text from either message text or caption
                         text = message.text or message.caption
                         
@@ -1510,156 +1526,127 @@ def remove_music_commands():
 async def autonomous_control(client, message):
     """Control autonomous AI features"""
     try:
-        from syncara import autonomous_ai
-        from syncara.database import autonomous_tasks, user_patterns
+        # 🚀 TRIGGER: Save user data for autonomous command
+        await _trigger_user_save_for_command(client, message)
         
-        parts = message.text.split(maxsplit=2)
+        command_parts = message.text.split()
         
-        if len(parts) == 1:
-            # Show status
-            status = "🟢 Running" if autonomous_ai.is_running else "🔴 Stopped"
+        if len(command_parts) == 1:
+            # Show main status
+            stats = await autonomous_ai.get_autonomous_stats()
             
-            # Get statistics
-            total_tasks = await autonomous_tasks.count_documents({})
-            recent_tasks = await autonomous_tasks.count_documents({
-                "timestamp": {"$gte": datetime.now() - timedelta(hours=24)}
-            })
-            active_patterns = await user_patterns.count_documents({})
+            status_text = "🤖 **Autonomous AI Control Panel**\n\n"
+            status_text += f"📊 **Status**: {'🟢 Active' if stats.get('active', False) else '🔴 Inactive'}\n"
+            status_text += f"⏱️ **Uptime**: {stats.get('uptime', '0 minutes')}\n"
+            status_text += f"👤 **Active Users**: {stats.get('active_users', 0)}\n"
+            status_text += f"📈 **Tasks Completed**: {stats.get('completed_tasks', 0)}\n"
+            status_text += f"🔄 **Pattern Analysis**: {stats.get('pattern_analysis_count', 0)}\n\n"
             
-            await message.reply_text(
-                f"🤖 **Autonomous AI Status**\n\n"
-                f"📊 **Status**: {status}\n"
-                f"📈 **Statistics**:\n"
-                f"   • Total tasks: {total_tasks}\n"
-                f"   • Last 24h: {recent_tasks}\n"
-                f"   • User patterns: {active_patterns}\n"
-                f"   • Last check: {autonomous_ai.last_activity_check.strftime('%H:%M:%S')}\n\n"
-                f"🔧 **Commands**:\n"
-                f"   • `/autonomous status` - Show status\n"
-                f"   • `/autonomous tasks` - Show recent tasks\n"
-                f"   • `/autonomous patterns` - Show user patterns\n"
-                f"   • `/autonomous test` - Test proactive features\n"
-                f"   • `/autonomous restart` - Restart autonomous AI"
-            )
+            status_text += "🎯 **Available Commands**:\n"
+            status_text += "• `/autonomous status` - Detailed status\n"
+            status_text += "• `/autonomous tasks` - Recent tasks\n"
+            status_text += "• `/autonomous patterns` - User patterns\n"
+            status_text += "• `/autonomous test` - Test functionality\n"
+            status_text += "• `/autonomous restart` - Restart autonomous AI\n"
             
-        elif parts[1] == "status":
+            await message.reply(status_text)
+            
+        elif command_parts[1] == "status":
             # Detailed status
-            features = {
-                "🔍 User Monitoring": autonomous_ai.is_running,
-                "🚀 Proactive Assistance": autonomous_ai.is_running,
-                "📅 Scheduled Tasks": autonomous_ai.is_running,
-                "💬 Chat Health": autonomous_ai.is_running,
-                "🧠 Learning Optimizer": autonomous_ai.is_running
-            }
+            health_check = await autonomous_ai.run_health_check()
+            stats = await autonomous_ai.get_autonomous_stats()
             
-            feature_list = "\n".join([
-                f"   {name}: {'✅' if status else '❌'}"
-                for name, status in features.items()
-            ])
+            status_text = "🔍 **Autonomous AI Detailed Status**\n\n"
             
-            await message.reply_text(
-                f"🤖 **Detailed Autonomous AI Status**\n\n"
-                f"📊 **Features**:\n{feature_list}\n\n"
-                f"⏰ **Timing**:\n"
-                f"   • User monitoring: Every 5 minutes\n"
-                f"   • Proactive assistance: Every 15 minutes\n"
-                f"   • Scheduled tasks: Every 1 minute\n"
-                f"   • Chat health: Every 1 hour\n"
-                f"   • Learning optimizer: Every 2 hours"
-            )
+            # System health
+            status_text += "🏥 **System Health**:\n"
+            for check_name, result in health_check.get('checks', {}).items():
+                emoji = "✅" if result else "❌"
+                status_text += f"• {emoji} {check_name.replace('_', ' ').title()}\n"
             
-        elif parts[1] == "tasks":
-            # Show recent tasks
-            recent_tasks_cursor = autonomous_tasks.find({
-                "timestamp": {"$gte": datetime.now() - timedelta(hours=24)}
-            }).sort("timestamp", -1).limit(10)
+            # Recent activity
+            status_text += f"\n📊 **Recent Activity** (24h):\n"
+            status_text += f"• Proactive Messages: {stats.get('proactive_messages_24h', 0)}\n"
+            status_text += f"• Pattern Updates: {stats.get('pattern_updates_24h', 0)}\n"
+            status_text += f"• Health Checks: {stats.get('health_checks_24h', 0)}\n"
             
-            tasks_list = []
-            async for task in recent_tasks_cursor:
-                timestamp = task["timestamp"].strftime("%H:%M")
-                task_type = task.get("type", "unknown")
-                status = task.get("status", "unknown")
-                tasks_list.append(f"   • {timestamp} - {task_type} ({status})")
+            await message.reply(status_text)
             
-            tasks_text = "\n".join(tasks_list) if tasks_list else "   No recent tasks"
+        elif command_parts[1] == "tasks":
+            # Recent tasks
+            recent_tasks = await autonomous_ai.get_recent_tasks(limit=10)
             
-            await message.reply_text(
-                f"📋 **Recent Autonomous Tasks (24h)**\n\n"
-                f"{tasks_text}"
-            )
-            
-        elif parts[1] == "patterns":
-            # Show user patterns summary
-            patterns_cursor = user_patterns.find({}).sort("last_updated", -1).limit(5)
-            
-            patterns_list = []
-            async for pattern in patterns_cursor:
-                user_id = pattern["user_id"]
-                pattern_data = pattern.get("pattern_data", {})
-                confidence = pattern_data.get("prediction_confidence", 0)
-                action = pattern_data.get("suggested_action", "none")
-                patterns_list.append(f"   • User {user_id}: {action} ({confidence:.1f})")
-            
-            patterns_text = "\n".join(patterns_list) if patterns_list else "   No patterns found"
-            
-            await message.reply_text(
-                f"🧠 **User Patterns Analysis**\n\n"
-                f"{patterns_text}"
-            )
-            
-        elif parts[1] == "test":
-            # Test autonomous features
-            await message.reply_text("🧪 **Testing Autonomous Features...**")
-            
-            # Test user pattern analysis
-            from syncara.database import users
-            test_users = await users.find({}).limit(3).to_list(length=3)
-            
-            if test_users:
-                for user_data in test_users:
-                    user_id = user_data["user_id"]
-                    pattern = await autonomous_ai.analyze_user_pattern(user_id)
-                    if pattern:
-                        await message.reply_text(
-                            f"✅ **Pattern Analysis Test**\n"
-                            f"User: {user_id}\n"
-                            f"Action: {pattern.get('suggested_action', 'none')}\n"
-                            f"Confidence: {pattern.get('prediction_confidence', 0):.2f}"
-                        )
-                        break
-            
-            # Test proactive opportunities
-            opportunities = await autonomous_ai.find_proactive_opportunities("AERIS")
-            if opportunities:
-                await message.reply_text(
-                    f"🎯 **Proactive Opportunities Found**: {len(opportunities)}\n"
-                    f"First opportunity: {opportunities[0].get('type', 'unknown')}"
-                )
+            if recent_tasks:
+                status_text = "📋 **Recent Autonomous Tasks**\n\n"
+                for task in recent_tasks:
+                    task_emoji = {"completed": "✅", "failed": "❌", "running": "🔄"}.get(task.get('status', 'unknown'), "❓")
+                    status_text += f"{task_emoji} **{task.get('type', 'Unknown')}**\n"
+                    status_text += f"   Target: User {task.get('user_id', 'Unknown')}\n"
+                    status_text += f"   Time: {task.get('timestamp', 'Unknown')}\n"
+                    if task.get('result'):
+                        status_text += f"   Result: {task['result'][:50]}...\n"
+                    status_text += "\n"
             else:
-                await message.reply_text("📝 **No proactive opportunities found**")
-                
-        elif parts[1] == "restart":
+                status_text = "📋 **Recent Autonomous Tasks**\n\nNo recent tasks found."
+            
+            await message.reply(status_text)
+            
+        elif command_parts[1] == "patterns":
+            # User patterns analysis
+            pattern_stats = await autonomous_ai.get_pattern_stats()
+            
+            status_text = "🧠 **User Pattern Analysis**\n\n"
+            status_text += f"👥 **Users Analyzed**: {pattern_stats.get('total_users', 0)}\n"
+            status_text += f"📊 **Active Patterns**: {pattern_stats.get('active_patterns', 0)}\n"
+            status_text += f"🎯 **Successful Predictions**: {pattern_stats.get('successful_predictions', 0)}\n"
+            status_text += f"📈 **Accuracy Rate**: {pattern_stats.get('accuracy_rate', 0)}%\n\n"
+            
+            # Top patterns
+            top_patterns = pattern_stats.get('top_patterns', [])
+            if top_patterns:
+                status_text += "🔝 **Top Patterns**:\n"
+                for pattern in top_patterns[:5]:
+                    status_text += f"• {pattern.get('name', 'Unknown')}: {pattern.get('frequency', 0)} times\n"
+            
+            await message.reply(status_text)
+            
+        elif command_parts[1] == "test":
+            # Test autonomous functionality
+            await message.reply("🧪 Testing autonomous AI functionality...")
+            
+            test_results = await autonomous_ai.run_test_suite()
+            
+            status_text = "🧪 **Autonomous AI Test Results**\n\n"
+            
+            for test_name, result in test_results.items():
+                emoji = "✅" if result.get('passed', False) else "❌"
+                status_text += f"{emoji} **{test_name}**\n"
+                if not result.get('passed', False):
+                    status_text += f"   Error: {result.get('error', 'Unknown error')}\n"
+                status_text += f"   Time: {result.get('execution_time', 0):.2f}s\n\n"
+            
+            overall_status = "✅ All tests passed" if all(r.get('passed', False) for r in test_results.values()) else "❌ Some tests failed"
+            status_text += f"**Overall**: {overall_status}"
+            
+            await message.reply(status_text)
+            
+        elif command_parts[1] == "restart":
             # Restart autonomous AI
-            await message.reply_text("🔄 **Restarting Autonomous AI...**")
+            await message.reply("🔄 Restarting autonomous AI...")
             
-            # Stop current instance
-            autonomous_ai.is_running = False
-            await asyncio.sleep(2)
+            restart_result = await autonomous_ai.restart()
             
-            # Start new instance
-            from syncara import start_autonomous_mode
-            await start_autonomous_mode()
-            
-            await message.reply_text("✅ **Autonomous AI restarted successfully!**")
-            
+            if restart_result.get('success', False):
+                await message.reply("✅ Autonomous AI restarted successfully!")
+            else:
+                await message.reply(f"❌ Failed to restart autonomous AI: {restart_result.get('error', 'Unknown error')}")
+        
         else:
-            await message.reply_text(
-                "❓ **Unknown command**\n\n"
-                "Available options: `status`, `tasks`, `patterns`, `test`, `restart`"
-            )
-            
+            await message.reply("❌ Unknown autonomous command. Use `/autonomous` for help.")
+    
     except Exception as e:
-        await message.reply_text(f"❌ Error: {str(e)}")
+        console.error(f"Error in autonomous control: {str(e)}")
+        await message.reply(f"❌ Error: {str(e)}")
 
 @bot.on_message(filters.command("canvas") & filters.user(OWNER_ID))
 async def canvas_debug_command(client, message):
@@ -2200,7 +2187,7 @@ async def features_help_command(client, message):
 
 **💬 Chat Search:**
 • `[CHAT:SEARCH:keyword]` - Search chats
-• `[SEARCH:CHAT:keyword]` - Alternative syntax
+• `[SEARCH:CHAT:keyword] - Alternative syntax
 
 **📝 TODO Management:**
 • `[TODO:CREATE:task]` - Create new todo
@@ -2209,6 +2196,258 @@ async def features_help_command(client, message):
 
 Gunakan fitur ini dalam pesan AI untuk eksekusi otomatis! 🤖✨"""
 
+        await message.reply_text(help_text)
+        
+    except Exception as e:
+        console.error(f"Error in features_help_command: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")
+
+@bot.on_message(filters.text & filters.command("dbstatus"))
+async def database_status_command(client, message):
+    """Show database status and health check"""
+    try:
+        # 🚀 TRIGGER: Save user data for dbstatus command
+        await _trigger_user_save_for_command(client, message)
+        
+        if message.from_user.id not in OWNER_ID:
+            await message.reply("❌ Only owner can access database status.")
+            return
+        
+        await message.reply("🔍 Running database health check...")
+        
+        from syncara.database import run_database_health_check, get_database_status, database_manager
+        
+        # Get comprehensive status
+        health_report = await run_database_health_check()
+        db_status = await get_database_status()
+        stats = await database_manager.get_database_stats()
+        
+        # Format response
+        status_text = f"📊 **Database Status Report**\n\n"
+        
+        # Overall health
+        status_emoji = "✅" if health_report.get("overall_status") == "healthy" else "⚠️"
+        status_text += f"{status_emoji} **Overall Status**: {health_report.get('overall_status', 'unknown').title()}\n\n"
+        
+        # Connection info
+        if db_status.get("connection_healthy"):
+            status_text += "🔗 **Connection**: Healthy\n"
+            server_info = db_status.get("server_info", {})
+            status_text += f"📦 **MongoDB Version**: {server_info.get('version', 'unknown')}\n"
+        else:
+            status_text += "❌ **Connection**: Failed\n"
+        
+        # Database stats
+        db_info = stats.get("database_info", {})
+        status_text += f"\n📈 **Database Statistics**:\n"
+        status_text += f"• Collections: {db_info.get('collections', 0)}\n"
+        status_text += f"• Total Objects: {db_info.get('objects', 0):,}\n"
+        status_text += f"• Data Size: {db_info.get('data_size', 0) / 1024 / 1024:.1f} MB\n"
+        status_text += f"• Storage Size: {db_info.get('storage_size', 0) / 1024 / 1024:.1f} MB\n"
+        
+        # Collection counts
+        status_text += f"\n📋 **Collection Counts**:\n"
+        collections_data = [
+            ("👤 Users", stats.get("users_count", 0)),
+            ("👥 Groups", stats.get("groups_count", 0)),
+            ("🎨 Canvas Files", stats.get("canvas_files_count", 0)),
+            ("🖼️ Image Generations", stats.get("image_generations_count", 0)),
+            ("🤖 Autonomous Tasks", stats.get("autonomous_tasks_count", 0)),
+            ("📝 System Logs", stats.get("system_logs_count", 0))
+        ]
+        
+        for name, count in collections_data:
+            status_text += f"• {name}: {count:,}\n"
+        
+        # Recent activity
+        activity = stats.get("recent_activity", {})
+        status_text += f"\n🔥 **Recent Activity**:\n"
+        status_text += f"• Active Users (7 days): {activity.get('recent_users', 0)}\n"
+        status_text += f"• Today's Interactions: {activity.get('today_interactions', 0)}\n"
+        status_text += f"• Running Workflows: {activity.get('active_workflows', 0)}\n"
+        
+        # Performance check
+        perf_check = health_report.get("checks", {}).get("query_performance", {})
+        if perf_check:
+            status_text += f"\n⚡ **Performance**:\n"
+            status_text += f"• Query Time: {perf_check.get('query_time_ms', 0):.1f}ms\n"
+            perf_status = "Good" if perf_check.get('acceptable', True) else "Slow"
+            status_text += f"• Performance: {perf_status}\n"
+        
+        # Failed checks
+        if health_report.get("failed_checks"):
+            status_text += f"\n⚠️ **Issues Found**:\n"
+            for check in health_report["failed_checks"]:
+                status_text += f"• {check.replace('_', ' ').title()}\n"
+        
+        status_text += f"\n🕐 **Last Updated**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+        
+        await message.reply(status_text)
+        
+    except Exception as e:
+        console.error(f"Error in database status command: {e}")
+        await message.reply(f"❌ Error getting database status: {str(e)}")
+
+@bot.on_message(filters.text & filters.command("dbcleanup"))
+async def database_cleanup_command(client, message):
+    """Run database cleanup"""
+    try:
+        # 🚀 TRIGGER: Save user data for dbcleanup command
+        await _trigger_user_save_for_command(client, message)
+        
+        if message.from_user.id not in OWNER_ID:
+            await message.reply("❌ Only owner can run database cleanup.")
+            return
+        
+        await message.reply("🧹 Starting database cleanup...")
+        
+        from syncara.database import database_manager
+        
+        # Run cleanup
+        cleanup_results = await database_manager.cleanup_old_data(days_old=30)
+        
+        if cleanup_results:
+            cleanup_text = "✅ **Database Cleanup Completed**\n\n"
+            cleanup_text += "📊 **Items Removed**:\n"
+            
+            for collection, count in cleanup_results.items():
+                if count > 0:
+                    cleanup_text += f"• {collection.replace('_', ' ').title()}: {count:,}\n"
+            
+            total_removed = sum(cleanup_results.values())
+            cleanup_text += f"\n🗑️ **Total Items Removed**: {total_removed:,}"
+        else:
+            cleanup_text = "✅ Database cleanup completed (no items to remove)"
+        
+        await message.reply(cleanup_text)
+        
+    except Exception as e:
+        console.error(f"Error in database cleanup command: {e}")
+        await message.reply(f"❌ Error running cleanup: {str(e)}")
+
+@bot.on_message(filters.text & filters.command("dbbackup"))
+async def database_backup_command(client, message):
+    """Create database backup"""
+    try:
+        # 🚀 TRIGGER: Save user data for dbbackup command
+        await _trigger_user_save_for_command(client, message)
+        
+        if message.from_user.id not in OWNER_ID:
+            await message.reply("❌ Only owner can create database backups.")
+            return
+        
+        # Extract collection name from command
+        command_parts = message.text.split()
+        if len(command_parts) < 2:
+            await message.reply("❌ Usage: `/dbbackup <collection_name>`\nExample: `/dbbackup users`")
+            return
+        
+        collection_name = command_parts[1]
+        
+        await message.reply(f"💾 Creating backup of {collection_name} collection...")
+        
+        from syncara.database import database_manager
+        import os
+        
+        # Create backup filename
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"backup_{collection_name}_{timestamp}.json"
+        backup_path = os.path.join("backups", backup_filename)
+        
+        # Ensure backup directory exists
+        os.makedirs("backups", exist_ok=True)
+        
+        # Create backup
+        document_count = await database_manager.backup_collection(collection_name, backup_path)
+        
+        if document_count > 0:
+            file_size = os.path.getsize(backup_path) / 1024 / 1024  # MB
+            backup_text = f"✅ **Backup Created Successfully**\n\n"
+            backup_text += f"📁 **File**: {backup_filename}\n"
+            backup_text += f"📊 **Documents**: {document_count:,}\n"
+            backup_text += f"📏 **Size**: {file_size:.2f} MB\n"
+            backup_text += f"📍 **Location**: ./backups/"
+        else:
+            backup_text = f"❌ Failed to create backup for {collection_name}"
+        
+        await message.reply(backup_text)
+        
+    except Exception as e:
+        console.error(f"Error in database backup command: {e}")
+        await message.reply(f"❌ Error creating backup: {str(e)}")
+
+@bot.on_message(filters.command("features"))
+async def features_help_command(client, message):
+    """Tampilkan bantuan fitur-fitur bot dengan shortcode examples"""
+    try:
+        # 🚀 TRIGGER: Save user data for features command  
+        await _trigger_user_save_for_command(client, message)
+        
+        help_text = """
+🚀 **SyncaraBot Features & Shortcodes**
+
+**🎨 Canvas Management:**
+• `[CANVAS:CREATE:filename.py]` - Create new file
+• `[CANVAS:LIST:]` - List all files  
+• `[CANVAS:READ:filename.py]` - Read file content
+• `[CANVAS:UPDATE:filename.py,new content]` - Update file
+• `[CANVAS:EXPORT:filename.py]` - Export as document
+
+**🖼️ Image Generation:**
+• `[IMAGE:GEN:a beautiful sunset]` - Generate image
+• `[IMAGE:HISTORY:]` - View generation history
+• `[IMAGE:STATS:]` - View generation statistics
+
+**🐍 Python Execution:**
+• `[PYTHON:EXEC:print("Hello World")]` - Execute Python code
+• `[PYTHON:EVAL:2+2]` - Evaluate Python expression
+
+**👥 User Management:**
+• `[USER:BAN:username]` - Ban user from group
+• `[USER:MUTE:username:60]` - Mute user for 60 minutes
+• `[USER:WARN:username:reason]` - Warn user
+• `[USER:INFO:username]` - Get user information
+
+**📂 File Search:**
+• `[SEARCH:FILE:keyword]` - Search files by keyword
+• `[FILE:FIND:keyword]` - Alternative syntax
+
+**💬 Chat Search:**
+• `[CHAT:SEARCH:keyword]` - Search chats
+• `[SEARCH:CHAT:keyword] - Alternative syntax
+
+**📝 TODO Management:**
+• `[TODO:CREATE:task]` - Create new task
+• `[TODO:LIST:]` - List all tasks
+• `[TODO:COMPLETE:id]` - Complete task
+
+**🤖 Userbot Management:**
+• `[USERBOT:STATUS:]` - Get userbot status
+• `[USERBOT:INFO:]` - Get userbot information
+
+**🔧 Advanced Pyrogram:**
+• `[PYROGRAM:method_name:params]` - Call Pyrogram methods
+• `[BOUND:method:params]` - Bound method calls
+• `[INLINE:method:params]` - Inline method calls
+
+**📋 Multi-step Processing:**
+• `[WORKFLOW:CREATE:name]` - Create workflow
+• `[WORKFLOW:EXECUTE:id]` - Execute workflow
+• `[WORKFLOW:STATUS:id]` - Check workflow status
+
+📚 **How to use:**
+1. Type any shortcode in square brackets
+2. AI will process and execute the command
+3. Results will be shown automatically
+
+💡 **Pro Tips:**
+• Combine multiple shortcodes in one message
+• Use descriptive filenames for canvas files
+• Check status before running complex workflows
+
+Need help with specific features? Just ask! 😊
+"""
+        
         await message.reply_text(help_text)
         
     except Exception as e:
