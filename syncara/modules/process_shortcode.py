@@ -24,9 +24,9 @@ async def process_shortcode(client, message, text):
                 if params is None:
                     params = ""
                 else:
-                # Handle current_message_id
-                if "current_message_id" in params:
-                    params = params.replace("current_message_id", str(message.id))
+                    # Handle current_message_id
+                    if "current_message_id" in params:
+                        params = params.replace("current_message_id", str(message.id))
                 
                 # Construct shortcode key
                 shortcode_key = f"{category}:{action}"
