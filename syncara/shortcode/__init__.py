@@ -163,6 +163,38 @@ class ShortcodeRegistry:
         if not self._initialized:
             self._load_shortcodes()
         return self.descriptions.copy()
+    
+    def get_shortcode_docs(self) -> str:
+        """Generate documentation for all registered shortcodes"""
+        if not self._initialized:
+            self._load_shortcodes()
+        
+        docs = ["Available Shortcodes:"]
+        
+        # Group shortcodes by category
+        categories = {}
+        for shortcode, desc in self.descriptions.items():
+            category = shortcode.split(':')[0]
+            if category not in categories:
+                categories[category] = []
+            categories[category].append((shortcode, desc))
+        
+        # Generate formatted documentation
+        for category, shortcodes in sorted(categories.items()):
+            docs.append(f"\n{category}:")
+            for shortcode, desc in sorted(shortcodes):
+                docs.append(f"- [{shortcode}] - {desc}")
+        
+        # Add execution order notes
+        docs.append("\n⚠️ Important Notes:")
+        docs.append("- CANVAS:CREATE must be executed before CANVAS:EXPORT")
+        docs.append("- CANVAS:SHOW and CANVAS:EDIT require file to exist first")
+        docs.append("- USER management commands require admin privileges")
+        docs.append("- GROUP management commands require admin privileges")
+        docs.append("- CHANNEL management commands require owner privileges")
+        docs.append("- PYROGRAM: prefix untuk semua fungsi Pyrogram method")
+        
+        return "\n".join(docs)
 
 # Create global registry instance
 registry = ShortcodeRegistry()
