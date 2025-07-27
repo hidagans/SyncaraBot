@@ -2191,8 +2191,26 @@ async def features_help_command(client, message):
 
 **🐍 Python Execution:**
 • `[PYTHON:EXEC:code]` - Execute Python code
-• `[CODE:PYTHON:code]` - Alternative syntax
+• `[CODE:PYTHON:code]` - Alternative syntax  
 • `[CALC:PYTHON:code]` - For calculations
 
-**Examples:**
-• `
+**📁 File Search:**
+• `[SEARCH:FILE:keyword]` - Search files
+• `[FILE:FIND:keyword]` - Alternative syntax
+
+**💬 Chat Search:**
+• `[CHAT:SEARCH:keyword]` - Search chats
+• `[SEARCH:CHAT:keyword]` - Alternative syntax
+
+**📝 TODO Management:**
+• `[TODO:CREATE:task]` - Create new todo
+• `[TODO:LIST:]` - List all todos
+• `[TODO:COMPLETE:id]` - Complete todo
+
+Gunakan fitur ini dalam pesan AI untuk eksekusi otomatis! 🤖✨"""
+
+        await message.reply_text(help_text)
+        
+    except Exception as e:
+        console.error(f"Error in features_help_command: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")
