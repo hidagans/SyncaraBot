@@ -227,9 +227,45 @@ class DatabaseManager:
                 console.warning(f"⚠️ Skipping index creation for {collection.name} due to duplicate data")
                 # Try to clean and retry
                 await self._handle_duplicate_index_error(collection, keys, kwargs)
+            elif "IndexKeySpecsConflict" in str(e) or "same name as the requested index" in str(e):
+                console.warning(f"⚠️ Index conflict detected for {collection.name}.{keys}")
+                # Handle existing index conflict
+                await self._handle_index_conflict(collection, keys, kwargs)
             else:
                 console.error(f"❌ Failed to create index on {collection.name}: {e}")
     
+    async def _handle_index_conflict(self, collection, keys, kwargs):
+        """Handle index conflicts by dropping and recreating"""
+        try:
+            # Generate expected index name
+            if isinstance(keys, list):
+                # Compound index name
+                index_name = "_".join([f"{k[0]}" if isinstance(k, tuple) else str(k) for k in keys]) + "_1"
+            else:
+                # Single field index name
+                index_name = f"{keys}_1"
+            
+            console.info(f"🔄 Dropping conflicting index {index_name} on {collection.name}")
+            
+            # Try to drop the existing index
+            try:
+                await collection.drop_index(index_name)
+                console.info(f"✅ Dropped existing index {index_name}")
+            except Exception as drop_error:
+                console.warning(f"⚠️ Could not drop index {index_name}: {drop_error}")
+            
+            # Retry creating the index
+            if isinstance(keys, list):
+                await collection.create_index(keys, **kwargs)
+            else:
+                await collection.create_index(keys, **kwargs)
+            
+            console.info(f"✅ Successfully recreated index {index_name} with new properties")
+            
+        except Exception as conflict_error:
+            console.error(f"❌ Failed to resolve index conflict for {collection.name}: {conflict_error}")
+            console.warning(f"⚠️ Continuing without updated index for {keys}")
+
     async def _handle_duplicate_index_error(self, collection, keys, kwargs):
         """Handle duplicate key errors in index creation"""
         try:
