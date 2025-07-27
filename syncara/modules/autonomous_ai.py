@@ -77,6 +77,7 @@ class AutonomousAI:
                 await asyncio.sleep(120)
     
     async def execute_proactive_action(self, user_id, pattern):
+        """Execute proactive action with error handling"""
         from syncara import assistant_manager
         try:
             action_type = pattern['suggested_action']
@@ -89,16 +90,19 @@ class AutonomousAI:
             
             proactive_message = await self.generate_proactive_message(user_id, pattern)
             
-            await client.send_message(
-                chat_id=user_id,
-                text=f"💡 **Proactive Assistant**\n\n{proactive_message}"
+            success = await self.safe_send_message(
+                client=client, 
+                user_id=user_id, 
+                text=f"💡 **Proactive Assistant**\n\n{proactive_message}",
+                message_type="proactive_action"
             )
             
-            await self.log_proactive_action(user_id, action_type, proactive_message)
-            console.info(f"✅ Sent proactive message to user {user_id}")
+            if success:
+                await self.log_proactive_action(user_id, action_type, proactive_message)
+                console.info(f"✅ Sent proactive message to user {user_id}")
             
         except Exception as e:
-            console.error(f"Error executing proactive action: {e}")
+            console.error(f"Error in execute_proactive_action: {e}")
     
     async def generate_proactive_message(self, user_id, pattern):
         try:
@@ -271,6 +275,23 @@ class AutonomousAI:
             user_id = opportunity["user_id"]
             help_type = opportunity["type"]
             
+            # Verify user exists and we can message them
+            user_data = await users.find_one({"user_id": user_id})
+            if not user_data:
+                console.warning(f"User {user_id} not found in database")
+                return
+            
+            # Check if user is already marked as unreachable
+            if user_data.get("unreachable", False):
+                console.info(f"User {user_id} is marked as unreachable, skipping proactive help")
+                return
+            
+            # Check if user has sufficient interaction history
+            interaction_count = user_data.get("interaction_count", 0)
+            if interaction_count < 2:
+                console.info(f"User {user_id} has insufficient interaction history ({interaction_count})")
+                return
+            
             messages = {
                 "help_offer": "👋 Hai! Aku lihat kamu butuh bantuan. Ada yang bisa aku bantu?",
                 "feature_suggestion": "✨ Eh, ada fitur keren yang mungkin kamu suka! Mau aku tunjukin?",
@@ -279,24 +300,71 @@ class AutonomousAI:
             
             message = messages.get(help_type, messages["help_offer"])
             
-            await client.send_message(
-                chat_id=user_id,
-                text=f"🤖 **Proactive Assistant**\n\n{message}"
-            )
-            
-            # Log the action
-            await autonomous_tasks.insert_one({
-                "type": "proactive_help",
-                "user_id": user_id,
-                "help_type": help_type,
-                "timestamp": datetime.now(),
-                "status": "executed"
-            })
-            
-            console.info(f"✅ Executed proactive help for user {user_id}")
+            # Try to send message with proper error handling
+            try:
+                await client.send_message(
+                    chat_id=user_id,
+                    text=f"🤖 **Proactive Assistant**\n\n{message}"
+                )
+                
+                # Log successful action
+                await autonomous_tasks.insert_one({
+                    "type": "proactive_help",
+                    "user_id": user_id,
+                    "help_type": help_type,
+                    "timestamp": datetime.now(),
+                    "status": "executed"
+                })
+                
+                console.info(f"✅ Executed proactive help for user {user_id}")
+                
+            except Exception as telegram_error:
+                if "PEER_ID_INVALID" in str(telegram_error):
+                    console.warning(f"Cannot send proactive help to user {user_id}: Invalid peer (user may have blocked or deleted chat)")
+                    
+                    # Mark user as unreachable to avoid future attempts
+                    await users.update_one(
+                        {"user_id": user_id},
+                        {"$set": {"unreachable": True, "unreachable_since": datetime.now()}}
+                    )
+                    
+                    # Log failed attempt
+                    await autonomous_tasks.insert_one({
+                        "type": "proactive_help",
+                        "user_id": user_id,
+                        "help_type": help_type,
+                        "timestamp": datetime.now(),
+                        "status": "failed",
+                        "error": "PEER_ID_INVALID - User marked as unreachable"
+                    })
+                    
+                else:
+                    console.error(f"Telegram error sending proactive help to {user_id}: {telegram_error}")
+                    
+                    # Log other errors
+                    await autonomous_tasks.insert_one({
+                        "type": "proactive_help",
+                        "user_id": user_id,
+                        "help_type": help_type,
+                        "timestamp": datetime.now(),
+                        "status": "failed",
+                        "error": str(telegram_error)
+                    })
             
         except Exception as e:
-            console.error(f"Error executing proactive help: {e}")
+            console.error(f"Error in proactive help execution: {e}")
+            # Log system error
+            try:
+                await autonomous_tasks.insert_one({
+                    "type": "proactive_help",
+                    "user_id": opportunity.get("user_id", 0),
+                    "help_type": opportunity.get("type", "unknown"),
+                    "timestamp": datetime.now(),
+                    "status": "system_error",
+                    "error": str(e)
+                })
+            except:
+                pass  # Don't let logging errors crash the system
     
     def select_best_assistant(self, action_type):
         """Select best assistant for action type"""
@@ -392,8 +460,44 @@ class AutonomousAI:
                 {"$set": {"status": "failed", "error": str(e)}}
             )
     
+    async def safe_send_message(self, client, user_id, text, message_type="autonomous"):
+        """Safely send message with PEER_ID_INVALID error handling"""
+        try:
+            # Check if user is marked as unreachable
+            user_data = await users.find_one({"user_id": user_id})
+            if user_data and user_data.get("unreachable", False):
+                console.info(f"User {user_id} is marked as unreachable, skipping message")
+                return False
+            
+            await client.send_message(chat_id=user_id, text=text)
+            return True
+            
+        except Exception as e:
+            if "PEER_ID_INVALID" in str(e):
+                console.warning(f"Cannot send {message_type} message to user {user_id}: Invalid peer")
+                
+                # Mark user as unreachable
+                await users.update_one(
+                    {"user_id": user_id},
+                    {"$set": {"unreachable": True, "unreachable_since": datetime.now()}}
+                )
+                
+                # Log failed attempt
+                await autonomous_tasks.insert_one({
+                    "type": message_type,
+                    "user_id": user_id,
+                    "timestamp": datetime.now(),
+                    "status": "failed",
+                    "error": "PEER_ID_INVALID - User marked as unreachable"
+                })
+                
+            else:
+                console.error(f"Error sending {message_type} message to {user_id}: {e}")
+                
+            return False
+
     async def send_reminder(self, task):
-        """Send reminder message"""
+        """Send reminder message with error handling"""
         from syncara import assistant_manager
         
         user_id = task.get("user_id")
@@ -402,10 +506,12 @@ class AutonomousAI:
         
         client = assistant_manager.get_assistant(assistant_id)
         if client:
-            await client.send_message(chat_id=user_id, text=message)
+            success = await self.safe_send_message(client, user_id, message, "reminder")
+            if success:
+                console.info(f"✅ Sent reminder to user {user_id}")
     
     async def send_suggestion(self, task):
-        """Send suggestion message"""
+        """Send suggestion message with error handling"""
         from syncara import assistant_manager
         
         user_id = task.get("user_id")
@@ -414,7 +520,9 @@ class AutonomousAI:
         
         client = assistant_manager.get_assistant(assistant_id)
         if client:
-            await client.send_message(chat_id=user_id, text=suggestion)
+            success = await self.safe_send_message(client, user_id, suggestion, "suggestion")
+            if success:
+                console.info(f"✅ Sent suggestion to user {user_id}")
     
     async def chat_health_monitor(self):
         """Monitor chat health and engagement"""
@@ -707,20 +815,41 @@ class ProactiveChatMonitor:
             except Exception as e:
                 console.error(f"Error checking chat {chat_id}: {e}")
     async def send_engagement_message(self, chat_id):
+        """Send engagement message to chat with error handling"""
         from syncara import assistant_manager
         try:
             assistant_id = await self.select_chat_assistant(chat_id)
             client = assistant_manager.get_assistant(assistant_id)
             if not client:
                 return
+            
             engagement_msg = await self.generate_engagement_message(chat_id)
-            await client.send_message(
-                chat_id=chat_id,
-                text=f"💬 {engagement_msg}"
-            )
-            console.info(f"Sent engagement message to chat {chat_id}")
+            
+            try:
+                await client.send_message(
+                    chat_id=chat_id,
+                    text=f"💬 {engagement_msg}"
+                )
+                console.info(f"✅ Sent engagement message to chat {chat_id}")
+                
+            except Exception as telegram_error:
+                if "PEER_ID_INVALID" in str(telegram_error):
+                    console.warning(f"Cannot send engagement message to chat {chat_id}: Invalid peer")
+                    
+                    # Mark chat as problematic in groups collection
+                    await groups.update_one(
+                        {"chat_id": chat_id},
+                        {"$set": {"unreachable": True, "unreachable_since": datetime.now()}}
+                    )
+                    
+                elif "CHAT_WRITE_FORBIDDEN" in str(telegram_error):
+                    console.warning(f"Cannot send to chat {chat_id}: No write permission")
+                    
+                else:
+                    console.error(f"Telegram error sending to chat {chat_id}: {telegram_error}")
+                    
         except Exception as e:
-            console.error(f"Error sending engagement message: {e}")
+            console.error(f"Error in engagement message system: {e}")
     async def auto_moderate_chat(self, chat_id):
         try:
             moderation_actions = [
@@ -799,11 +928,27 @@ class ScheduledAITasks:
                 )
                 task['status'] = 'completed' if result else 'failed'
             elif task['type'] == 'message':
-                await client.send_message(
-                    chat_id=task['target_chat'],
-                    text=task['params']['message']
-                )
-                task['status'] = 'completed'
+                try:
+                    await client.send_message(
+                        chat_id=task['target_chat'],
+                        text=task['params']['message']
+                    )
+                    task['status'] = 'completed'
+                    console.info(f"✅ Sent scheduled message to {task['target_chat']}")
+                    
+                except Exception as send_error:
+                    if "PEER_ID_INVALID" in str(send_error):
+                        console.warning(f"Cannot send scheduled message to {task['target_chat']}: Invalid peer")
+                        task['status'] = 'failed'
+                        task['error'] = 'PEER_ID_INVALID'
+                    elif "CHAT_WRITE_FORBIDDEN" in str(send_error):
+                        console.warning(f"Cannot send to {task['target_chat']}: No write permission")
+                        task['status'] = 'failed'
+                        task['error'] = 'CHAT_WRITE_FORBIDDEN'
+                    else:
+                        console.error(f"Error sending scheduled message to {task['target_chat']}: {send_error}")
+                        task['status'] = 'failed'
+                        task['error'] = str(send_error)
             elif task['type'] == 'ai_analysis':
                 await self.run_ai_analysis_task(task, client)
                 task['status'] = 'completed'
