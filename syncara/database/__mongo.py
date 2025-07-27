@@ -132,85 +132,133 @@ class DatabaseManager:
         self.db = db
     
     async def ensure_indexes(self):
-        """Buat indexes untuk performa yang lebih baik"""
+        """Buat indexes untuk performa yang lebih baik dengan error handling"""
         try:
             console.info("🔧 Creating database indexes...")
             
             # Users collection indexes
-            await users.create_index("user_id", unique=True)
-            await users.create_index("username")
-            await users.create_index("last_interaction")
-            await users.create_index("interaction_count")
+            await self._create_index_safe(users, "user_id", unique=True)
+            await self._create_index_safe(users, "username")
+            await self._create_index_safe(users, "last_interaction")
+            await self._create_index_safe(users, "interaction_count")
             
             # Groups collection indexes
-            await groups.create_index("chat_id", unique=True)
-            await groups.create_index("group_type")
+            await self._create_index_safe(groups, "chat_id", unique=True)
+            await self._create_index_safe(groups, "group_name")
             
             # Canvas files indexes
-            await canvas_files.create_index([("chat_id", 1), ("filename", 1)], unique=True)
-            await canvas_files.create_index("created_at")
-            await canvas_files.create_index("updated_at")
+            await self._create_index_safe(canvas_files, [("chat_id", 1), ("filename", 1)], unique=True)
+            await self._create_index_safe(canvas_files, "created_at")
+            await self._create_index_safe(canvas_files, "updated_at")
             
             # Workflow executions indexes
-            await workflow_executions.create_index("execution_id", unique=True)
-            await workflow_executions.create_index([("user_id", 1), ("status", 1)])
-            await workflow_executions.create_index("created_at")
-            await workflow_executions.create_index("status")
+            await self._create_index_safe(workflow_executions, "execution_id", unique=True)
+            await self._create_index_safe(workflow_executions, [("user_id", 1), ("status", 1)])
+            await self._create_index_safe(workflow_executions, "created_at")
+            await self._create_index_safe(workflow_executions, "status")
             
             # Image generations indexes
-            await image_generations.create_index("user_id")
-            await image_generations.create_index("created_at")
-            await image_generations.create_index("success")
+            await self._create_index_safe(image_generations, "user_id")
+            await self._create_index_safe(image_generations, "created_at")
+            await self._create_index_safe(image_generations, "success")
             
             # User permissions indexes
-            await user_permissions.create_index([("user_id", 1), ("chat_id", 1)], unique=True)
-            await user_permissions.create_index("created_at")
+            await self._create_index_safe(user_permissions, [("user_id", 1), ("chat_id", 1)], unique=True)
+            await self._create_index_safe(user_permissions, "created_at")
             
-            # Autonomous AI indexes
-            await autonomous_tasks.create_index("task_id", unique=True)
-            await autonomous_tasks.create_index("status")
-            await autonomous_tasks.create_index("scheduled_at")
+            # Autonomous AI indexes - with special handling
+            await self._create_index_safe(autonomous_tasks, "task_id", unique=True, sparse=True)
+            await self._create_index_safe(autonomous_tasks, "status")
+            await self._create_index_safe(autonomous_tasks, "scheduled_at")
             
-            await user_patterns.create_index("user_id")
-            await user_patterns.create_index("pattern_type")
-            await user_patterns.create_index("updated_at")
+            await self._create_index_safe(user_patterns, "user_id")
+            await self._create_index_safe(user_patterns, "pattern_type")
+            await self._create_index_safe(user_patterns, "updated_at")
             
-            await scheduled_actions.create_index("action_id", unique=True)
-            await scheduled_actions.create_index("scheduled_at")
-            await scheduled_actions.create_index("status")
+            await self._create_index_safe(scheduled_actions, "action_id", unique=True, sparse=True)
+            await self._create_index_safe(scheduled_actions, "scheduled_at")
+            await self._create_index_safe(scheduled_actions, "status")
             
             # Channel management indexes
-            await channel_posts.create_index("post_id", unique=True)
-            await channel_posts.create_index("type")
-            await channel_posts.create_index("created_at")
-            await channel_posts.create_index("posted_time")
-            await channel_posts.create_index("status")
+            await self._create_index_safe(channel_posts, "post_id", unique=True)
+            await self._create_index_safe(channel_posts, "status")
+            await self._create_index_safe(channel_posts, "created_at")
             
-            await channel_analytics.create_index("timestamp")
-            await channel_analytics.create_index("channel_username")
+            await self._create_index_safe(channel_analytics, "timestamp")
+            await self._create_index_safe(channel_analytics, "metric_name")
             
-            await channel_schedule.create_index("content_type")
-            await channel_schedule.create_index("scheduled_time")
+            await self._create_index_safe(channel_schedule, "scheduled_time")
+            await self._create_index_safe(channel_schedule, "status")
+            
+            await self._create_index_safe(channel_content_queue, "priority")
+            await self._create_index_safe(channel_content_queue, "status")
             
             # System logs indexes
-            await system_logs.create_index("timestamp")
-            await system_logs.create_index("level")
-            await system_logs.create_index("module")
+            await self._create_index_safe(system_logs, "timestamp")
+            await self._create_index_safe(system_logs, "level")
+            await self._create_index_safe(system_logs, "module")
             
             # Error logs indexes
-            await error_logs.create_index("timestamp")
-            await error_logs.create_index("module")
+            await self._create_index_safe(error_logs, "timestamp")
+            await self._create_index_safe(error_logs, "module")
             
             # Performance metrics indexes
-            await performance_metrics.create_index("timestamp")
-            await performance_metrics.create_index("metric_name")
+            await self._create_index_safe(performance_metrics, "timestamp")
+            await self._create_index_safe(performance_metrics, "metric_name")
             
             console.info("✅ Database indexes created successfully")
             
         except Exception as e:
             console.error(f"❌ Error creating indexes: {e}")
-            raise
+            console.warning("⚠️ Bot will continue with limited database performance")
+            # Don't raise exception, let bot continue
     
+    async def _create_index_safe(self, collection, keys, **kwargs):
+        """Safely create index with error handling"""
+        try:
+            if isinstance(keys, list):
+                # Compound index
+                await collection.create_index(keys, **kwargs)
+            else:
+                # Single field index
+                await collection.create_index(keys, **kwargs)
+        except Exception as e:
+            if "E11000" in str(e) or "duplicate key" in str(e):
+                console.warning(f"⚠️ Skipping index creation for {collection.name} due to duplicate data")
+                # Try to clean and retry
+                await self._handle_duplicate_index_error(collection, keys, kwargs)
+            else:
+                console.error(f"❌ Failed to create index on {collection.name}: {e}")
+    
+    async def _handle_duplicate_index_error(self, collection, keys, kwargs):
+        """Handle duplicate key errors in index creation"""
+        try:
+            console.info(f"🧹 Attempting to fix duplicate data in {collection.name}")
+            
+            # For autonomous_tasks, clean null task_ids
+            if collection.name == "autonomous_tasks" and keys == "task_id":
+                null_count = await collection.count_documents({"task_id": None})
+                if null_count > 0:
+                    console.info(f"🗑️ Removing {null_count} documents with null task_id")
+                    await collection.delete_many({"task_id": None})
+                    # Retry index creation
+                    await collection.create_index(keys, **kwargs)
+                    console.info("✅ Index created successfully after cleanup")
+            
+            # For scheduled_actions, clean null action_ids  
+            elif collection.name == "scheduled_actions" and keys == "action_id":
+                null_count = await collection.count_documents({"action_id": None})
+                if null_count > 0:
+                    console.info(f"🗑️ Removing {null_count} documents with null action_id")
+                    await collection.delete_many({"action_id": None})
+                    # Retry index creation
+                    await collection.create_index(keys, **kwargs)
+                    console.info("✅ Index created successfully after cleanup")
+            
+        except Exception as cleanup_error:
+            console.error(f"❌ Cleanup failed for {collection.name}: {cleanup_error}")
+            console.warning(f"⚠️ Continuing without unique index for {keys}")
+
     async def cleanup_old_data(self, days_old: int = 30):
         """Bersihkan data lama untuk menghemat storage"""
         try:
