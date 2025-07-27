@@ -11,7 +11,7 @@ async def _trigger_user_save(client, message):
     try:
         if message and message.from_user:
             from syncara.modules.assistant_memory import kenalan_dan_update
-            await kenalan_dan_update(client, message.from_user)
+            await kenalan_dan_update(client, message.from_user, send_greeting=False)
     except Exception as e:
         # Jangan biarkan error trigger mengganggu shortcode execution
         from syncara.console import console

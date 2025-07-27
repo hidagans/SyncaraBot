@@ -158,7 +158,7 @@ async def _trigger_user_save_for_command(client, message):
     """Universal trigger untuk save user data di bot commands"""
     try:
         if message and message.from_user:
-            await kenalan_dan_update(client, message.from_user)
+            await kenalan_dan_update(client, message.from_user, send_greeting=False)
     except Exception as e:
         console.error(f"Error in command user save trigger: {e}")
 
@@ -683,7 +683,7 @@ async def setup_assistant_handlers():
                     try:
                         # 🚀 TAMBAH TRIGGER: Auto-kenalan & save user data untuk group messages
                         if message.from_user:
-                            await kenalan_dan_update(client, message.from_user)
+                            await kenalan_dan_update(client, message.from_user, send_greeting=False)
                         
                         # Get text from either message text or caption
                         text = message.text or message.caption

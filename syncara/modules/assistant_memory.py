@@ -3,8 +3,14 @@ from syncara.console import console
 from datetime import datetime
 import json
 
-async def kenalan_dan_update(client, user):
-    """Kenalan dengan user dan simpan/update ke database"""
+async def kenalan_dan_update(client, user, send_greeting=True):
+    """Kenalan dengan user dan simpan/update ke database
+    
+    Args:
+        client: Pyrogram client
+        user: User object
+        send_greeting: Boolean, kirim greeting message atau tidak (default: True)
+    """
     try:
         user_data = await users.find_one({"user_id": user.id})
         if not user_data:
@@ -46,10 +52,12 @@ async def kenalan_dan_update(client, user):
             
             await users.insert_one(new_user_data)
             
-            welcome_message = f"Halo {user.first_name or user.username}! Aku AERIS, asisten AI kamu. Senang kenalan denganmu! 😊\n\n" \
-                             f"Aku akan belajar preferensimu seiring waktu untuk memberikan pengalaman yang lebih baik!"
+            if send_greeting:
+                welcome_message = f"Halo {user.first_name or user.username}! Aku AERIS, asisten AI kamu. Senang kenalan denganmu! 😊\n\n" \
+                                 f"Aku akan belajar preferensimu seiring waktu untuk memberikan pengalaman yang lebih baik!"
+                
+                await client.send_message(user.id, welcome_message)
             
-            await client.send_message(user.id, welcome_message)
             console.info(f"👋 New user registered: {user.first_name} (@{user.username}) - ID: {user.id}")
             
         else:
@@ -66,21 +74,23 @@ async def kenalan_dan_update(client, user):
             
             await users.update_one({"user_id": user.id}, {"$set": update_data})
             
-            # Personalized greeting based on interaction history
-            if interaction_count <= 3:
-                greeting = f"Halo lagi, {user.first_name or user.username}! Aku masih ingat kamu kok 😁\nIni interaksi ke-{interaction_count} kita!"
-            elif interaction_count <= 10:
-                greeting = f"Hai {user.first_name or user.username}! Senang ketemu lagi! 🙂"
-            elif interaction_count <= 50:
-                greeting = f"Halo {user.first_name or user.username}! Kamu udah jadi teman dekat aku nih! 😊"
-            else:
-                greeting = f"Hai bestie {user.first_name or user.username}! Kamu udah kayak keluarga buat aku! 🥰"
+            if send_greeting:
+                # Personalized greeting based on interaction history
+                if interaction_count <= 3:
+                    greeting = f"Halo lagi, {user.first_name or user.username}! Aku masih ingat kamu kok 😁\nIni interaksi ke-{interaction_count} kita!"
+                elif interaction_count <= 10:
+                    greeting = f"Hai {user.first_name or user.username}! Senang ketemu lagi! 🙂"
+                elif interaction_count <= 50:
+                    greeting = f"Halo {user.first_name or user.username}! Kamu udah jadi teman dekat aku nih! 😊"
+                else:
+                    greeting = f"Hai bestie {user.first_name or user.username}! Kamu udah kayak keluarga buat aku! 🥰"
+                
+                await client.send_message(user.id, greeting)
             
-            await client.send_message(user.id, greeting)
             console.info(f"🔄 Updated user: {user.first_name} (@{user.username}) - Interaction #{interaction_count}")
             
     except Exception as e:
-        console.error(f"Error in kenalan_dan_update: {e}")
+        console.error(f"Error in kenalan_dan_update: {str(e)}")
 
 async def get_user_memory(user_id):
     """Ambil data user (ingatan) dari database berdasarkan user_id"""
